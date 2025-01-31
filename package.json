@@ -7,7 +7,7 @@
     "start": "wp-scripts start src/blocks/rm_menu_item/index.js --output-path=build/"
   },
   "devDependencies": {
-    "@wordpress/scripts": "^26.0.0"
+    "@wordpress/scripts": "^30.10.0"
   },
   "main": "index.js",
   "keywords": [],
