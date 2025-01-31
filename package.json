@@ -1,16 +1,17 @@
 {
   "name": "rm-menu-item-block",
   "version": "1.0.0",
-  "description": "Custom FSE block for RM Menu Item",
+  "description": "Custom block for RM Menu Item",
   "scripts": {
-    "build": "wp-scripts build src/blocks/rm_menu_item/index.js --output-path=build/",
-    "start": "wp-scripts start src/blocks/rm_menu_item/index.js --output-path=build/"
+    "build": "wp-scripts build assets/src/blocks/rm_menu_item/ --output-path=assets/build/",
+    "start": "wp-scripts start assets/src/blocks/rm_menu_item/ --output-path=assets/build/"
   },
   "devDependencies": {
-    "@wordpress/scripts": "^30.10.0"
+    "@wordpress/scripts": "^30.10.0",
+    "eslint": "^9.19.0"
   },
   "main": "index.js",
   "keywords": [],
-  "author": "",
+  "author": "Peter Simandl",
   "license": "ISC"
 }
