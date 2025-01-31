@@ -24,6 +24,8 @@ include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
 //include_once plugin_dir_path(__FILE__) . 'includes/settings-page.php';
 include_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
 
+include_once plugin_dir_path(__FILE__) . 'includes/block-handler.php';
+
 // Activation hook to create the database table
 register_activation_hook(__FILE__, 'rm_activate');
 

@@ -1,0 +1,4 @@
+"scripts": {
+  "build": "wp-scripts build src/blocks/rm_menu_item/index.js --output-path=build/",
+  "start": "wp-scripts start src/blocks/rm_menu_item/index.js --output-path=build/"
+}

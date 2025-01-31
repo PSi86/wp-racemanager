@@ -1,0 +1,16 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/rm-menu-item",
+    "title": "RaceManager Menu Item",
+    "category": "widgets",
+    "attributes": {
+      "postOffset": {
+        "type": "string",
+        "default": "latest"
+      }
+    },
+    "editorScript": "file:../../../build/rm_menu_item.js",
+    "editorStyle": "file:../../../build/rm_menu_item.css",
+    "style": "file:../../../build/style-rm_menu_item.css"
+  }
+  
