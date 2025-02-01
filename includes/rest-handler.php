@@ -53,7 +53,7 @@ add_action('rest_api_init', function () {
  */
 function rm_handle_upload( $request ) {
     // Check for API key
-    $api_key = get_option('rh_api_key');
+    $api_key = get_option('rm_api_key');
     $provided_key = $request->get_header('api_key');
 
     if ($provided_key !== $api_key) {

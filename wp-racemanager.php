@@ -9,9 +9,6 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
-// Define the table name
-//global $wpdb;
-//define('RH_TABLE', $wpdb->prefix . 'race_data');
 define( 'WP_RACEMANAGER_VERSION', '1.0.0' );
 define( 'WP_RACEMANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
@@ -19,10 +16,11 @@ define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 
 
 // Include required files
+include_once plugin_dir_path(__FILE__) . 'includes/settings-handler.php';
+
 include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/meta-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
-//include_once plugin_dir_path(__FILE__) . 'includes/settings-page.php';
 include_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
 include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
 
@@ -30,6 +28,6 @@ include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
 register_activation_hook(__FILE__, 'rm_activate');
 
 function rm_activate() {
-
+    // Doing nothing for now
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 }

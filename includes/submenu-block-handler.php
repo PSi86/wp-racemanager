@@ -36,9 +36,10 @@ add_action( 'init', 'wp_racemanager_register_nav_latest_races_submenu_block' );
  */
 function wp_racemanager_render_nav_latest_races_submenu( $attributes, $content ) {
     // Query the five latest published race posts.
+    $rm_last_races_count = get_option('rm_last_races_count', 5);
     $args  = array(
         'post_type'      => 'race',
-        'posts_per_page' => 5,
+        'posts_per_page' => $rm_last_races_count,
         'post_status'    => 'publish',
     );
     $races = get_posts( $args );

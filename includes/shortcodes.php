@@ -43,7 +43,7 @@ function rm_shortcode_handler($atts) {
     return $output;
 
     // Enqueue custom CSS
-    wp_enqueue_style('rh-custom-style', plugin_dir_url( __DIR__ ) . 'css/rh-custom.css');
+    wp_enqueue_style('rm-custom-style', plugin_dir_url( __DIR__ ) . 'css/rm-custom.css');
 
 
     //return rm_viewer_event($query);
@@ -68,9 +68,9 @@ function rm_viewer_event($query) {
 
     if (!$results[0]->locked) {
         // This is a live event -> serve live data script
-        wp_enqueue_script('rh-bracket-template', plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', ['jquery'], null, true);
-        wp_enqueue_script('rh-bracketview', plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', ['jquery'], null, true);
-        wp_localize_script('rh-bracketview', 'wp_vars', [
+        wp_enqueue_script('rm-bracket-template', plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', ['jquery'], null, true);
+        wp_enqueue_script('rm-bracketview', plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', ['jquery'], null, true);
+        wp_localize_script('rm-bracketview', 'wp_vars', [
             'mode' => 'live', // Environment (wordpress or rotorhazard) - not used currently
             //'timestampUrl' => rest_url('rh/v1/latest-timestamp'), // Timestamp REST endpoint
             'timestampUrl' => '/wp/wp-content/'.$results[0]->id.'-timestamp.json', // Timestamp REST endpoint
@@ -80,7 +80,7 @@ function rm_viewer_event($query) {
         ]);
 
         // Add a placeholder for the data
-       /*  $output .= '<div id="rh-latest-container">
+       /*  $output .= '<div id="rm-latest-container">
                     <p class="timestamp">Loading latest timestamp...</p>
                     <pre class="json-data">Loading latest JSON data...</pre>
                 </div>'; */
@@ -104,9 +104,9 @@ function rm_viewer_event($query) {
     }
     else {
         // This is a locked event -> serve static data from the database
-        wp_enqueue_script('rh-bracket-template', plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', ['jquery'], null, true);
-        wp_enqueue_script('rh-bracketview', plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', ['jquery'], null, true);
-        wp_localize_script('rh-bracketview', 'wp_vars', [
+        wp_enqueue_script('rm-bracket-template', plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', ['jquery'], null, true);
+        wp_enqueue_script('rm-bracketview', plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', ['jquery'], null, true);
+        wp_localize_script('rm-bracketview', 'wp_vars', [
             'mode' => 'static', // Environment (wordpress or rotorhazard) - not used currently
             'data' => json_decode($results[0]->json_data), // send data to client;
         ]);
@@ -145,7 +145,7 @@ function rm_viewer_list($query) {
     }
 
     // Generate the output table
-    $output = '<table class="rh-viewer-table">';
+    $output = '<table class="rm-viewer-table">';
     //$output .= '<thead><tr><th>ID</th><th>Race Name</th><th>Race Description</th><th>JSON Data</th><th>Timestamp</th></tr></thead><tbody>';
     $output .= '<thead><tr><th>Race Name</th><th>Race Description</th><th>Timestamp</th></tr></thead><tbody>';
 
