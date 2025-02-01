@@ -1,17 +1,41 @@
 {
-  "name": "rm-menu-item-block",
+  "name": "wp-racemanager",
   "version": "1.0.0",
-  "description": "Custom block for RM Menu Item",
+  "description": "WordPress plugin that manages races with custom Gutenberg blocks.",
   "scripts": {
-    "build": "wp-scripts build assets/src/blocks/rm_menu_item/ --output-path=assets/build/",
-    "start": "wp-scripts start assets/src/blocks/rm_menu_item/ --output-path=assets/build/"
+    "build": "webpack --mode production",
+    "start": "webpack --mode development --watch",
+    "lint": "eslint assets/src/**/*.js",
+    "test": "phpunit"
   },
   "devDependencies": {
-    "@wordpress/scripts": "^30.10.0",
-    "eslint": "^9.19.0"
+    "@babel/core": "^7.15.0",
+    "@babel/preset-env": "^7.15.0",
+    "@babel/preset-react": "^7.14.5",
+    "babel-loader": "^8.2.2",
+    "css-loader": "^5.2.6",
+    "eslint": "^7.32.0",
+    "eslint-plugin-react": "^7.24.0",
+    "sass": "^1.35.2",
+    "sass-loader": "^12.1.0",
+    "style-loader": "^3.2.1",
+    "webpack": "^5.51.1",
+    "webpack-cli": "^4.8.0"
   },
-  "main": "index.js",
-  "keywords": [],
+  "dependencies": {
+    "@wordpress/block-editor": "^14.0.0",
+    "@wordpress/blocks": "^14.0.0",
+    "@wordpress/components": "^14.0.0",
+    "@wordpress/i18n": "^14.0.0",
+    "@wordpress/element": "^14.0.0",
+    "@wordpress/data": "^14.0.0"
+  },
+  "keywords": [
+    "wordpress",
+    "gutenberg",
+    "blocks",
+    "racemanager"
+  ],
   "author": "Peter Simandl",
-  "license": "ISC"
+  "license": "GPL-2.0-or-later"
 }
