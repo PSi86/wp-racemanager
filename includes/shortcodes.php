@@ -24,32 +24,96 @@ function rm_shortcode_handler($atts) {
         return '<p>No valid post found for [rm_viewer].</p>';
     }
 
-    // For now it is ok to build the file names of data and timestamp purely from the post ID
-    $upload_path = WP_CONTENT_DIR . '/uploads/races/';
-    $file_timestamp = $upload_path . $post_id . '-timestamp.json';
-    $file_data = $upload_path . $post_id . '-data.json';
+    // check race status. live: set script to periodically check load live data, not live (locked): set script to load static data
+    $race_live = get_post_meta( $post_id, '_race_live', true );
 
-    if(!file_exists($file_timestamp) || !file_exists($file_data)) {
+    // For now it is ok to build the file names of data and timestamp purely from the post ID
+    $upload_path_local = WP_CONTENT_DIR . '/uploads/races/';
+
+    $upload_dir = wp_upload_dir();
+    $upload_path_url = trailingslashit( $upload_dir['baseurl'] ) . 'races/';
+
+    $filename_timestamp = $post_id . '-timestamp.json';
+    $filename_data = $post_id . '-data.json';
+
+    $file_timestamp_local = $upload_path_local . $filename_timestamp;
+    $file_timestamp_url = $upload_path_url . $filename_timestamp;
+    $file_data_local = $upload_path_local . $filename_data;
+    $file_data_url = $upload_path_url . $filename_data;
+    
+
+    if(!file_exists($file_timestamp_local) || !file_exists($file_data_local)) {
         return '<p>No JSON files found for this Race.</p>';
     }
 
-    // Optionally parse and display
-    // For simplicity, just output in <pre>
-    $output  = '<div class="my-json-viewer">';
-    //$output .= '<pre>' . esc_html( $json_data ) . '</pre>';
-    $output .= '<pre>Shortcode executed.</pre>';
-    $output .= '</div>';
+    // Enqueue custom CSS and JS
+    wp_enqueue_style(
+        'rm-custom-style', 
+        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+    );
+
+    wp_enqueue_script(
+        'rm-bracket-template', 
+        plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', 
+        ['jquery'], 
+        null, 
+        false
+    );
+
+    wp_enqueue_script(
+        'rm-bracketview', 
+        plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', 
+        ['jquery'], 
+        array(
+            'strategy' => 'defer'
+        ),
+        true
+    );
+
+    if($race_live) {
+        // This is a live event -> serve live data script
+        wp_localize_script('rm-bracketview', 'wp_vars', [
+            'webmode' => 'live', // live mode -> data is asynchronously updated
+            'timestampUrl' => $file_timestamp_url, // rest_url('rh/v1/latest-timestamp'), OR '/wp/wp-content/'.$results[0]->id.'-timestamp.json'
+            'dataUrl' => $file_data_url, // rest_url('rh/v1/latest-data'), OR '/wp/wp-content/'.$results[0]->id.'-data.json'
+            'refreshInterval' => 10000, // Polling interval in milliseconds (5 seconds)
+        ]);
+
+        //$output = '<p>This race is live. Data will automatically update.</p>';
+    }
+    else {
+        // This is not a live event -> serve static data script
+        wp_localize_script('rm-bracketview', 'wp_vars', [
+            'webmode' => 'static', // static mode -> data is loaded once
+            'timestampUrl' => $file_timestamp_url, // rest_url('rh/v1/latest-timestamp'), OR '/wp/wp-content/'.$results[0]->id.'-timestamp.json'
+            'dataUrl' => $file_data_url, // rest_url('rh/v1/latest-data'), OR '/wp/wp-content/'.$results[0]->id.'-data.json'
+            'refreshInterval' => 10000, // Polling interval in milliseconds (5 seconds)
+        ]);
+
+        //$output = '<p>This race is archived.</p>';
+    }
+
+    $output = '<div class="web-controls">
+                    <label for="pilotSelector">Highlight Pilot: </label>
+                    <select id="pilotSelector" onchange="updateFilterAndHighlight()">
+                        <option value="0">-- Select a Pilot --</option>
+                    </select>
+                    <label>
+                        <input type="checkbox" id="filterCheckbox" onchange="updateFilterAndHighlight()"> Filter by Selected Pilot
+                    </label>
+                    <a href="/results.html">Detailed Heat Data</a>
+                </div>
+                <!-- id needs to be *-display (eg. elimination-display) and class must be raceclass-container -->
+                <div id="elimination-display" class="raceclass-container"></div>
+                <div id="qualifying-display" class="raceclass-container"></div>
+                <div id="training-display" class="raceclass-container"></div>
+                <div id="progress-bar" class="rh-controls"></div>
+                <div id="bottom" style="visibility: hidden;">Rotormaniacs - Galaxy Whoop Race</div>';
 
     return $output;
-
-    // Enqueue custom CSS
-    wp_enqueue_style('rm-custom-style', plugin_dir_url( __DIR__ ) . 'css/rm-custom.css');
-
-
-    //return rm_viewer_event($query);
-    //return rm_viewer_list($query);
 }
 
+// Old implementation - not in use
 /**
  * Check if the requested race is locked or not!
  * if the race is locked -> serve page showing static data
@@ -133,7 +197,8 @@ function rm_viewer_event($query) {
     return $output;
 }
 
-function rm_viewer_list($query) {
+// currently not necessary - we use the cpt "race" and the wp archive page to display the list of races
+/* function rm_viewer_list($query) {
     global $wpdb;
 
     // Execute the query
@@ -161,4 +226,4 @@ function rm_viewer_list($query) {
 
     $output .= '</tbody></table>';
     return $output;
-}
+} */
