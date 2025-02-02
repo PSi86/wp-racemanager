@@ -1,0 +1,22 @@
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content:flex-start; /* Push #bottom to the end of the page */
+    /* margin: 5px; */
+    font-family: Arial, sans-serif;
+    /*height: 100%;  Ensure the body and html elements take full height */
+    min-height: 100vh; /* Ensure the body and html elements take full height */
+    padding-bottom: 2em; /* Ensure the #bottom element is visible */
+    background-color: #ededed; /*#e9e9e9; #ededed; #ececec;*/
+    /* background-image: url(bg.png); */
+    background-repeat: repeat;
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+}
+.class-title {
+    padding-top: 1em;
+    color: white;
+    margin-bottom: 10px;
+}

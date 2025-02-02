@@ -1,60 +1,17 @@
-/* Dummy CSS for rh-viewer shortcode */
-.rh-viewer-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
-    font-size: 16px;
-    text-align: left;
-}
-
-.rh-viewer-table th, .rh-viewer-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-}
-
-.rh-viewer-table th {
-    background-color: #f4f4f4;
-    font-weight: bold;
-}
-
-.rh-viewer-table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.rh-viewer-table tr:hover {
-    background-color: #f1f1f1;
-}
 /* For Testing */
 .no-wrap > a {
     white-space: nowrap;
 }
 
 /* For bracketview */
-body {
-    display: flex;
-    flex-direction: column;
-    justify-content:flex-start; /* Push #bottom to the end of the page */
-    /* margin: 5px; */
-    font-family: Arial, sans-serif;
-    /*height: 100%;  Ensure the body and html elements take full height */
-    min-height: 100vh; /* Ensure the body and html elements take full height */
-    padding-bottom: 2em; /* Ensure the #bottom element is visible */
-    background-color: #ededed; /*#e9e9e9; #ededed; #ececec;*/
-    /* background-image: url(bg.png); */
-    background-repeat: repeat;
-    -webkit-background-size: cover;
-    -moz-background-size: cover;
-    -o-background-size: cover;
-    background-size: cover;
-}
 .web-controls {
     display: flex;
     flex-direction: row;
     align-items: flex-start;
     white-space: nowrap;
     gap: 10px;
+    /* padding: 5px; */
     /* background: rgba(20, 20, 20, .2); */
-    padding: 5px;
     /* color: white; */
     /* margin-bottom: 1.2em; */
 }
@@ -66,7 +23,7 @@ body {
     transition: 0.1s linear all;
     padding: 1px;
 }
-a:hover {
+.web-controls a:hover {
     color: #0050a0;
 }
 .web-controls #pilotSelector {
@@ -124,7 +81,7 @@ a:hover {
     font-size: 20px;
     font-weight: bold;
     text-align: left;
-    padding-top: 1em;
+    /* padding-top: 1em; */
     /* color: white; */
     /* margin-bottom: 10px; */
 }
@@ -144,19 +101,19 @@ a:hover {
 }
 .node .title {
     writing-mode: vertical-rl;
-    text-orientation: sideways-right;
+    /* text-orientation: sideways-right; */
     transform: rotate(180deg);
     font-size: 14px;
     font-weight: bold;
     text-align: center;
     white-space: nowrap;
     /*border: 1px solid black;*/
-    /* height: 100%; */
-    width: 1em;
+    height: auto;
+    /* width: 2em; */
     padding-top: 4px; /* top and bottom are swapped due to transform:rotation */
     padding-bottom: 4px;
-    padding-left: 4px; /* left and right are swapped due to transform:rotation */
-    padding-right: 2px;
+    /* padding-left: 4px; left and right are swapped due to transform:rotation */
+    /* padding-right: 2px; */
 }
 .pilots-container {
     display: flex;
@@ -189,7 +146,8 @@ a:hover {
 .activeHeat {
     /* border: rgb(255, 0, 0) 3px solid; */
     /* border: #0050a0 4px solid; */
-    border: #00ff37 4px solid
+    /* border: #00ff37 4px solid; */
+    border: #0050a0 4px solid;
 }
 .winner {
     background-color: #cfffcf; /* lightgreen */
@@ -222,6 +180,6 @@ a:hover {
     color: gray !important;
 }
 /* Remove Theme's width limit of 1140px */
-.cm-container {
+/* .cm-container {
     max-width: none;
-}
+} */
