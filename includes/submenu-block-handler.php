@@ -45,12 +45,12 @@ function wp_racemanager_render_nav_latest_races_submenu( $attributes, $content )
     $races = get_posts( $args );
 
     // Build the submenu markup.
-    //$output = '<ul class="sub-menu wp-racemanager-latest-races-submenu">';
+    //$output = '<ul class="sub-menu wp-racemanager-latest-races-submenu">'; // li class "current-menu-item" removed
     $output = '';
     if ( ! empty( $races ) ) {
         foreach ( $races as $race ) {
             $output .= sprintf(
-                '<li class=" wp-block-navigation-item current-menu-item wp-block-navigation-link">
+                '<li style="white-space: nowrap;" class=" wp-block-navigation-item wp-block-navigation-link">
                     <a class="wp-block-navigation-item__content" href="%s" aria-current="page">
                         <span class="wp-block-navigation-item__label">%s</span>
                     </a>
@@ -66,7 +66,7 @@ function wp_racemanager_render_nav_latest_races_submenu( $attributes, $content )
     $archive_link = get_post_type_archive_link( 'race' );
     if ( $archive_link ) {
         $output .= sprintf(
-            '<li class=" wp-block-navigation-item current-menu-item wp-block-navigation-link">
+            '<li style="white-space: nowrap;" class=" wp-block-navigation-item wp-block-navigation-link">
                     <a class="wp-block-navigation-item__content" href="%s" aria-current="page">
                         <span class="wp-block-navigation-item__label">%s</span>
                     </a>
