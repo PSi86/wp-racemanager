@@ -339,7 +339,7 @@ async function loadWebData(mode="static") {
         .done(function(data){
             timestamp_server=data.time;
             if(mode=="live") {
-                setTimeout(function() { loadWebData(); }, refreshInterval);
+                setTimeout(function() { loadWebData("live"); }, refreshInterval);
             }
             if(timestamp_server!=timestamp_cached || cr_rh_data==null) {
                 console.log("Server and local timestamps are different.");
