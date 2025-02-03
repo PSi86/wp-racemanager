@@ -20,3 +20,11 @@ body {
     color: white;
     margin-bottom: 10px;
 }
+.raceclass-container {
+    width: fit-content; /* Ensure the container makes body grow to needed width */
+    overflow-x: visible; /* No scrolling vor individual containers */
+
+    /* Scaling for RH Display */
+    transform-origin: top left; /* Ensure scaling starts from the top-left corner */
+    transition: transform 0.5s ease-in-out; /* Smooth scaling transition */
+}
