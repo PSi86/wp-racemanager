@@ -64,9 +64,7 @@ function rm_shortcode_handler($atts) {
         'rm-bracketview', 
         plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', 
         ['jquery'], 
-        array(
-            'strategy' => 'defer'
-        ),
+        null,
         true
     );
 
