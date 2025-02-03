@@ -1100,7 +1100,8 @@ function renderGrid(nodes, raceClass) {
             }
         });
 
-        classContainer.appendChild(svgContainer);
+        //classContainer.appendChild(svgContainer);
+        gridContainer.appendChild(svgContainer); // Testing different nesting to ease the scaling of the SVG elements
     }
 }
 
@@ -1196,10 +1197,15 @@ function attachPilotMouseEvents() {
 }
 
 // Using defer option in the script tag to ensure that the script is executed after the DOM is fully loaded
-//document.addEventListener('DOMContentLoaded', initData);
-if(document.readyState !== 'loading') {
-    initData(); // when this is executed after the DOMContentLoaded event, the function is executed immediately
-}
-else {
-    document.addEventListener('DOMContentLoaded', initData);
-}
+// if(document.readyState == "complete") {
+//     // when this is executed after the DOMContentLoaded event, the function is executed immediately
+//     initData();
+// }
+// else {
+//     window.addEventListener("load", (event) => {
+//         initData();
+//       });
+// }
+window.addEventListener("load", (event) => {
+    initData();
+  });
