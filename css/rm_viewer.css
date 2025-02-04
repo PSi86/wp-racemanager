@@ -5,16 +5,13 @@
 
 /* For wordpress pilot registered list */
 .entry-content ul {
-    list-style-type: square;
+    /* list-style-type: square; */
     background: #f5f5f5;
-    padding-left: 35px;
     width: fit-content;
-    padding-right: 10px;
     border-radius: 5px;
     list-style: url(https://wherever-we-are.com/wp/wp-content/uploads/2025/02/propeller-20x20-1.png);
     padding: 10px 15px 10px 15px;
     list-style-position: inside;
-
 }
 /* For bracketview */
 .web-controls {
