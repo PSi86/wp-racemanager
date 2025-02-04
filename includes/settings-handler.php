@@ -28,11 +28,9 @@ function rm_settings_page() {
 }
 
 add_action('admin_init', function () {
-    // 1. Register existing setting for API key
-    register_setting('rm_options_group', 'rm_api_key');
-
-    // 2. Register new settings
-    register_setting('rm_options_group', 'rm_last_races_count'); // e.g., an integer
+    register_setting('rm_options_group', 'rm_api_key');         // a string
+    register_setting('rm_options_group', 'rm_last_races_count'); // an integer
+    register_setting('rm_options_group', 'rm_callsign_field');    // a string
     //register_setting('rm_options_group', 'rm_main_menu_id');     // not needed for gutenberg block implementation (was needed for classic menu)
     //register_setting('rm_options_group', 'rm_parent_item_id');   // not needed for gutenberg block implementation (was needed for classic menu)
 
@@ -47,6 +45,7 @@ add_action('admin_init', function () {
         function () {
             $value = get_option('rm_api_key', '');
             echo "<input type='text' name='rm_api_key' value='" . esc_attr($value) . "' class='regular-text'>";
+            echo "<p class='description'>Used to authenticate REST-API calls: get-pilots, upload</p>";
         },
         'rm',
         'rm_interface_section'
@@ -66,7 +65,20 @@ add_action('admin_init', function () {
         'rm_wp_section'
     );
 
-/*     // Field #2: Main Menu ID
+    // Field #2: Main Menu ID
+    add_settings_field(
+        'callsign_field',
+        'Pilot Nickname / Callsign Field Name',
+        function () {
+            $value = get_option('rm_callsign_field', 'pilot_callsign');
+            echo "<input type='text' name='rm_callsign_field' value='" . esc_attr($value) . "' class='regular-text'>";
+            echo "<p class='description'>Name of the Registration Form Field for the Pilot's Callsign. Default: pilot_callsign</p>";
+        },
+        'rm',
+        'rm_wp_section'
+    );
+
+/*  // Field #2: Main Menu ID
     add_settings_field(
         'main_menu_id_field',
         'Main Menu ID',

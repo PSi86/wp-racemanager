@@ -55,6 +55,7 @@ function rm_get_registered_callsigns( $form_title ) {
     $results = $wpdb->get_results( $query );
     
     $nicknames = array();
+    $callsign_field = get_option('rm_callsign_field', 'pilot_callsign');
 
     // Process each submission and extract the 'pilot_nickname_1' field.
     if ( ! empty( $results ) ) {
@@ -62,11 +63,11 @@ function rm_get_registered_callsigns( $form_title ) {
             // Unserialize the data (it’s stored as a serialized array)
             $data = maybe_unserialize( $row->form_value );
             // TODO: make name of the field configurable in settings
-            if ( isset( $data['pilot_nickname_1'] ) ) {
-                $nicknames[] = $data['pilot_nickname_1'];
+            if ( isset( $data[$callsign_field] ) ) {
+                $nicknames[] = $data[$callsign_field];
             }
             else {
-                $nicknames[] = "not set";
+                $nicknames[] = "Field not found";
             }
         }
     }
