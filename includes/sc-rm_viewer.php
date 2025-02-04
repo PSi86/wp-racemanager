@@ -1,5 +1,5 @@
 <?php
-// includes/shortcodes.php
+// includes/sc-rm_viewer.php
 // Register the custom shortcode [rm_viewer]
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
@@ -16,11 +16,24 @@ function rm_shortcode_handler($atts) {
         'rm_viewer'
     );
 
+    // Use supplied post_id param or get the current post ID of the page where the shortcode is used
+    $post_id = ! empty( $atts['post_id'] ) ? $atts['post_id'] : get_the_ID();
+    
+    if ( $post_id === 'latest' ) {
+        global $wpdb;
+        $posts_table = $wpdb->prefix . 'posts'; // WordPress posts table.
+        $post_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT MAX(ID) FROM $posts_table 
+                WHERE post_status = 'publish' AND post_type = 'race'"
+            )
+        );
+    }
 
-    // Determine which post to load JSON for
-    $post_id = ! empty( $atts['post_id'] ) ? intval( $atts['post_id'] ) : get_the_ID();
-
-    if ( ! $post_id ) {
+    if( $post_id ) {
+        $post_id = intval($post_id);
+    }
+    else {
         return '<p>No valid post found for [rm_viewer].</p>';
     }
 

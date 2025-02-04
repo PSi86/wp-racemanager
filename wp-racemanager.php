@@ -21,7 +21,7 @@ include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/meta-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
-include_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
+include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
 include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
 include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
 
