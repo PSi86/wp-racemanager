@@ -17,11 +17,12 @@ define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 
 // Include required files
 include_once plugin_dir_path(__FILE__) . 'includes/settings-handler.php';
-
+include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/meta-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
+include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
 include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
 
 // Activation hook to create the database table
