@@ -496,7 +496,7 @@ function updateClassData(rhData, raceClass) { // rhData is the data from RotorHa
     const raceClassObj = findRaceClassByName(rhData, raceClassCapital);
 
     if(!raceClassObj) { 
-        console.error("updateClassData: raceClass not found in RHData");
+        console.warn("updateClassData: raceClass not found in RHData");
         return null;  // Exit if the class ID is not found
     }
     const raceClassId = raceClassObj.id;
@@ -532,7 +532,8 @@ function updateClassData(rhData, raceClass) { // rhData is the data from RotorHa
         let targetElement = bracketData.data.find(node => node.id === targetId);
 
         if (!targetElement) {
-            throw new Error(`Target element with id=${targetId} not found in bracketData`);
+            //throw new Error(`Target element with id=${targetId} not found in bracketData`);
+            console.warn(`Target element with id=${targetId} not found in bracketData`);
         }
 
         // Update the target element with the new data
@@ -540,15 +541,21 @@ function updateClassData(rhData, raceClass) { // rhData is the data from RotorHa
         targetElement.title = heat.displayname; // Map displayname to title
 
         // add flag for active heat (used in rendering)
-        // TODO: check if this works also when the active heat changes during runtime (will the flag be added to the next active heat and keep it on the last one, too?)
         if (heat.id === bracketData.settings.currentHeat) {
             targetElement.active = true;
         }
 
         // rhData.result_data.heats.find
-        const heatResults = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat.id) : null;
+        // Cant use getLeaderboardForHeat(resultHeatsArray, heat_id) because we need 
+        // the whole result_data for the heat for the flown rounds
+        let heatResults = null;
         let leaderboard = null;
         let time = null;
+
+        // Skip searching for results if the heat is not flown yet
+        if(heat.id <= bracketData.settings.currentHeat) {
+            heatResults = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat.id) : null;
+        }
 
         if (heatResults && heatResults.leaderboard.meta.primary_leaderboard) {
             switch (heatResults.leaderboard.meta.primary_leaderboard) {
@@ -590,49 +597,75 @@ function updateClassData(rhData, raceClass) { // rhData is the data from RotorHa
 
         // Update the pilots array while keeping the structure intact
         heat.slots.forEach((slot, i) => {
-            let pilotName = "";
+            let pilotCallsign = "";
             let pilotResult = "";
+            let pilotId = 0;
 
-            // TODO: first check if results are available for the heat
+            // first check if results are available for the heat if(leaderboard)
             // if not, use the seed_id to display the heat displayname and rank
             // if yes, display the pilot callsign and result
 
             // Switch between seeded and unseeded slots!
-            if ((slot.pilot_id === 0 || slot.node_index === null) && !heatResultAvailable) {
+            // TODO: cant remember why node_index could be null -> check if this is still necessary
+            // slot.method is 1 for seeded slots and 0 for unseeded slots (and -1 for empty slots?)
+
+            if ((slot.pilot_id === 0 || slot.node_index === null) && !heatResultAvailable && slot.method !== -1) {
                 // Slot not seeded
                 // could just get this data from the result_data
                 //result_data.heats[4].rounds[flownRounds].nodes[i].pilot_id
 
-                // Resolve seed_id to heat displayname
-                const matchingHeat = rhData.heat_data.heats.find(h => h.id === slot.seed_id);
-                pilotName = matchingHeat ? `${matchingHeat.displayname} Rank ${slot.seed_rank}` : "";
+                // Skip searching for results if the heat to seed from is not flown yet
+                if(slot.seed_id <= bracketData.settings.currentHeat) {
+                    
+                    let seedHeatLeaderboard = getLeaderboardForHeat(resultHeatsArray, slot.seed_id)
+                    let seedPilotLeaderboard = null;
+
+                    if(seedHeatLeaderboard) {
+                        //const seedPilot = seedHeatLeaderboard.find(r => r.node_index === i);
+                        seedPilotLeaderboard = seedHeatLeaderboard.find(entry => entry.position == slot.seed_rank);
+                    }
+                    if(seedPilotLeaderboard) {
+                        pilotCallsign = seedPilotLeaderboard.callsign;
+                        pilotId = seedPilotLeaderboard.pilot_id;
+                    }
+                }
+                
+                if(!pilotCallsign) {
+                    // Resolve seed_id to heat displayname
+                    const seedHeat = rhData.heat_data.heats.find(h => h.id === slot.seed_id);
+                    // Fallback: show seeding rule (source heat and source rank)
+                    pilotCallsign = seedHeat ? `${seedHeat.displayname} Rank ${slot.seed_rank}` : "";
+                }
             } 
             //else if (slot.pilot_id !== 0 && slot.node_index !== null && heatResultAvailable) {
             else if (slot.pilot_id !== 0 && slot.node_index !== null) {
                 // Slot is seeded
+                pilotId = slot.pilot_id;
                 const pilot = rhData.pilot_data.pilots.find(p => p.pilot_id === slot.pilot_id);
-                pilotName = pilot ? pilot.callsign : "";
+                //const pilotLeaderboard = null;
+                pilotCallsign = pilot ? pilot.callsign : "";
+
                 if(leaderboard) { // check if results are available
-                        const pilotLeaderboard = leaderboard.find(r => r.pilot_id === slot.pilot_id);
+                    const pilotLeaderboard = leaderboard.find(r => r.pilot_id === slot.pilot_id);
+                    
                     if (pilotLeaderboard[time] === "0:00.000" || pilotLeaderboard.position < 1) {
                         pilotResult = "DNF";
                     } else {
                         pilotResult = String(pilotLeaderboard[time] + " ");  // total_time
-                        pilotResult += String(" #" + pilotLeaderboard.position);
+                        pilotResult += String(" L" + pilotLeaderboard.laps ); // Number of laps
+                        pilotResult += String(" #" + pilotLeaderboard.position); // final position
                     }
                 }
-                //pilotResult = String(pilotLeaderboard[time]+" ");  // total_time
-                //pilotResult += pilotLeaderboard.position != null ? String("#"+pilotLeaderboard.position) : "DNF";
             }
 
             if (targetElement.pilots[i]) {
-                targetElement.pilots[i].id = slot.pilot_id;
-                targetElement.pilots[i].name = pilotName;
+                targetElement.pilots[i].id = pilotId;
+                targetElement.pilots[i].name = pilotCallsign;
                 targetElement.pilots[i].result = pilotResult;
             } else {
                 targetElement.pilots.push({
-                    id: slot.pilot_id,
-                    name: pilotName,
+                    id: pilotId,
+                    name: pilotCallsign,
                     result: pilotResult
                 });
             }
@@ -761,7 +794,7 @@ function showOnlyActiveClass(raceClass) {
 // Calculate the grid layout for the bracketData (gridColumn, gridRow)
 function calculateClassLayout(bracketData) {
     if (!bracketData) {
-        console.error("calculateClassLayout: Missing bracketData");
+        console.warn("calculateClassLayout: No bracketData for this class");
         return null;
     }
 
@@ -847,7 +880,7 @@ function calculateClassLayout(bracketData) {
 
 function filterBracketData(bracketData) {
     if (!nodes) {
-        console.error("filterBracketData: Missing nodes");
+        console.warn("filterBracketData: Missing nodes");
         return null;
     }
     // TODO: when filtering sometimes unnecessary races are shown; also unnecessary blank columns are shown
@@ -903,7 +936,7 @@ function filterBracketData(bracketData) {
 // TODO carry over the node content from renderNodes (previous implementation)
 function renderGrid(nodes, raceClass) {
     if (!nodes || !raceClass) {
-        console.error("renderGrid: Missing nodes or raceClass");
+        console.warn("renderGrid: Missing nodes or raceClass");
         return null;
     }
     //const containerId = "elimination-display"; // Example container ID for reference
@@ -1103,6 +1136,49 @@ function renderGrid(nodes, raceClass) {
         //classContainer.appendChild(svgContainer);
         gridContainer.appendChild(svgContainer); // Testing different nesting to ease the scaling of the SVG elements
     }
+}
+
+/**
+ * Retrieves the Leaderboard for a heat_id.
+ *
+ * This function follows these steps:
+ * 1. Finds the heat with heat_id matching heat_id.
+ * 2. Checks heat.leaderboard.meta.primary_leaderboard to determine which subelement contains the pilot data.
+ * 3. Uses the primary leaderboard key to obtain the pilot leaderboard array.
+ * 4. Searches that array for the pilot whose 'position' matches seed_rank.
+ *
+ * @param {Array} resultHeatsArray - The JSON object containing race result details.
+ * @param {number|string} heat_id - The identifier used as heat_id.
+ * @returns {string|null} - The pilot name if found; otherwise, null.
+ */
+function getLeaderboardForHeat(resultHeatsArray, heat_id) {
+    // Verify the basic structure exists
+    /* if (!rhData || !rhData.result_data || !Array.isArray(rhData.result_data.heats)) {
+        return null;
+    } */
+    const heat = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat_id) : null;
+        
+    // Find the heat using heat_id (as heat_id)
+    //const heat = rhData.result_data.heats.find(h => h.heat_id == heat_id);
+    if (!heat || !heat.leaderboard || !heat.leaderboard.meta || !heat.leaderboard.meta.primary_leaderboard) {
+        return null;
+    }
+    
+    // Determine the primary leaderboard key from metadata (as per line 553 and following)
+    const primaryKey = heat.leaderboard.meta.primary_leaderboard;
+    
+    // Retrieve the pilot leaderboard using that key
+    const heatLeaderboard = heat.leaderboard[primaryKey];
+    // TODO: check if conversion to array is necessary like in line 553
+    if (!Array.isArray(heatLeaderboard)) {
+        return null;
+    }
+    
+    // Look for the pilot whose 'position' matches seed_rank
+    //const pilotEntry = heatLeaderboard.find(entry => entry.position == seed_rank);
+    
+    // pilotEntry: callsign, pilot_id
+    return heatLeaderboard;
 }
 
 function updateFilterAndHighlight() {
