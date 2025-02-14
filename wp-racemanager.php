@@ -23,7 +23,16 @@ include_once plugin_dir_path(__FILE__) . 'includes/meta-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
 include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
 include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
+
+//include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_cards.php'; // SC for Shortcode
+//include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_tabs.php'; // SC for Shortcode
+
 include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
+
+include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
+include_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
+//include_once plugin_dir_path(__FILE__) . 'includes/pwa-notifications-handler.php';
+//include_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
 
 // Activation hook to create the database table
 register_activation_hook(__FILE__, 'rm_activate');

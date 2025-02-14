@@ -1,5 +1,5 @@
 <?php
-// inc/rest.php
+// includes/rest-handler.php
 // Register the REST API routes
 
 // Reminder: if you need to check for permissions, you can use a callback like this:
