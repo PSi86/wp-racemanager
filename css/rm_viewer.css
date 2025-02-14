@@ -120,7 +120,7 @@
     white-space: nowrap;
     /*border: 1px solid black;*/
     height: auto;
-    width: 2em;
+    width: 23px; /* 2em */
     padding-top: 4px; /* top and bottom are swapped due to transform:rotation */
     padding-bottom: 4px;
     /* padding-left: 4px; left and right are swapped due to transform:rotation */
@@ -133,6 +133,7 @@
     justify-content: space-around;
     white-space: nowrap;
     height: 100%;
+    max-width: 180px;
     width: 100%;
     /*gap: 5px;*/
     /*padding: 0px 4px 0px 0px;*/
@@ -149,7 +150,6 @@
 .pilot-name {
     margin-right: 10px;
     /*border: rgb(255, 0, 0) 1px solid;*/
-    max-width: 80px;
     overflow: hidden;
 }
 .pilot-result {
