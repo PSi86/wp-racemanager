@@ -634,7 +634,7 @@ function updateClassData(rhData, raceClass) { // rhData is the data from RotorHa
                     // Resolve seed_id to heat displayname
                     const seedHeat = rhData.heat_data.heats.find(h => h.id === slot.seed_id);
                     // Fallback: show seeding rule (source heat and source rank)
-                    pilotCallsign = seedHeat ? `${seedHeat.displayname} Rank ${slot.seed_rank}` : "";
+                    pilotCallsign = seedHeat ? `${seedHeat.displayname} #${slot.seed_rank}` : "";
                 }
             } 
             //else if (slot.pilot_id !== 0 && slot.node_index !== null && heatResultAvailable) {
@@ -744,6 +744,7 @@ function processRHData(data) {
             document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
         }
 
+        // TODO Scaling only in RH script
         function scaleToFullWidth(element) {
             const screenWidth = window.innerWidth;
             const screenHeight = window.innerHeight;
