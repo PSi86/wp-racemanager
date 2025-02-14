@@ -15,18 +15,19 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
  * This example uses the REQUEST_URI to decide if the URL begins with "/live".
  * Adjust this function as needed if your WordPress install is in a subdirectory.
  */
-function pwa_is_live_page() {
+function rm_is_live_page() {
     // Get the current request URI.
     $request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
     // Match /live or /live/... (e.g., /live/pilots)
-    return preg_match('#^/live(?:/|$)#', $request_uri);
+    //return preg_match('#^/live(?:/|$)#', $request_uri);
+    return (strpos($request_uri, '/wp/live/') === 0);
 }
 
 /**
  * Enqueue PWA-related scripts only on live pages.
  */
-function pwa_live_enqueue_scripts() {
-    if ( pwa_is_live_page() ) {
+function rm_pwa_enqueue_scripts() {
+    if ( rm_is_live_page() ) {
         // Enqueue the service worker registration script.
         wp_enqueue_script(
             'pwa-sw-register',
@@ -45,28 +46,28 @@ function pwa_live_enqueue_scripts() {
         ); */
     }
 }
-add_action('wp_enqueue_scripts', 'pwa_live_enqueue_scripts');
+add_action('wp_enqueue_scripts', 'rm_pwa_enqueue_scripts');
 
 /**
  * Add the manifest link to the head only on live pages.
  */
-function pwa_live_add_manifest_link() {
-    if ( pwa_is_live_page() ) {
+function rm_pwa_add_manifest_link() {
+    if ( rm_is_live_page() ) {
         echo '<link rel="manifest" href="' . esc_url( home_url('?pwa_manifest=true') ) . '">' . "\n";
     }
 }
-add_action('wp_head', 'pwa_live_add_manifest_link');
+add_action('wp_head', 'rm_pwa_add_manifest_link');
 
 /**
  * Serve the manifest.json file when requested.
  */
-function pwa_live_manifest() {
+function rm_pwa_manifest() {
     if ( isset($_GET['pwa_manifest']) && $_GET['pwa_manifest'] === 'true' ) {
         header('Content-Type: application/json');
         echo json_encode(array(
             "name" => "Copterrace Live",
             "short_name" => "CR-Live",
-            "start_url" => "/live",
+            "start_url" => "wp/live/",
             "display" => "standalone",
             "background_color" => "#ffffff",
             "theme_color" => "#000000",
@@ -86,4 +87,4 @@ function pwa_live_manifest() {
         exit;
     }
 }
-add_action('init', 'pwa_live_manifest');
+add_action('init', 'rm_pwa_manifest');
