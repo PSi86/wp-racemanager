@@ -2,7 +2,10 @@
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register(pluginsUrl + '/wp-racemanager/js/pwa-sw.js')
+      //navigator.serviceWorker.register(pluginsUrl + '/wp-racemanager/js/pwa-sw.js')
+      navigator.serviceWorker.register('/wp/pwa-sw.js', {
+        scope: '/wp/live/'
+      })
         .then(function(registration) {
           console.log('Service Worker registered with scope:', registration.scope);
         })
@@ -13,5 +16,5 @@ if ('serviceWorker' in navigator) {
   }
   
   // Adjust pluginsUrl if necessary; assumes the plugin is under /wp-content/plugins/
-  var pluginsUrl = '/wp-content/plugins';
+  var pluginsUrl = '/wp/wp-content/plugins';
   

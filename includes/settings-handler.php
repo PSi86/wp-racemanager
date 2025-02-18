@@ -29,6 +29,7 @@ function rm_settings_page() {
 
 add_action('admin_init', function () {
     register_setting('rm_options_group', 'rm_api_key');         // a string
+    register_setting('rm_options_group', 'rm_live_page_id', 'rm_settings_sanitize_live_page'); // an integer
     register_setting('rm_options_group', 'rm_last_races_count'); // an integer
     register_setting('rm_options_group', 'rm_callsign_field');    // a string
     //register_setting('rm_options_group', 'rm_main_menu_id');     // not needed for gutenberg block implementation (was needed for classic menu)
@@ -38,7 +39,7 @@ add_action('admin_init', function () {
     add_settings_section('rm_interface_section', 'RotorHazard Interface Settings', null, 'rm');
     add_settings_section('rm_wp_section', 'Wordpress Environment Settings', null, 'rm');
 
-    // Existing API Key field
+    // API Key field
     add_settings_field(
         'api_key',
         'API Key',
@@ -50,7 +51,14 @@ add_action('admin_init', function () {
         'rm',
         'rm_interface_section'
     );
-
+    // Live Pages Path field
+    add_settings_field(
+        'live_page_id_field',
+        'Live Pages Main Page',
+        'rm_settings_live_page_input',
+        'rm',
+        'rm_wp_section'
+    );
     // Field #1: Number of last races shown in menu
     add_settings_field(
         'last_races_count_field',
@@ -104,3 +112,36 @@ add_action('admin_init', function () {
         'rm_wp_section'
     ); */
 });
+
+// Display the Live Page Title input field.
+function rm_settings_live_page_input() {
+    // Retrieve the stored page ID.
+    $stored_page_id = get_option('rm_live_page_id');
+    $page_title = '';
+    if ( $stored_page_id ) {
+        $page = get_post($stored_page_id);
+        if ( $page ) {
+            $page_title = $page->post_title;
+        }
+    }
+    //echo '<input type="text" id="live_races_page_field" name="live_races_page_id" value="' . esc_attr($page_title) . '" size="50" />';
+    echo "<input type='text' name='rm_live_page_id' value='" . esc_attr($page_title) . "' class='regular-text' size='50'>";
+    echo "<p class='description'>Entry Page Title to the Live Pages. On page and its child-pages the PWA installation and notification subscriptions are supported. Default: Live Races</p>";
+}
+
+// Sanitize callback: convert the input title to a page ID.
+function rm_settings_sanitize_live_page( $input ) {
+    // Attempt to find the page by title.
+    $page = get_page_by_title( $input, OBJECT, 'page' );
+    if ( $page ) {
+        return $page->ID;
+    }
+    // If no page is found, add an error and return the previous value.
+    add_settings_error(
+        'rm_live_page_id',
+        'rm_live_page_id_error',
+        'Page with the title "' . esc_html( $input ) . '" not found. Please enter a valid page title.',
+        'error'
+    );
+    return get_option('rm_live_page_id');
+}

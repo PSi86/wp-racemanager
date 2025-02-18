@@ -8,6 +8,7 @@ function wp_racemanager_register_nav_latest_races_submenu_block() {
         'wp-racemanager-nav-submenu-editor',
         plugin_dir_url( __DIR__ ) . 'js/nav-latest-races-submenu.js',
         array( 'wp-blocks', 'wp-element', 'wp-editor' ),
+        // TODO: error here: [18-Feb-2025 03:17:14 UTC] PHP Warning:  filemtime(): stat failed for https://wherever-we-are.com/wp/wp-content/plugins/wp-racemanager/js/nav-latest-races-submenu.js in /var/www/vhosts/wherever-we-are.com/httpdocs/wp/wp-content/plugins/wp-racemanager/includes/submenu-block-handler.php on line 11
         filemtime( plugin_dir_url( __DIR__ ) . 'js/nav-latest-races-submenu.js' )
     );
 
