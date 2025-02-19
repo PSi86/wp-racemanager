@@ -1,9 +1,27 @@
 <?php
 namespace RaceManager;
-//require_once __DIR__ . '/../../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
+require_once __DIR__ . '/../../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
+//require_once '/var/www/vhosts/wherever-we-are.com/httpdocs/vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
 
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
+
+if (!function_exists('write_log')) {
+
+    function write_log($log) {
+        if (true === WP_DEBUG) {
+            if (is_array($log) || is_object($log)) {
+                error_log(print_r($log, true));
+            } else {
+                error_log($log);
+            }
+        }
+    }
+
+}
+
+//i can log data like objects
+//write_log($whatever_you_want_to_log);
 
 defined( 'ABSPATH' ) || exit;
 
@@ -133,7 +151,7 @@ class PWA_Subscription_Handler {
                 500
             );
         }
-    
+        $this->send_notifications( 17, 'Race Update', 'Hello from WP RaceManager!' );
         return new \WP_REST_Response(
             [ 'success' => true, 'message' => 'Subscription inserted/updated successfully.' ],
             200
@@ -200,8 +218,8 @@ class PWA_Subscription_Handler {
         // VAPID authentication details – replace these with your own keys and contact
         $vapid = [
             'subject' => 'mailto:',  // Can be a mailto: or your website address
-            'publicKey' => '',  // Replace with your public key
-            'privateKey' => '' // Replace with your private key
+            'publicKey' => 'BLtdK1jGQ',  // Replace with your public key
+            'privateKey' => 'ZRzdbryXE' // Replace with your private key
         ];
 
         $webPush = new WebPush($vapid); // $auth is your server/VAPID keys
@@ -216,7 +234,15 @@ class PWA_Subscription_Handler {
                 'title' => $title,
                 'body'  => $message,
             ]);
-            $webPush->sendNotification($subscription, $payload);
+            $report = $webPush->sendOneNotification($subscription, $payload);
+            // handle eventual errors here, and remove the subscription from your server if it is expired
+            $endpoint = $report->getRequest()->getUri()->__toString();
+            if ($report->isSuccess()) {
+                write_log('Notification sent successfully to: ' . $endpoint);
+            } else {
+                write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $report->getReason());
+                //$this->delete_subscription( $race_id, $endpoint );
+            }
         }
         $webPush->flush();
 
@@ -249,8 +275,7 @@ class PWA_Subscription_Handler {
         // Check if subscription already exists for (race_id, endpoint).
         $existing = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT id FROM $table WHERE race_id = %d AND endpoint = %s LIMIT 1",
-                $race_id,
+                "SELECT id FROM $table WHERE endpoint = %s LIMIT 1",
                 $endpoint
             )
         );
