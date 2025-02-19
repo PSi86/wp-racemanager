@@ -1,6 +1,7 @@
 <?php
 namespace RaceManager;
 require_once __DIR__ . '/../../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
+//require_once dirname(ABSPATH) . '/../vendor/autoload.php';
 //require_once '/var/www/vhosts/wherever-we-are.com/httpdocs/vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
 
 use Minishlink\WebPush\WebPush;
@@ -222,7 +223,8 @@ class PWA_Subscription_Handler {
             'privateKey' => 'ZRzdbryXE' // Replace with your private key
         ];
 
-        $webPush = new WebPush($vapid); // $auth is your server/VAPID keys
+        // Holy shit! This cost a whole day. was: $webPush = new WebPush($vapid);
+        $webPush = new WebPush(['VAPID' => $vapid]); // $auth is your server/VAPID keys
 
         foreach ( $subscriptions as $sub ) {
             $subscription = Subscription::create([
@@ -234,17 +236,21 @@ class PWA_Subscription_Handler {
                 'title' => $title,
                 'body'  => $message,
             ]);
-            $report = $webPush->sendOneNotification($subscription, $payload);
-            // handle eventual errors here, and remove the subscription from your server if it is expired
-            $endpoint = $report->getRequest()->getUri()->__toString();
-            if ($report->isSuccess()) {
+            //$webPush->sendOneNotification($subscription, $payload);
+            $webPush->queueNotification($subscription, $payload);
+        }
+        $report = $webPush->flush();
+        // handle eventual errors here, and remove the subscription from your server if it is expired
+        foreach ($report as $result) {
+            $endpoint = $result->getRequest()->getUri()->__toString();
+            if ($result->isSuccess()) {
                 write_log('Notification sent successfully to: ' . $endpoint);
+                //echo "Notification sent successfully to {$endpoint}." . PHP_EOL;
             } else {
-                write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $report->getReason());
-                //$this->delete_subscription( $race_id, $endpoint );
+                write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
+                //echo "Notification failed for {$endpoint}: " . $result->getReason() . PHP_EOL;
             }
         }
-        $webPush->flush();
 
         return true; // Indicate success
     }

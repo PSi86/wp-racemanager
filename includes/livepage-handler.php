@@ -316,7 +316,8 @@ function my_pilot_push_shortcode() {
         })
         .then(function(response) {
           if (response.ok) {
-            alert('Subscription saved successfully!');
+            // Send test notification on subricption success instead of alert
+            //alert('Subscription saved successfully!');
           } else {
             response.json().then(json => {
               alert('Subscription failed on the server: ' + JSON.stringify(json));
