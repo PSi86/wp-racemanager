@@ -221,9 +221,10 @@ function my_pilot_push_shortcode() {
         <!-- Suppose "D3C4Y" is a pilot callsign, and 17 is the race_id. 
              Or maybe you're just using the same ID for race_id and callsign? 
              We'll do callsign as the visible text. -->
-        <option value="D3C4Y" data-race-id="17">D3C4Y</option>
-        <option value="Pilot2" data-race-id="42">Pilot 2</option>
-        <option value="Pilot3" data-race-id="123">Pilot 3</option>
+        <option value="D3C4Y" data-race-id="396" data-pilot-id="17">D3C4Y</option>
+        <option value="Kwadastrophe" data-race-id="396" data-pilot-id="24">Kwadastrophe</option>
+        <option value="KidCe" data-race-id="396" data-pilot-id="12">KidCe</option>
+        <option value="MaxDax" data-race-id="396" data-pilot-id="16">MaxDax</option>
         <!-- Add more pilot callsigns as needed -->
       </select>
       <button type="submit">Subscribe</button>
@@ -273,9 +274,11 @@ function my_pilot_push_shortcode() {
       document.getElementById('pilot-push-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         const selectEl = document.getElementById('pilot-select');
-        const callsign = selectEl.value;
-        if (!callsign) {
-          alert('Please select a pilot callsign.');
+        //const callsign = selectEl.value;
+        
+        const pilotId = selectEl.selectedOptions[0].getAttribute('data-pilot-id');
+        if (!pilotId) {
+          alert('Please select a pilot.');
           return;
         }
         const raceId = selectEl.selectedOptions[0].getAttribute('data-race-id');
@@ -306,7 +309,7 @@ function my_pilot_push_shortcode() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             race_id: raceId,
-            pilot_callsign: callsign,
+            pilot_id: pilotId,
             endpoint: subscription.endpoint,
             keys: {
               p256dh: p256dh,

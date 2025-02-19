@@ -45,10 +45,10 @@ class PWA_Subscription_Handler {
         $sql = "CREATE TABLE IF NOT EXISTS $table_name (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             race_id bigint(20) unsigned NOT NULL,
+            pilot_id int(20) unsigned NOT NULL,
             endpoint text NOT NULL,
             p256dh_key text DEFAULT '' NOT NULL,
             auth_key text DEFAULT '' NOT NULL,
-            pilot_callsign text DEFAULT '' NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
             PRIMARY KEY  (id),
@@ -111,7 +111,7 @@ class PWA_Subscription_Handler {
      * Expects JSON with:
      * {
      *   "race_id": 123,
-     *   "pilot_callsign": "...",
+     *   "pilot_id": "...",
      *   "endpoint": "...",
      *   "keys": { "p256dh": "...", "auth": "..." }
      * }
@@ -119,7 +119,6 @@ class PWA_Subscription_Handler {
     public function handle_subscription( \WP_REST_Request $request ) {
         $body = json_decode( $request->get_body(), true );
     
-        // race_id and endpoint are still required
         if ( empty( $body['race_id'] ) || empty( $body['endpoint'] ) ) {
             return new \WP_REST_Response(
                 [ 'error' => 'Missing required fields: race_id and endpoint.' ],
@@ -127,17 +126,16 @@ class PWA_Subscription_Handler {
             );
         }
     
-        // pilot_callsign can be required or optional. Let's assume required for now:
-        if ( empty( $body['pilot_callsign'] ) ) {
+        if ( empty( $body['pilot_id'] ) ) {
             return new \WP_REST_Response(
-                [ 'error' => 'Missing required field: pilot_callsign.' ],
+                [ 'error' => 'Missing required field: pilot_id.' ],
                 400
             );
         }
     
         $race_id        = absint( $body['race_id'] );
         $endpoint       = sanitize_text_field( $body['endpoint'] );
-        $pilot_callsign = sanitize_text_field( $body['pilot_callsign'] );
+        $pilot_id = sanitize_text_field( $body['pilot_id'] );
     
         // keys may be optional
         $keys     = ( isset( $body['keys'] ) && is_array( $body['keys'] ) ) ? $body['keys'] : [];
@@ -145,14 +143,14 @@ class PWA_Subscription_Handler {
         $auth     = isset( $keys['auth'] )   ? sanitize_text_field( $keys['auth'] )   : '';
     
         // Insert or update subscription in DB
-        $result = $this->upsert_subscription( $race_id, $endpoint, $p256dh, $auth, $pilot_callsign );
+        $result = $this->upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth );
         if ( false === $result ) {
             return new \WP_REST_Response(
                 [ 'success' => false, 'message' => 'Failed to insert/update subscription.' ],
                 500
             );
         }
-        $this->send_notifications( 17, 'Race Update', 'Hello from WP RaceManager!' );
+        $this->send_notifications( 396, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' );
         return new \WP_REST_Response(
             [ 'success' => true, 'message' => 'Subscription inserted/updated successfully.' ],
             200
@@ -180,7 +178,7 @@ class PWA_Subscription_Handler {
         $race_id  = absint( $body['race_id'] );
         $endpoint = sanitize_text_field( $body['endpoint'] );
 
-        $deleted = $this->delete_subscription( $race_id, $endpoint );
+        $deleted = $this->delete_subscription( $endpoint );
         if ( false === $deleted ) {
             return new \WP_REST_Response(
                 [ 'success' => false, 'message' => 'Failed to remove subscription.' ],
@@ -274,7 +272,7 @@ class PWA_Subscription_Handler {
     // Internal DB Helpers
     // -------------------------------------------------------------------------
 
-    private function upsert_subscription( $race_id, $endpoint, $p256dh, $auth, $pilot_callsign ) {
+    private function upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth ) {
         global $wpdb;
         $table = $wpdb->prefix . 'race_subscriptions';
     
@@ -288,10 +286,10 @@ class PWA_Subscription_Handler {
     
         $data = [
             'race_id'        => $race_id,
+            'pilot_id'       => $pilot_id,
             'endpoint'       => $endpoint,
             'p256dh_key'     => $p256dh,
             'auth_key'       => $auth,
-            'pilot_callsign' => $pilot_callsign,
             'updated_at'     => current_time( 'mysql' ),
         ];
     
@@ -305,16 +303,27 @@ class PWA_Subscription_Handler {
         return $wpdb->insert( $table, $data );
     }    
 
-    private function delete_subscription( $race_id, $endpoint ) {
-        // TODO: Add a check for the pilot_callsign if needed. -> only if individual pilots can unsubscribe
-        // not necessary if only all race subscribers will be removed at a certain point
+    private function delete_subscription( $endpoint ) {
+        // remove individual subscription
         global $wpdb;
         $table = $wpdb->prefix . 'race_subscriptions';
 
         return $wpdb->delete(
             $table,
-            [ 'race_id' => $race_id, 'endpoint' => $endpoint ],
-            [ '%d', '%s' ]
+            [ 'endpoint' => $endpoint ],
+            [ '%s' ]
+        );
+    }
+
+    private function delete_all_race_subscriptions( $race_id) {
+        // remove all subscriptions for a race_id
+        global $wpdb;
+        $table = $wpdb->prefix . 'race_subscriptions';
+
+        return $wpdb->delete(
+            $table,
+            [ 'race_id' => $race_id ],
+            [ '%d' ]
         );
     }
 }
