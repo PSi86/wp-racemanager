@@ -211,6 +211,31 @@ add_shortcode( 'rm_select_race', 'rm_sc_select_race' );
  * Usage: [pilot_push]
  */
 function my_pilot_push_shortcode() {
+  add_action('wp_enqueue_scripts', function() {
+    // Only enqueue if the shortcode is actually present on the page:
+    // You can do an is_page() check or use a 'do_shortcode' detect. 
+    // For simplicity, we’ll just always enqueue for front-end.
+
+    // Register the script
+    wp_register_script(
+        'rm_pwa_subscribe',
+        plugin_dir_url(__DIR__) . 'js/pwa-subscribe.js',
+        [],   // dependencies if needed, e.g. ['wp-element'] 
+        '1.0.0',
+        true  // in footer
+    );
+
+    // Localize or pass in data if needed
+    // For example, if you want to pass the VAPID public key from PHP:
+    wp_localize_script('rm_pwa_subscribe', 'RmPushData', [
+        'restUrl'     => home_url('/wp-json/rm/v1/subscription'),
+        'publicVapid' => 'BLtUYsLUAC8rx0_LlTs4SEIcOwKPv1N4ydICV_f3C3v4aGlh1wLs2Bg-XNwzTndptldsZB3gm4RuYVBTUAK1jGQ',
+    ]);
+
+    // Finally enqueue
+    wp_enqueue_script('rm_pwa_subscribe');
+  });
+
   ob_start();
   ?>
   <div id="pilot-push-container">
@@ -227,113 +252,14 @@ function my_pilot_push_shortcode() {
         <option value="MaxDax" data-race-id="396" data-pilot-id="16">MaxDax</option>
         <!-- Add more pilot callsigns as needed -->
       </select>
-      <button type="submit">Subscribe</button>
+      <button type="submit" id="subscribe-button">Subscribe</button>
     </form>
+    <!-- 
+        Status elements to show subscription status or messages to the user. We can manipulate these via JS.
+    -->
+    <div id="subscription-status"></div>
   </div>
 
-  <script type="text/javascript">
-    (function() {
-      // Replace with your actual public VAPID key (Base64 URL-safe encoded)
-      const publicVapidKey = 'BLtUYsLUAC8rx0_LlTs4SEIcOwKPv1N4ydICV_f3C3v4aGlh1wLs2Bg-XNwzTndptldsZB3gm4RuYVBTUAK1jGQ';
-
-      function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-        for (let i = 0; i < rawData.length; ++i) {
-          outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
-      }
-
-      navigator.serviceWorker.ready
-        .then((registration) => {
-          window.registrationForPush = registration;
-        })
-        .catch((error) => {
-          console.error('Service Worker ready error:', error);
-        });
-
-      async function subscribeForPush(registration) {
-        try {
-          let subscription = await registration.pushManager.getSubscription();
-          if (!subscription) {
-            subscription = await registration.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
-            });
-          }
-          return subscription;
-        } catch (error) {
-          console.error('Push subscription error:', error);
-          return null;
-        }
-      }
-
-      document.getElementById('pilot-push-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const selectEl = document.getElementById('pilot-select');
-        //const callsign = selectEl.value;
-        
-        const pilotId = selectEl.selectedOptions[0].getAttribute('data-pilot-id');
-        if (!pilotId) {
-          alert('Please select a pilot.');
-          return;
-        }
-        const raceId = selectEl.selectedOptions[0].getAttribute('data-race-id');
-        if (!raceId) {
-          alert('Pilot option is missing a data-race-id attribute.');
-          return;
-        }
-
-        if (!window.registrationForPush) {
-          alert('Service Worker registration is not ready.');
-          return;
-        }
-
-        const subscription = await subscribeForPush(window.registrationForPush);
-        if (!subscription) {
-          alert('Failed to subscribe for push notifications.');
-          return;
-        }
-
-        // Extract subscription data
-        const subObj = subscription.toJSON();
-        const p256dh = subObj.keys && subObj.keys.p256dh ? subObj.keys.p256dh : '';
-        const auth   = subObj.keys && subObj.keys.auth   ? subObj.keys.auth   : '';
-
-        // POST to the custom WP REST endpoint: /wp-json/rm/v1/subscription
-        fetch('<?php echo esc_url( home_url( '/wp-json/rm/v1/subscription' ) ); ?>', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            race_id: raceId,
-            pilot_id: pilotId,
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: p256dh,
-              auth: auth
-            }
-          })
-        })
-        .then(function(response) {
-          if (response.ok) {
-            // Send test notification on subricption success instead of alert
-            //alert('Subscription saved successfully!');
-          } else {
-            response.json().then(json => {
-              alert('Subscription failed on the server: ' + JSON.stringify(json));
-            });
-          }
-        })
-        .catch(function(error) {
-          console.error('Error sending subscription:', error);
-          alert('Subscription error.');
-        });
-      });
-    })();
-  </script>
   <?php
   return ob_get_clean();
 }

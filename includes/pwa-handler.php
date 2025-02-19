@@ -103,7 +103,7 @@ function rm_pwa_enqueue_scripts() {
             'pwa-sw-register',
             plugin_dir_url( __DIR__ ) . 'js/pwa-sw-register.js', //plugins_url('pwa-sw-register.js', __FILE__),
             array(),
-            null,
+            '1.0.1',
             true
         );
         // Enqueue the foreground polling script if needed.
