@@ -70,7 +70,7 @@ final class WP_RaceManager {
         //require_once WP_RACEMANAGER_DIR . 'vendor/autoload.php'; // if you’re using Composer
         
         //TODO: load this only for the REST API requests
-        require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
+        //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
         require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
         $this->pwa_subscription_handler = new PWA_Subscription_Handler();
         include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
@@ -92,10 +92,6 @@ final class WP_RaceManager {
         // TODO: Include only on live pages request.
         include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
-
-        //include_once plugin_dir_path(__FILE__) . 'includes/pwa-notifications-handler.php';
-        //include_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
-
     }
     
 /*     public static function activate() {
