@@ -103,7 +103,7 @@ function rm_pwa_enqueue_scripts() {
             'pwa-sw-register',
             plugin_dir_url( __DIR__ ) . 'js/pwa-sw-register.js', //plugins_url('pwa-sw-register.js', __FILE__),
             array(),
-            '1.0.1',
+            '1.0.2',
             true
         );
         // Enqueue the foreground polling script if needed.
@@ -137,9 +137,9 @@ function rm_pwa_manifest() {
         header('Content-Type: application/json');
         echo json_encode(array(
             "name" => "Copterrace Live",
-            "short_name" => "CR-Live",
+            "short_name" => "CopterraceLive",
             "start_url" => "wp/live/",
-            "display" => "standalone",
+            "display" => "fullscreen",
             "background_color" => "#ffffff",
             "theme_color" => "#000000",
             "icons" => array(

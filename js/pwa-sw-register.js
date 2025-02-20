@@ -3,7 +3,7 @@
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       //navigator.serviceWorker.register(pluginsUrl + '/wp-racemanager/js/pwa-sw.js')
-      navigator.serviceWorker.register('/wp/pwa-sw.js?ver=1.0.0', {
+      navigator.serviceWorker.register('/wp/pwa-sw.js?ver=1.0.2', {
         scope: '/wp/live/'
       })
         .then(function(registration) {

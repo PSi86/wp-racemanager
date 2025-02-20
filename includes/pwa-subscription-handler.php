@@ -168,14 +168,15 @@ class PWA_Subscription_Handler {
      */
     public function remove_subscription( \WP_REST_Request $request ) {
         $body = json_decode( $request->get_body(), true );
-        if ( empty( $body['race_id'] ) || empty( $body['endpoint'] ) ) {
+        //if ( empty( $body['race_id'] ) || empty( $body['endpoint'] ) ) {
+        if ( empty( $body['endpoint'] ) ) {
             return new \WP_REST_Response(
-                [ 'error' => 'Missing required fields: race_id and/or endpoint.' ],
+                [ 'error' => 'Missing required fields: endpoint.' ],
                 400
             );
         }
 
-        $race_id  = absint( $body['race_id'] );
+        //$race_id  = absint( $body['race_id'] );
         $endpoint = sanitize_text_field( $body['endpoint'] );
 
         $deleted = $this->delete_subscription( $endpoint );
@@ -245,8 +246,15 @@ class PWA_Subscription_Handler {
                 write_log('Notification sent successfully to: ' . $endpoint);
                 //echo "Notification sent successfully to {$endpoint}." . PHP_EOL;
             } else {
-                write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
-                //echo "Notification failed for {$endpoint}: " . $result->getReason() . PHP_EOL;
+                if(strpos($result->getReason(), '410') !== false) {
+                    $this->delete_subscription($endpoint);
+                    write_log('Subscription expired and removed: ' . $endpoint);
+                    //echo "Subscription expired and removed: {$endpoint}" . PHP_EOL;
+                }
+                else {
+                    write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
+                    //echo "Notification failed for {$endpoint}: " . $result->getReason() . PHP_EOL;
+                }
             }
         }
 

@@ -85,132 +85,10 @@ function rm_rewrite_live_urls() {
 add_action( 'template_redirect', 'rm_rewrite_live_urls', 2 );
 
 /**
- * Shortcode to display pilots data.
- * Usage: [rm_pilots]
- */
-function rm_sc_select_race( $atts ) {
-    $race_id = rm_get_current_race_id();
-    // TODO - this should not be necessary because of the rm_rewrite_live_urls function and its redirect to /live/
-    if ( ! $race_id ) {
-        return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
-    }
-    // TODO - Race selection and optional pilot selection for notifications
-    // Retrieve pilots data from race post meta (change 'pilots_data' as needed).
-    $pilots = get_post_meta( $race_id, 'pilots_data', true );
-    ob_start();
-    if ( $pilots ) {
-        echo '<div class="rm-pilots-content">' . esc_html( $pilots ) . '</div>';
-    } else {
-        //echo '<p>No pilots data available for this race.</p>';
-        echo '<h1>Select your pilot for race notifications</h1>
-            <form id="subscribe-form">
-                <select id="pilot-select">
-                <option value="">-- Select a pilot --</option>
-                <option value="17">D3C4Y</option>
-                <option value="pilot2">Pilot 2</option>
-                <option value="pilot3">Pilot 3</option>
-                <!-- Add more pilot options as needed -->
-                </select>
-                <button type="submit">Subscribe for notifications</button>
-            </form>
-
-            <script>
-                // Replace with your actual public VAPID key (Base64 URL-safe encoded)
-                const publicVapidKey = "BLtUYsLUAC8rx0_LlTs4SEIcOwKPv1N4ydICV_f3C3v4aGlh1wLs2Bg-XNwzTndptldsZB3gm4RuYVBTUAK1jGQ";
-
-                // Check that service workers are supported
-                if (\'serviceWorker\' in navigator) {
-                window.addEventListener(\'load\', () => {
-                    registerServiceWorkerAndSubscribe();
-                });
-                } else {
-                console.error("Service workers are not supported by this browser.");
-                }
-
-                async function registerServiceWorkerAndSubscribe() {
-                try {
-                    // Register the service worker
-                    const register = await navigator.serviceWorker.register(\'/wp/wp-content/plugins/wp-racemanager/js/pwa-sw.js\', {
-                    scope: \'/\'
-                    });
-                    console.log("Service Worker registered.");
-
-                    // Request permission for notifications
-                    const permission = await Notification.requestPermission();
-                    if (permission !== "granted") {
-                    console.error("Notification permission was not granted.");
-                    return;
-                    }
-
-                    // Subscribe for push notifications
-                    const subscription = await register.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
-                    });
-                    console.log("Push subscription:", subscription);
-
-                    // Save subscription globally so the form can use it
-                    window.pushSubscription = subscription;
-                } catch (error) {
-                    console.error("Error during service worker registration or push subscription:", error);
-                }
-                }
-
-                // Utility to convert the public key to Uint8Array
-                function urlBase64ToUint8Array(base64String) {
-                const padding = \'=\'.repeat((4 - base64String.length % 4) % 4);
-                const base64 = (base64String + padding)
-                    .replace(/-/g, \'+\')
-                    .replace(/_/g, \'/\');
-                const rawData = window.atob(base64);
-                const outputArray = new Uint8Array(rawData.length);
-                for (let i = 0; i < rawData.length; ++i) {
-                    outputArray[i] = rawData.charCodeAt(i);
-                }
-                return outputArray;
-                }
-
-                // Handle the form submission to send the pilot selection and subscription to the server
-                document.getElementById(\'subscribe-form\').addEventListener(\'submit\', async function(e) {
-                e.preventDefault();
-                const pilot = document.getElementById(\'pilot-select\').value;
-                if (!pilot) {
-                    alert("Please select a pilot.");
-                    return;
-                }
-                if (!window.pushSubscription) {
-                    alert("Push subscription is not available.");
-                    return;
-                }
-
-                // Send subscription info and the selected pilot to the PHP endpoint
-                const response = await fetch(\'/subscribe.php\', {
-                    method: \'POST\',
-                    headers: {
-                    \'Content-Type\': \'application/json\'
-                    },
-                    body: JSON.stringify({
-                    pilot: pilot,
-                    subscription: window.pushSubscription
-                    })
-                });
-                if (response.ok) {
-                    alert("Subscription saved successfully!");
-                } else {
-                    alert("Failed to save subscription.");
-                }
-                });
-            </script>';
-    }
-    return ob_get_clean();
-}
-add_shortcode( 'rm_select_race', 'rm_sc_select_race' );
-
-/**
  * Shortcode function for pilot selection and push notification registration.
  * Usage: [pilot_push]
  */
-function my_pilot_push_shortcode() {
+function rm_sc_select_race() {
   add_action('wp_enqueue_scripts', function() {
     // Only enqueue if the shortcode is actually present on the page:
     // You can do an is_page() check or use a 'do_shortcode' detect. 
@@ -221,7 +99,7 @@ function my_pilot_push_shortcode() {
         'rm_pwa_subscribe',
         plugin_dir_url(__DIR__) . 'js/pwa-subscribe.js',
         [],   // dependencies if needed, e.g. ['wp-element'] 
-        '1.0.0',
+        '1.0.1',
         true  // in footer
     );
 
@@ -263,7 +141,7 @@ function my_pilot_push_shortcode() {
   <?php
   return ob_get_clean();
 }
-add_shortcode('pilot_push', 'my_pilot_push_shortcode');
+add_shortcode('pilot_push', 'rm_sc_select_race'); //rm_select_race
 
 /**
  * Shortcode to display pilots data.
