@@ -109,7 +109,7 @@ function rm_enqueue_quick_edit_script( $hook ) {
             'rm-quick-edit',
             plugin_dir_url( __DIR__ ) . 'js/rm-quick-edit.js', // Adjust the path as needed
             [ 'jquery', 'inline-edit-post' ],
-            null,
+            '1.0.1',
             true
         );
     }

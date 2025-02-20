@@ -61,7 +61,7 @@ function rm_shortcode_handler($atts) {
 
     // Enqueue custom CSS and JS
     wp_enqueue_style(
-        'rm-custom-style', 
+        'rm-sc-viewer-css', 
         plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
     );
 
@@ -69,7 +69,7 @@ function rm_shortcode_handler($atts) {
         'rm-bracket-template', 
         plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', 
         ['jquery'], 
-        null, 
+        '1.0.1', 
         false
     );
 
@@ -77,7 +77,7 @@ function rm_shortcode_handler($atts) {
         'rm-bracketview', 
         plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', 
         ['jquery'], 
-        null,
+        '1.0.1',
         true
     );
 

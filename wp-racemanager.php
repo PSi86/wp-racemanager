@@ -80,14 +80,17 @@ final class WP_RaceManager {
         include_once plugin_dir_path(__FILE__) . 'includes/settings-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/meta-handler.php';
+        include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php';
+
+        // active on every page
+        include_once plugin_dir_path(__FILE__) . 'includes/main-navigation-handler.php';
+        include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
+        
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
         
         //include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_cards.php'; // SC for Shortcode
         //include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_tabs.php'; // SC for Shortcode
-        
-        include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
         
         // TODO: Include only on live pages request.
         include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
