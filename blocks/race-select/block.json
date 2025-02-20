@@ -1,0 +1,26 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/race-select",
+    "title": "Race Archive",
+    "category": "widgets",
+    "icon": "calendar",
+    "description": "Displays a list of race posts with custom links and pagination.",
+    "attributes": {
+        "postsPerPage": {
+            "type": "number",
+            "default": 10
+        },
+        "prevText": {
+            "type": "string",
+            "default": "Previous"
+        },
+        "nextText": {
+            "type": "string",
+            "default": "Next"
+        }
+    },
+    "supports": {
+        "html": false
+    },
+    "editorScript": "file:./index.js"
+}

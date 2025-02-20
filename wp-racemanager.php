@@ -76,16 +76,17 @@ final class WP_RaceManager {
         include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
         // END of REST API handling
 
-        
+        // active on every page
+        require_once plugin_dir_path(__FILE__) . 'includes/block-loader.php';
+
+        // TODO: Load only on admin pages
         include_once plugin_dir_path(__FILE__) . 'includes/settings-handler.php';
+
+        // active on all pages
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php';
 
-        // active on every page
-        include_once plugin_dir_path(__FILE__) . 'includes/main-navigation-handler.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/submenu-block-handler.php';
-        
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
         
@@ -108,6 +109,7 @@ final class WP_RaceManager {
      * Check if we need to load the PWA subscription code,
      * and then load it if necessary.
      */
+    // Currently not used!
     public function maybe_init_rest_handlers() {
         if ( $this->is_racemanager_rest_api_request() ) {
             // Load the file and instantiate PWA_Subscription_Handler.

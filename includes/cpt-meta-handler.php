@@ -107,7 +107,7 @@ function rm_enqueue_quick_edit_script( $hook ) {
     if ( $hook === 'edit.php' ) { // Only enqueue on the post list screen
         wp_enqueue_script(
             'rm-quick-edit',
-            plugin_dir_url( __DIR__ ) . 'js/rm-quick-edit.js', // Adjust the path as needed
+            plugin_dir_url( __DIR__ ) . 'js/rm-cpt-quick-edit.js', // Adjust the path as needed
             [ 'jquery', 'inline-edit-post' ],
             '1.0.1',
             true
