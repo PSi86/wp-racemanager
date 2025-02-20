@@ -1,4 +1,10 @@
 <?php
+// includes/settings-handler.php
+// Register the plugin settings and output the settings page.
+// This file is included from the main plugin file (wp-racemanager.php).
+
+// TODO: Add documentation to the settings page: rm-live-page-link custom class for live page navigation element
+
 add_action('admin_menu', function () {
     add_options_page(
         'RaceManager Settings',            // Page title in the browser tab
