@@ -10,19 +10,33 @@ function rm_shortcode_handler($atts) {
     // Merge default shortcode attributes
     $atts = shortcode_atts(
         array(
-            'post_id' => null,
+            'race_id' => null,
         ),
         $atts,
         'rm_viewer'
     );
 
-    // Use supplied post_id param or get the current post ID of the page where the shortcode is used
-    $post_id = ! empty( $atts['post_id'] ) ? $atts['post_id'] : get_the_ID();
+    // Use supplied race_id param or get the current post ID of the page where the shortcode is used
+    //$race_id = ! empty( $atts['race_id'] ) ? $atts['race_id'] : get_the_ID();
     
-    if ( $post_id === 'latest' ) {
+    // Priority: shortcode attribute > URL parameter > current post ID
+    if ( ! empty( $atts['race_id'] ) ) {
+        // Use the race_id provided in the shortcode
+        $race_id = $atts['race_id'];
+    } elseif ( isset( $_GET['race_id'] ) && ! empty( $_GET['race_id'] ) ) {
+        // Use the race_id from the URL parameter, sanitizing the input for security
+        $race_id = sanitize_text_field( $_GET['race_id'] );
+    } else {
+        // Fallback to the current post ID
+        //global $post;
+        //$race_id = $post->ID;
+        $race_id = get_the_ID(); // newer version
+    }
+
+    if ( $race_id === 'latest' ) {
         global $wpdb;
         $posts_table = $wpdb->prefix . 'posts'; // WordPress posts table.
-        $post_id = $wpdb->get_var(
+        $race_id = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT MAX(ID) FROM $posts_table 
                 WHERE post_status = 'publish' AND post_type = 'race'"
@@ -30,15 +44,15 @@ function rm_shortcode_handler($atts) {
         );
     }
 
-    if( $post_id ) {
-        $post_id = intval($post_id);
+    if( $race_id ) {
+        $race_id = intval($race_id);
     }
     else {
         return '<p>No valid post found for [rm_viewer].</p>';
     }
 
     // check race status. live: set script to periodically check load live data, not live (locked): set script to load static data
-    $race_live = get_post_meta( $post_id, '_race_live', true );
+    $race_live = get_post_meta( $race_id, '_race_live', true );
 
     // For now it is ok to build the file names of data and timestamp purely from the post ID
     $upload_path_local = WP_CONTENT_DIR . '/uploads/races/';
@@ -46,8 +60,8 @@ function rm_shortcode_handler($atts) {
     $upload_dir = wp_upload_dir();
     $upload_path_url = trailingslashit( $upload_dir['baseurl'] ) . 'races/';
 
-    $filename_timestamp = $post_id . '-timestamp.json';
-    $filename_data = $post_id . '-data.json';
+    $filename_timestamp = $race_id . '-timestamp.json';
+    $filename_data = $race_id . '-data.json';
 
     $file_timestamp_local = $upload_path_local . $filename_timestamp;
     $file_timestamp_url = $upload_path_url . $filename_timestamp;

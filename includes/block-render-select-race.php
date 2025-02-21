@@ -40,15 +40,33 @@ function rm_render_race_select_block( $attributes, $content ) {
         'prev_text' => $prev_text,
         'next_text' => $next_text,
         'type'      => 'array',
+        'end_size'  => 0,
+        'mid_size'  => 0,
     ) );
     
+    $prev_link = '';
+    $next_link = '';
     if ( is_array( $pagination_links ) ) {
-        $output .= '<nav class="race-pagination"><ul class="pagination">';
+        // Loop through the array to find the link that contains the previous text and the one with the next text.
         foreach ( $pagination_links as $link ) {
-            $output .= '<li>' . $link . '</li>';
+            if ( strpos( $link, $prev_text ) !== false ) {
+                $prev_link = $link;
+            } elseif ( strpos( $link, $next_text ) !== false ) {
+                $next_link = $link;
+            }
         }
-        $output .= '</ul>';
+    }
+    
+    if ( $prev_link || $next_link ) {
+        //$output .= '<nav class="race-pagination" aria-label="Pagination">';
+        $output .= '<nav class="wp-block-query-pagination is-content-justification-space-between is-layout-flex wp-container-core-query-pagination-is-layout-1 wp-block-query-pagination-is-layout-flex" aria-label="Seitennummerierung">';
+        if ( $prev_link ) {
+            $output .= $prev_link;
+        }
         $output .= '<div class="page-indicator">' . sprintf( __( 'Page %1$d of %2$d', 'wp-racemanager' ), $paged, $query->max_num_pages ) . '</div>';
+        if ( $next_link ) {
+            $output .= $next_link;
+        }
         $output .= '</nav>';
     }
     
