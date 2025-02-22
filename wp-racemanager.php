@@ -73,7 +73,9 @@ final class WP_RaceManager {
         //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
         require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
         $this->pwa_subscription_handler = new PWA_Subscription_Handler();
+        require_once plugin_dir_path( __FILE__ ) . 'includes/race-data-functions.php';
         include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
+        
         // END of REST API handling
 
         // active on every page

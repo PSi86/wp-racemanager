@@ -43,17 +43,19 @@ class PWA_Subscription_Handler {
         $charset_collate = $wpdb->get_charset_collate();
     
         $sql = "CREATE TABLE IF NOT EXISTS $table_name (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            race_id bigint(20) unsigned NOT NULL,
-            pilot_id int(20) unsigned NOT NULL,
-            endpoint text NOT NULL,
-            p256dh_key text DEFAULT '' NOT NULL,
-            auth_key text DEFAULT '' NOT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
-            PRIMARY KEY  (id),
-            UNIQUE KEY race_endpoint_unique (race_id, endpoint(191))
-        ) $charset_collate;";
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        race_id bigint(20) unsigned NOT NULL,
+        pilot_id int(20) unsigned NOT NULL,
+        heat_id int(20) unsigned NOT NULL DEFAULT 0,
+        slot_id int(20) unsigned NOT NULL DEFAULT 0,
+        endpoint text NOT NULL,
+        p256dh_key text DEFAULT '' NOT NULL,
+        auth_key text DEFAULT '' NOT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY race_endpoint_unique (race_id, endpoint(191))
+    ) $charset_collate;";
     
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
@@ -150,7 +152,7 @@ class PWA_Subscription_Handler {
                 500
             );
         }
-        $this->send_notifications( 396, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' );
+        $this->send_notification_to_all_in_race( 396, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' );
         return new \WP_REST_Response(
             [ 'success' => true, 'message' => 'Subscription inserted/updated successfully.' ],
             200
@@ -197,7 +199,7 @@ class PWA_Subscription_Handler {
      * Public method to send notifications for a given race_id.
      * Called internally from your plugin's other code (not via REST).
      */
-    public function send_notifications( $race_id, $title = 'Race Update', $message = 'Hello from WP RaceManager!' ) {
+    public function send_notification_to_all_in_race( $race_id, $title = 'Race Update', $message = 'Hello from WP RaceManager!' ) {
         $race_id = absint( $race_id );
         if ( ! $race_id ) {
             // For safety, do a no-op or throw an error
@@ -260,6 +262,112 @@ class PWA_Subscription_Handler {
 
         return true; // Indicate success
     }
+
+    /**
+     * Send notifications to push subscribers when a pilot’s upcoming race schedule changes.
+     *
+     * This function takes the current race_id and the upcoming pilots list (each element contains:
+     * heat_id, heat_displayname, pilot_id, callsign, and slot_id). It retrieves all subscriptions for
+     * the given race_id from the race_subscriptions table, compares the stored heat_id and slot_id for
+     * each pilot with the new data, and only sends a notification (via sendPushNotificationForSubscriber)
+     * if the data has changed. Upon notification the stored values are updated.
+     *
+     * @param int   $race_id         The current race (or heat) ID.
+     * @param array $upcomingPilots  Array of upcoming pilot entries from getUpcomingRacePilots().
+     * @return array List of pilot_ids for which notifications were sent.
+     */
+    public function send_next_up_notifications($race_id, $upcomingPilots) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'race_subscriptions';
+
+        // Build a mapping of upcoming pilots keyed by pilot_id.
+        // If a pilot appears more than once, we use the entry with the highest heat_id.
+        $upcomingMapping = array();
+        foreach ($upcomingPilots as $entry) {
+            $pilotId = $entry['pilot_id'];
+            if (!isset($upcomingMapping[$pilotId]) || $entry['heat_id'] > $upcomingMapping[$pilotId]['heat_id']) {
+                $upcomingMapping[$pilotId] = $entry;
+            }
+        }
+
+        // Retrieve all subscriber records for the current race_id with valid pilot_id.
+        $query = $wpdb->prepare("SELECT * FROM $table_name WHERE race_id = %d AND pilot_id != 0", $race_id);
+        $subscribers = $wpdb->get_results($query, ARRAY_A);
+        $notifiedPilotIds = array();
+
+        foreach ($subscribers as $subscriber) {
+            $pilotId    = $subscriber['pilot_id'];
+            $storedHeat = isset($subscriber['heat_id']) ? (int) $subscriber['heat_id'] : 0;
+            $storedSlot = isset($subscriber['slot_id']) ? (int) $subscriber['slot_id'] : 0;
+
+            if ( isset($upcomingMapping[$pilotId]) ) {
+                // Pilot appears in the upcoming list.
+                $newEntry = $upcomingMapping[$pilotId];
+                if ($storedHeat !== (int)$newEntry['heat_id'] || $storedSlot !== (int)$newEntry['slot_id']) {
+                    $message = "Your upcoming race has changed to heat {$newEntry['heat_id']} (slot {$newEntry['slot_id']}).";
+                    $this->sendPushNotificationForSubscriber($subscriber, $message);
+                    $notifiedPilotIds[] = $pilotId;
+
+                    // Update the subscriber record with the new heat and slot.
+                    $wpdb->update(
+                        $table_name,
+                        array(
+                            'heat_id' => (int)$newEntry['heat_id'],
+                            'slot_id' => (int)$newEntry['slot_id']
+                        ),
+                        array('id' => $subscriber['id']),
+                        array('%d', '%d'),
+                        array('%d')
+                    );
+                }
+            } else {
+                // Pilot no longer appears in the upcoming list.
+                // If his previously notified heat is still present in the upcoming list (by another pilot), send a removal notification.
+                $heatStillExists = false;
+                foreach ($upcomingPilots as $entry) {
+                    if ((int)$entry['heat_id'] === $storedHeat) {
+                        $heatStillExists = true;
+                        break;
+                    }
+                }
+                if ($heatStillExists) {
+                    $message = "You have been removed from your scheduled heat {$storedHeat}.";
+                    sendPushNotificationForSubscriber($subscriber, $message);
+                    $notifiedPilotIds[] = $pilotId;
+
+                    // Clear out the stored heat and slot.
+                    $wpdb->update(
+                        $table_name,
+                        array(
+                            'heat_id' => 0,
+                            'slot_id' => 0
+                        ),
+                        array('id' => $subscriber['id']),
+                        array('%d', '%d'),
+                        array('%d')
+                    );
+                }
+            }
+        }
+
+        return $notifiedPilotIds;
+    }
+
+    /**
+     * Helper function to send a push notification for a given subscriber.
+     * Integrate this with your existing web push logic.
+     *
+     * @param array  $subscriber The subscriber record from the database.
+     * @param string $message    The notification message.
+     */
+    public function sendPushNotificationForSubscriber($subscriber, $message) {
+        // Integrate your existing push notification code here.
+        // For demonstration, we log the notification.
+        error_log("Push notification for pilot {$subscriber['pilot_id']}: $message");
+        // Example call:
+        // WebPush::sendNotification($subscriber['subscription_data'], $message);
+    }
+
 
     /**
      * Retrieve all subscriptions for a given race_id.

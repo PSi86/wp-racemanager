@@ -82,19 +82,30 @@ function rm_handle_upload( WP_REST_Request $request ) {
     }
 
     // 5. If we get here, $race_result is an array with:
-    //    ['status' => 'success'|'updated', 'id' => (post_id), 'message' => ...]
-    $post_id   = $race_result['id'];
+    //    ['status' => 'success'|'updated', 'id' => (race_id), 'message' => ...]
+    $race_id   = $race_result['id'];
     $is_update = ( 'updated' === $race_result['status'] );
 
     // 6. Notify subscribers about the new or updated race
     //    (Only do this if it’s actually published/live, etc.)
-    rm_notify_race_subscribers( $post_id, $is_update );
+    // TODO TEST New Notification logic
+    // Call the function to get the upcoming race pilots (in race-data-functions.php) and feed the output to send_next_up_notifications(race_id, upcomingPilots)
+    $upcomingPilots = rm_getUpcomingRacePilots($data);
+    if ($upcomingPilots === null) {
+        return new WP_REST_Response([
+            'status'  => 'error',
+            'message' => 'Could not extract upcoming pilots from data.',
+            'id'      => 0,
+        ], 400);
+    }
+    rm_notify_race_subscribers($race_id, $upcomingPilots);
+    //rm_notify_race_subscribers_bak( $race_id, $is_update );
 
     // 7. Return final success response
     return new WP_REST_Response([
         'status'  => 'success',
         'message' => $race_result['message'],
-        'id'      => $post_id,
+        'id'      => $race_id,
     ], $is_update ? 200 : 201);
 }
 
@@ -166,7 +177,7 @@ function rm_validate_required_fields( $data ) {
 
 /**
  * Finds an existing Race CPT (by title=race_name) or creates a new one.
- * Returns array on success: ['status' => 'updated'|'success', 'id' => (post_id), 'message' => '...']
+ * Returns array on success: ['status' => 'updated'|'success', 'id' => (race_id), 'message' => '...']
  * Returns WP_Error on failure.
  */
 function rm_find_or_create_race( $data ) {
@@ -191,23 +202,23 @@ function rm_find_or_create_race( $data ) {
 
     if ( $existing_query->have_posts() ) {
         // Existing Race found
-        $post_id  = $existing_query->posts[0];
-        $post_live = get_post_meta( $post_id, '_race_live', true );
+        $race_id  = $existing_query->posts[0];
+        $post_live = get_post_meta( $race_id, '_race_live', true );
         if ( '1' !== $post_live ) {
             return new WP_Error(
                 'race_locked',
                 'Race is not live and cannot be overwritten',
-                $post_id
+                $race_id
             );
         }
 
         // We can now write new data to files, etc.
-        rm_write_files( $post_id, $encoded_json_data );
-        update_post_meta( $post_id, '_race_last_upload', $timestamp );
+        rm_write_files( $race_id, $encoded_json_data );
+        update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
         return [
             'status'  => 'updated',
-            'id'      => $post_id,
+            'id'      => $race_id,
             'message' => 'Event updated successfully',
         ];
     }
@@ -216,14 +227,14 @@ function rm_find_or_create_race( $data ) {
     $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
                     "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n";
     
-    $post_id = wp_insert_post([
+    $race_id = wp_insert_post([
         'post_type'    => 'race',
         'post_title'   => $race_name,
         'post_content' => $post_content,
         'post_status'  => 'publish',
     ]);
 
-    if ( is_wp_error( $post_id ) ) {
+    if ( is_wp_error( $race_id ) ) {
         return new WP_Error(
             'post_creation_failed',
             'Could not create Race CPT post.',
@@ -231,28 +242,49 @@ function rm_find_or_create_race( $data ) {
         );
     }
 
-    rm_write_files( $post_id, $encoded_json_data, 1 );
-    update_post_meta( $post_id, '_race_live', 1 );
-    update_post_meta( $post_id, '_race_last_upload', $timestamp );
+    rm_write_files( $race_id, $encoded_json_data, 1 );
+    update_post_meta( $race_id, '_race_live', 1 );
+    update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
     // Optionally set older races inactive
-    rm_meta_set_last_race_inactive( $post_id );
+    rm_meta_set_last_race_inactive( $race_id );
 
     return [
         'status'  => 'success',
-        'id'      => $post_id,
+        'id'      => $race_id,
         'message' => 'Event created successfully',
     ];
 }
 
 /**
- * Calls the PWA_Subscription_Handler's send_notifications() method
+ * Calls the PWA_Subscription_Handler's send_next_up_notifications() method
  * after a race is updated or created.
  *
- * @param int  $post_id   The Race CPT post ID
+ * @param int  $race_id   The Race CPT post ID
  * @param bool $is_update True if the race was updated; false if newly created
  */
-function rm_notify_race_subscribers( $post_id, $is_update = false ) {
+function rm_notify_race_subscribers( $race_id, $upcomingPilots ) {
+    // If you have direct access to $this->pwa_subscription_handler in scope, use it.
+    // Otherwise, retrieve from your plugin instance:
+    $manager = \RaceManager\WP_RaceManager::instance();
+
+    // Ensure the subscription handler is available.
+    if ( empty( $manager->pwa_subscription_handler ) ) {
+        // Maybe just bail out silently if there's no subscription system loaded
+        return;
+    }
+    $pwa = $manager->pwa_subscription_handler;
+
+    // Now call the method (public in pwa-subscription-handler.php).
+    // If your PWA_Subscription_Handler uses the CPT post ID as `race_id`,
+    // pass $race_id as the "race_id" parameter:
+    
+    //error_log('race_id: ' . $race_id);
+    //error_log(print_r($upcomingPilots, true));
+
+    $pwa->send_next_up_notifications( $race_id, $upcomingPilots );
+}
+function rm_notify_race_subscribers_bak( $race_id, $is_update = false ) {
     // If you have direct access to $this->pwa_subscription_handler in scope, use it.
     // Otherwise, retrieve from your plugin instance:
     $manager = \RaceManager\WP_RaceManager::instance();
@@ -266,18 +298,49 @@ function rm_notify_race_subscribers( $post_id, $is_update = false ) {
 
     // Example title/message
     $title   = $is_update ? 'Race Data Updated' : 'New Race Created';
-    $race    = get_post( $post_id );
+    $race    = get_post( $race_id );
     $message = ( $race ) 
         ? sprintf( 'The race "%s" has been %s.', $race->post_title, $is_update ? 'updated' : 'created' )
         : ( $is_update ? 'A race was updated.' : 'A new race was created.' );
 
     // Now call the method (public in pwa-subscription-handler.php).
     // If your PWA_Subscription_Handler uses the CPT post ID as `race_id`,
-    // pass $post_id as the "race_id" parameter:
-    $pwa->send_notifications( $post_id, $title, $message );
+    // pass $race_id as the "race_id" parameter:
+    $pwa->send_notification_to_all( $race_id, $title, $message );
 }
 
-function rm_create_wp_attachment( $post_id, $filepath ) {
+function rm_write_files( $race_id, $encoded_json_data, $create_wp_attachment = 0 ) {
+    // Write the timestamp and data to a file
+    $timestamp = current_time('mysql');
+
+    //$upload_dir  = wp_upload_dir(); 
+    //$upload_path = $upload_dir['path']; // e.g. wp-content/uploads/2025/01
+    //$upload_path = $upload_dir['basedir'] . '/races'; // e.g. /var/www/html/wp-content/uploads/races
+    $upload_path = WP_CONTENT_DIR . '/uploads/races/';
+    //$filename_timestamp = trailingslashit( $upload_path ) . $race_id . '-timestamp.json';
+    $filename_timestamp = $upload_path . $race_id . '-timestamp.json';
+    $filename_data = $upload_path . $race_id . '-data.json';
+
+    $file_saved = file_put_contents( $filename_timestamp, wp_json_encode(['time' => $timestamp]));
+    $file_saved = file_put_contents( $filename_data, $encoded_json_data );
+
+    if ( $file_saved === false ) {
+        // Cleanup if needed
+        //wp_delete_post( $race_id, true );
+        return new WP_Error(
+            'file_write_error',
+            'Failed to write JSON file to uploads:'.$filename_timestamp,
+            array('status' => 500)
+        );
+    }
+    // if no errors occured, create the wp attachment if requested
+    if($create_wp_attachment) {
+        rm_create_wp_attachment( $race_id, $filename_timestamp );
+        rm_create_wp_attachment( $race_id, $filename_data );
+    }
+}
+
+function rm_create_wp_attachment( $race_id, $filepath ) {
         // Turn the saved file into a WordPress attachment
     // TODO: check the file names and variables full_path
     $upload_dir  = wp_upload_dir(); 
@@ -290,7 +353,7 @@ function rm_create_wp_attachment( $post_id, $filepath ) {
         'post_status'    => 'inherit',
     );
 
-    $attach_id = wp_insert_attachment( $attachment, $filepath, $post_id );
+    $attach_id = wp_insert_attachment( $attachment, $filepath, $race_id );
     require_once ABSPATH . 'wp-admin/includes/image.php';
     $attach_data = wp_generate_attachment_metadata( $attach_id, $filepath );
     wp_update_attachment_metadata( $attach_id, $attach_data );

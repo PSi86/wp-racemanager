@@ -117,7 +117,7 @@ function rm_sc_select_race() {
   ob_start();
   ?>
   <div id="pilot-push-container">
-    <h2>Select Your Pilot for Race Notifications</h2>
+    <h2>Select Pilot for Race Notifications</h2>
     <form id="pilot-push-form">
       <select id="pilot-select">
         <option value="">-- Select a pilot --</option>
