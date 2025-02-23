@@ -4,7 +4,7 @@
 // Clean up attachments on post deletion
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
- 
+
 /**
  * Returns an array of pilots scheduled to race in the next three heats.
  * Each entry is an associative array with keys:
@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
  *   - pilot_id
  *   - callsign
  *   - slot_id (indicates the channel the pilot will race on)
+ *   - channel (the formatted channel string, e.g., "R1")
  *
  * @param array $rhData The RotorHazard data decoded from JSON.
  * @return array|null List of pilots for upcoming races or null if data is missing.
@@ -26,6 +27,9 @@ function rm_getUpcomingRacePilots($rhData) {
         error_log("getUpcomingRacePilots: Missing required data in rhData");
         return null;
     }
+
+    // Build channel mapping for slot_id to channel string.
+    $channelMapping = rm_buildChannelMapping($rhData);
     
     $currentHeat = $rhData['current_heat']['current_heat'];
     $limitHeat = $currentHeat + 3;
@@ -65,7 +69,8 @@ function rm_getUpcomingRacePilots($rhData) {
                             'heat_displayname'=> $heatDisplayname,
                             'pilot_id'        => $pilotId,
                             'callsign'        => $callsign,
-                            'slot_id'         => $slotIndex
+                            'slot_id'         => $slotIndex,
+                            'channel'         => isset($channelMapping[$slotIndex]) ? $channelMapping[$slotIndex] : "unknown"
                         ];
                     }
                 }
@@ -141,3 +146,20 @@ function rm_getSeededPilot($seedHeatId, $seedRank, $rhData) {
     return null;
 }
 
+/**
+ * Builds a mapping from slot_id to channel string (e.g., "R1") using the frequency data in rhData.
+ *
+ * @param array $rhData The complete RotorHazard data containing frequency_data.fdata.
+ * @return array Associative array mapping slot_id (integer index) to channel string.
+ */
+function rm_buildChannelMapping($rhData) {
+    $mapping = array();
+    if (isset($rhData['frequency_data']['fdata']) && is_array($rhData['frequency_data']['fdata'])) {
+        foreach ($rhData['frequency_data']['fdata'] as $index => $fdata) {
+            $band    = isset($fdata['band']) ? $fdata['band'] : '';
+            $channel = isset($fdata['channel']) ? $fdata['channel'] : '';
+            $mapping[$index] = $band . $channel;
+        }
+    }
+    return $mapping;
+}

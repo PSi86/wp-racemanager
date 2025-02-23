@@ -24,9 +24,13 @@ function rm_render_race_select_block( $attributes, $content ) {
     while ( $query->have_posts() ) {
         $query->the_post();
         $race_id = get_the_ID();
+        $race_live = get_post_meta( $race_id, '_race_live', true );
         // Build a custom URL with a "race_id" parameter. Adjust the target page as needed.
         $custom_link = site_url( '/live/bracket/?race_id=' . $race_id );
-        $output .= '<li><a href="' . esc_url( $custom_link ) . '">' . get_the_title() . '</a></li>';
+        $output .= '<li><a href="' . esc_url( $custom_link ) . '">';
+        // TODO: use css stylesheet instead of inline style
+        $output .=  $race_live ? '<span style="color: red;">Live: </span>' : '';
+        $output .=  get_the_title() . '</a></li>';
     }
     $output .= '</ul>';
     

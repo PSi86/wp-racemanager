@@ -28,6 +28,13 @@ defined( 'ABSPATH' ) || exit;
 
 class PWA_Subscription_Handler {
 
+    // VAPID authentication details – replace these with your own keys and contact
+    private $vapid = [
+        'subject' => 'mailto:',  // Can be a mailto: or your website address
+        'publicKey' => '',  // Replace with your public key
+        'privateKey' => '' // Replace with your private key
+    ];
+
     public function __construct() {
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
     }
@@ -152,7 +159,7 @@ class PWA_Subscription_Handler {
                 500
             );
         }
-        $this->send_notification_to_all_in_race( 396, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' );
+        $this->send_notification_to_all_in_race( $race_id, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' ); // For debugging
         return new \WP_REST_Response(
             [ 'success' => true, 'message' => 'Subscription inserted/updated successfully.' ],
             200
@@ -198,6 +205,7 @@ class PWA_Subscription_Handler {
     /**
      * Public method to send notifications for a given race_id.
      * Called internally from your plugin's other code (not via REST).
+     * TODO: could be called from rotorhazard to send notifications to all pilots in the event
      */
     public function send_notification_to_all_in_race( $race_id, $title = 'Race Update', $message = 'Hello from WP RaceManager!' ) {
         $race_id = absint( $race_id );
@@ -217,15 +225,8 @@ class PWA_Subscription_Handler {
         //use Minishlink\WebPush\WebPush;
         //use Minishlink\WebPush\Subscription;
 
-        // VAPID authentication details – replace these with your own keys and contact
-        $vapid = [
-            'subject' => 'mailto:',  // Can be a mailto: or your website address
-            'publicKey' => 'BLtdK1jGQ',  // Replace with your public key
-            'privateKey' => 'ZRzdbryXE' // Replace with your private key
-        ];
-
         // Holy shit! This cost a whole day. was: $webPush = new WebPush($vapid);
-        $webPush = new WebPush(['VAPID' => $vapid]); // $auth is your server/VAPID keys
+        $webPush = new WebPush(['VAPID' => $this->vapid]); // $auth is your server/VAPID keys
 
         foreach ( $subscriptions as $sub ) {
             $subscription = Subscription::create([
@@ -267,11 +268,19 @@ class PWA_Subscription_Handler {
      * Send notifications to push subscribers when a pilot’s upcoming race schedule changes.
      *
      * This function takes the current race_id and the upcoming pilots list (each element contains:
-     * heat_id, heat_displayname, pilot_id, callsign, and slot_id). It retrieves all subscriptions for
+     * heat_id, heat_displayname, pilot_id, callsign, slot_id, and channel). It retrieves all subscriptions for
      * the given race_id from the race_subscriptions table, compares the stored heat_id and slot_id for
-     * each pilot with the new data, and only sends a notification (via sendPushNotificationForSubscriber)
-     * if the data has changed. Upon notification the stored values are updated.
+     * each pilot with the new data, and sends a push notification with a precise message if needed.
      *
+     * The notification messages are:
+     *   - For a new schedule: "[callsign]: Your next race is [heat_displayname]. Your channel is [channel]"
+     *   - For a change in channel or race: "[callsign]: Your channel in race [heat_displayname] has changed to [channel]"
+     *   - For removal: "You have been removed from your scheduled heat."
+     *
+     * After sending a notification, the subscriber’s record is updated accordingly.
+     *
+     * TODO: Reduce data overhead: if multiple clients subscribe to the same pilot, the heat and slot data is redundantly stored in each subscription.
+     * 
      * @param int   $race_id         The current race (or heat) ID.
      * @param array $upcomingPilots  Array of upcoming pilot entries from getUpcomingRacePilots().
      * @return array List of pilot_ids for which notifications were sent.
@@ -281,7 +290,7 @@ class PWA_Subscription_Handler {
         $table_name = $wpdb->prefix . 'race_subscriptions';
 
         // Build a mapping of upcoming pilots keyed by pilot_id.
-        // If a pilot appears more than once, we use the entry with the highest heat_id.
+        // If a pilot appears more than once, use the entry with the highest heat_id.
         $upcomingMapping = array();
         foreach ($upcomingPilots as $entry) {
             $pilotId = $entry['pilot_id'];
@@ -290,39 +299,81 @@ class PWA_Subscription_Handler {
             }
         }
 
-        // Retrieve all subscriber records for the current race_id with valid pilot_id.
-        $query = $wpdb->prepare("SELECT * FROM $table_name WHERE race_id = %d AND pilot_id != 0", $race_id);
-        $subscribers = $wpdb->get_results($query, ARRAY_A);
+        // Retrieve all subscriber records for the given race_id with a valid pilot_id.
+        //$query = $wpdb->prepare("SELECT * FROM $table_name WHERE race_id = %d AND pilot_id != 0", $race_id);
+        //$subscribers = $wpdb->get_results($query, ARRAY_A);
+        $subscribers = $this->get_subscriptions( $race_id );
+        if ( empty( $subscribers ) ) {
+            return false; // return true? TODO: test this
+        }
+
+        $webPush = new WebPush(['VAPID' => $this->vapid]); // $auth is your server/VAPID keys
+
         $notifiedPilotIds = array();
 
         foreach ($subscribers as $subscriber) {
             $pilotId    = $subscriber['pilot_id'];
-            $storedHeat = isset($subscriber['heat_id']) ? (int) $subscriber['heat_id'] : 0;
-            $storedSlot = isset($subscriber['slot_id']) ? (int) $subscriber['slot_id'] : 0;
+            $storedHeat = isset($subscriber['heat_id']) ? (int)$subscriber['heat_id'] : 0;
+            $storedSlot = isset($subscriber['slot_id']) ? (int)$subscriber['slot_id'] : 0;
 
-            if ( isset($upcomingMapping[$pilotId]) ) {
+            if (isset($upcomingMapping[$pilotId])) {
                 // Pilot appears in the upcoming list.
                 $newEntry = $upcomingMapping[$pilotId];
-                if ($storedHeat !== (int)$newEntry['heat_id'] || $storedSlot !== (int)$newEntry['slot_id']) {
-                    $message = "Your upcoming race has changed to heat {$newEntry['heat_id']} (slot {$newEntry['slot_id']}).";
-                    $this->sendPushNotificationForSubscriber($subscriber, $message);
-                    $notifiedPilotIds[] = $pilotId;
+                $newHeat   = (int)$newEntry['heat_id'];
+                $newSlot   = (int)$newEntry['slot_id'];
+                $channel   = $newEntry['channel'];
+                $callsign  = $newEntry['callsign'];
+                $heatDisplay = $newEntry['heat_displayname'];
 
-                    // Update the subscriber record with the new heat and slot.
-                    $wpdb->update(
-                        $table_name,
-                        array(
-                            'heat_id' => (int)$newEntry['heat_id'],
-                            'slot_id' => (int)$newEntry['slot_id']
-                        ),
-                        array('id' => $subscriber['id']),
-                        array('%d', '%d'),
-                        array('%d')
-                    );
+                if ($storedHeat === 0 && $storedSlot === 0) {
+                    // New schedule.
+                    $message = "{$callsign}: Your next race is {$heatDisplay}. Your channel is {$channel}";
+                } elseif ($storedHeat === $newHeat && $storedSlot !== $newSlot) {
+                    // Slot changed.
+                    $message = "{$callsign}: Your channel in race {$heatDisplay} has changed to {$channel}";
+                } elseif ($storedHeat !== $newHeat && $storedSlot === $newSlot) {
+                    // Heat changed.
+                    $message = "{$callsign}: You have been reassigned to {$heatDisplay} your channel remains {$channel}";
+                } elseif ($storedHeat !== $newHeat && $storedSlot !== $newSlot) {
+                    // Heat and slot changed.
+                    $message = "{$callsign}: You have been reassigned to {$heatDisplay} your new channel is {$channel}";
+                } else {
+                    // No change; no notification needed.
+                    continue;
                 }
+                
+                $subscription = Subscription::create([
+                    'endpoint' => $subscriber['endpoint'],
+                    'publicKey' => $subscriber['p256dh_key'],
+                    'authToken' => $subscriber['auth_key'],
+                ]);
+
+                $title = 'Race Update';
+
+                $payload = json_encode([
+                    'title' => $title,
+                    'body'  => $message,
+                ]);
+                $webPush->queueNotification($subscription, $payload);
+                
+                $this->sendPushNotificationForSubscriber($subscriber, $message); // Mock function with log output
+                
+                $notifiedPilotIds[] = $pilotId;
+
+                // Update the subscriber record with the new heat and slot.
+                $wpdb->update(
+                    $table_name,
+                    array(
+                        'heat_id' => $newHeat,
+                        'slot_id' => $newSlot
+                    ),
+                    array('id' => $subscriber['id']),
+                    array('%d', '%d'),
+                    array('%d')
+                );
             } else {
                 // Pilot no longer appears in the upcoming list.
-                // If his previously notified heat is still present in the upcoming list (by another pilot), send a removal notification.
+                // Check if his previously scheduled heat still exists in upcomingPilots.
                 $heatStillExists = false;
                 foreach ($upcomingPilots as $entry) {
                     if ((int)$entry['heat_id'] === $storedHeat) {
@@ -330,9 +381,26 @@ class PWA_Subscription_Handler {
                         break;
                     }
                 }
-                if ($heatStillExists) {
-                    $message = "You have been removed from your scheduled heat {$storedHeat}.";
-                    sendPushNotificationForSubscriber($subscriber, $message);
+                if ($heatStillExists && $storedHeat != 0) {
+                    $message = "You have been removed from your scheduled heat.";
+                    
+                    $subscription = Subscription::create([
+                        'endpoint' => $subscriber['endpoint'],
+                        'publicKey' => $subscriber['p256dh_key'],
+                        'authToken' => $subscriber['auth_key'],
+                    ]);
+                    
+                    $title = 'Race Update';
+    
+                    $payload = json_encode([
+                        'title' => $title,
+                        'body'  => $message,
+                    ]);
+                    //$webPush->sendOneNotification($subscription, $payload);
+                    $webPush->queueNotification($subscription, $payload);
+
+                    $this->sendPushNotificationForSubscriber($subscriber, $message); // Mock function with log output
+                    
                     $notifiedPilotIds[] = $pilotId;
 
                     // Clear out the stored heat and slot.
@@ -350,6 +418,26 @@ class PWA_Subscription_Handler {
             }
         }
 
+        $report = $webPush->flush();
+        // handle eventual errors here, and remove the subscription from your server if it is expired
+        foreach ($report as $result) {
+            $endpoint = $result->getRequest()->getUri()->__toString();
+            if ($result->isSuccess()) {
+                write_log('Notification sent successfully to: ' . $endpoint);
+                //echo "Notification sent successfully to {$endpoint}." . PHP_EOL;
+            } else {
+                if(strpos($result->getReason(), '410') !== false) {
+                    $this->delete_subscription($endpoint);
+                    write_log('Subscription expired and removed: ' . $endpoint);
+                    //echo "Subscription expired and removed: {$endpoint}" . PHP_EOL;
+                }
+                else {
+                    write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
+                    //echo "Notification failed for {$endpoint}: " . $result->getReason() . PHP_EOL;
+                }
+            }
+        }
+
         return $notifiedPilotIds;
     }
 
@@ -360,7 +448,7 @@ class PWA_Subscription_Handler {
      * @param array  $subscriber The subscriber record from the database.
      * @param string $message    The notification message.
      */
-    public function sendPushNotificationForSubscriber($subscriber, $message) {
+    private function sendPushNotificationForSubscriber($subscriber, $message) {
         // Integrate your existing push notification code here.
         // For demonstration, we log the notification.
         error_log("Push notification for pilot {$subscriber['pilot_id']}: $message");

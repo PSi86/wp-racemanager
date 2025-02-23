@@ -98,7 +98,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
             'id'      => 0,
         ], 400);
     }
-    rm_notify_race_subscribers($race_id, $upcomingPilots);
+    $notified = rm_notify_race_subscribers($race_id, $upcomingPilots);
     //rm_notify_race_subscribers_bak( $race_id, $is_update );
 
     // 7. Return final success response
@@ -106,6 +106,8 @@ function rm_handle_upload( WP_REST_Request $request ) {
         'status'  => 'success',
         'message' => $race_result['message'],
         'id'      => $race_id,
+        'nextup' => $upcomingPilots,
+        'notifiedIds' => $notified,
     ], $is_update ? 200 : 201);
 }
 
@@ -282,7 +284,9 @@ function rm_notify_race_subscribers( $race_id, $upcomingPilots ) {
     //error_log('race_id: ' . $race_id);
     //error_log(print_r($upcomingPilots, true));
 
-    $pwa->send_next_up_notifications( $race_id, $upcomingPilots );
+    $notified = $pwa->send_next_up_notifications( $race_id, $upcomingPilots );
+
+    return $notified;
 }
 function rm_notify_race_subscribers_bak( $race_id, $is_update = false ) {
     // If you have direct access to $this->pwa_subscription_handler in scope, use it.
