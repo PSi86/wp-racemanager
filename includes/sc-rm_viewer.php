@@ -83,7 +83,7 @@ function rm_shortcode_handler($atts) {
         'rm-bracket-template', 
         plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', 
         ['jquery'], 
-        '1.0.1', 
+        '1.0.3', 
         false
     );
 
@@ -91,7 +91,7 @@ function rm_shortcode_handler($atts) {
         'rm-bracketview', 
         plugin_dir_url( __DIR__ ) . 'js/bracketV25.js', 
         ['jquery'], 
-        '1.0.1',
+        '1.0.3',
         true
     );
 

@@ -25,18 +25,18 @@ function rm_is_live_page() {
     $page_id = get_the_ID();
     
     // Retrieve the stored Live Races page ID.
-    $live_races_page_id = get_option('rm_live_page_id');
-    if ( ! $live_races_page_id ) {
+    $rm_live_page_id = get_option('rm_live_page_id');
+    if ( ! $rm_live_page_id ) {
         return false;
     }
     
     // Check if the current page is the Live Races page.
-    if ( $page_id == $live_races_page_id ) {
+    if ( $page_id == $rm_live_page_id ) {
         return true;
     }
     
     // Check if the Live Races page is one of the ancestors of the current page.
-    if ( in_array( $live_races_page_id, get_post_ancestors( $page_id ) ) ) {
+    if ( in_array( $rm_live_page_id, get_post_ancestors( $page_id ) ) ) {
         return true;
     }
     
@@ -103,7 +103,7 @@ function rm_pwa_enqueue_scripts() {
             'pwa-sw-register',
             plugin_dir_url( __DIR__ ) . 'js/pwa-sw-register.js', //plugins_url('pwa-sw-register.js', __FILE__),
             array(),
-            '1.0.2',
+            '1.0.3',
             true
         );
         // Enqueue the foreground polling script if needed.
@@ -123,7 +123,7 @@ add_action('wp_enqueue_scripts', 'rm_pwa_enqueue_scripts');
  */
 function rm_pwa_add_manifest_link() {
     if ( rm_is_live_page() ) {
-        echo '<link rel="manifest" href="' . esc_url( home_url('?pwa_manifest=true') ) . '">' . "\n";
+        echo '<link rel="manifest" href="' . esc_url( home_url('?pwa_manifest=true&ver=1.0.3') ) . '">' . "\n";
     }
 }
 add_action('wp_head', 'rm_pwa_add_manifest_link');

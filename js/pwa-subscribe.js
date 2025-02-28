@@ -12,7 +12,7 @@
 
     function init() {
         subscribeButton = document.getElementById('subscribe-button');
-        pilotSelect = document.getElementById('pilot-select');
+        pilotSelect = document.getElementById('pilotSelector');
         subscriptionStatus = document.getElementById('subscription-status');
 
         // Check if browser supports push
@@ -23,7 +23,7 @@
         }
 
         // Register service worker
-        //navigator.serviceWorker.register('/wp/pwa-sw.js?ver=1.0.1')
+        //navigator.serviceWorker.register('/wp/pwa-sw.js?ver=1.0.3')
         navigator.serviceWorker.ready
             .then(function (registration) {
                 swRegistration = registration;
@@ -77,8 +77,7 @@
         } else {
             // If user is "already subscribed," let's handle unsubscribe logic
             if (subscribeButton.textContent === 'Unsubscribe') {
-                // Possibly call your remove subscription REST endpoint
-
+                // call remove subscription REST endpoint
                 await unsubscribeUser(subscription);
                 return;
             }
@@ -135,7 +134,7 @@
             subscribeButton.textContent = 'Subscribe';
 
             // 2) ALSO inform your WordPress REST API so the DB record is removed
-            //    We'll fetch the race_id from your pilot-select or however you store it
+            //    We'll fetch the race_id from your pilotSelector or however you store it
 
             const subObj = subscription.toJSON();
             const endpoint = subObj.endpoint;

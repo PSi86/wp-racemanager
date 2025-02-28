@@ -23,7 +23,7 @@ function rm_register_blocks() {
         'wp-racemanager-nav-submenu-editor',
         plugin_dir_url( __DIR__ ) . 'js/nav-latest-races-submenu.js',
         array( 'wp-blocks', 'wp-element', 'wp-editor' ),
-        '1.0.1'
+        '1.0.3'
     );
     // for block-render-submenu.php
     register_block_type( 'wp-racemanager/nav-latest-races-submenu', array(
