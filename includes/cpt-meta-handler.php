@@ -4,16 +4,28 @@
 // Handle changes in metadata via admin panel
 // Clean up attachments on post deletion
 
+// two functions, not loaded by add_action: rm_delete_all_attachments( $post_id ), rm_meta_set_last_race_inactive( $post_id )
+
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
-add_action( 'add_meta_boxes', 'rm_add_meta_box' );
-add_action( 'save_post_race', 'rm_save_meta_box_data' ); // this hook is automatically created for cpt's
-//add_action( 'save_post_race', 'rm_meta_set_last_race_inactive' ); // currently this is only used on upload of a new race via REST API
-//add_action( 'before_delete_race', 'rm_delete_all_attachments' ); // this hook does not exist!
-add_action( 'before_delete_post', 'rm_delete_all_attachments' );
+// Add hooks only if in admin panel
+if ( is_admin() ) { // && $query->is_main_query()
+    add_action( 'add_meta_boxes', 'rm_add_meta_box' );
+    add_action( 'save_post_race', 'rm_save_meta_box_data' ); // this hook is automatically created for cpt's
+    //add_action( 'save_post_race', 'rm_meta_set_last_race_inactive' ); // currently this is only used on upload of a new race via REST API
+    //add_action( 'before_delete_race', 'rm_delete_all_attachments' ); // this hook does not exist!
+    add_action( 'before_delete_post', 'rm_delete_all_attachments' );
+    add_filter( 'manage_race_posts_columns', 'rm_add_race_columns' );
+    add_action( 'manage_race_posts_custom_column', 'rm_race_custom_column_content', 10, 2 );
+    add_filter( 'manage_edit-race_sortable_columns', 'rm_make_race_columns_sortable' );
+    add_action( 'pre_get_posts', 'rm_sort_race_columns' );
+    add_action( 'quick_edit_custom_box', 'rm_add_quick_edit_live_status', 10, 2 );
+    add_action( 'admin_enqueue_scripts', 'rm_enqueue_quick_edit_script' );
+    add_action( 'save_post', 'rm_save_quick_edit_data' );
+}
+
 
 // Add custom columns to the admin posts list for the 'race' CPT
-add_filter( 'manage_race_posts_columns', 'rm_add_race_columns' );
 function rm_add_race_columns( $columns ) {
     // Add new columns
     $columns['race_live'] = __( 'Live Status', 'wp-racemanager' );
@@ -33,7 +45,6 @@ function rm_add_race_columns( $columns ) {
 }
 
 // Populate custom column content
-add_action( 'manage_race_posts_custom_column', 'rm_race_custom_column_content', 10, 2 );
 function rm_race_custom_column_content( $column, $post_id ) {
     if ( $column === 'race_live' ) {
         // Display live status
@@ -54,7 +65,6 @@ function rm_race_custom_column_content( $column, $post_id ) {
 }
 
 // Make the columns sortable (optional)
-add_filter( 'manage_edit-race_sortable_columns', 'rm_make_race_columns_sortable' );
 function rm_make_race_columns_sortable( $columns ) {
     $columns['race_live'] = 'race_live';
     $columns['last_upload'] = 'last_upload';
@@ -62,7 +72,6 @@ function rm_make_race_columns_sortable( $columns ) {
 }
 
 // Handle sorting by custom columns (optional)
-add_action( 'pre_get_posts', 'rm_sort_race_columns' );
 function rm_sort_race_columns( $query ) {
     if ( ! is_admin() || ! $query->is_main_query() ) {
         return;
@@ -80,7 +89,6 @@ function rm_sort_race_columns( $query ) {
 }
 
 // Add a field to the Quick Edit interface
-add_action( 'quick_edit_custom_box', 'rm_add_quick_edit_live_status', 10, 2 );
 function rm_add_quick_edit_live_status( $column_name, $post_type ) {
     if ( $post_type !== 'race' || $column_name !== 'race_live' ) {
         return;
@@ -102,7 +110,6 @@ function rm_add_quick_edit_live_status( $column_name, $post_type ) {
     <?php
 }
 
-add_action( 'admin_enqueue_scripts', 'rm_enqueue_quick_edit_script' );
 function rm_enqueue_quick_edit_script( $hook ) {
     if ( $hook === 'edit.php' ) { // Only enqueue on the post list screen
         wp_enqueue_script(
@@ -116,7 +123,6 @@ function rm_enqueue_quick_edit_script( $hook ) {
 }
 
 // Save the Quick Edit data
-add_action( 'save_post', 'rm_save_quick_edit_data' );
 function rm_save_quick_edit_data( $post_id ) {
     // Ensure this is for the 'race' CPT
     if ( get_post_type( $post_id ) !== 'race' ) {
@@ -244,6 +250,11 @@ function rm_delete_all_attachments( $post_id ) {
     }
 }
 
+// Changes the race status of the last race to "locked"
+// called from REST api when a new race created upon result upload
+// TODO: this should be called when a new race is created from the admin panel, too
+//      the logic needs changing from setting last race to locked to
+//      setting all races to locked that did not have a result upload in the last 16 hours.
 function rm_meta_set_last_race_inactive( $post_id ) {
     // Ensure this logic only runs for the 'race' post type
     if ( get_post_type( $post_id ) !== 'race' ) {

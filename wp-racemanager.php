@@ -27,6 +27,10 @@ function rm_activate() {
     //require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
     \RaceManager\PWA_Subscription_Handler::create_db_table();
+    
+    require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
+    rm_write_pwa_manifest_file();
+
 }
 register_activation_hook(
     __FILE__,
@@ -64,17 +68,20 @@ final class WP_RaceManager {
      * usage of WP_RaceManager::instance() for the singleton pattern.
      */
     private function __construct() {
-        // You can do general setup here or in a separate init method.
         // The following is a minimal approach.
         //add_action( 'plugins_loaded', [ $this, 'maybe_init_rest_handlers' ] );
         //require_once WP_RACEMANAGER_DIR . 'vendor/autoload.php'; // if you’re using Composer
-        
-        //TODO: load this only for the REST API requests
+        // First load helper functions or implement them here
+        require_once plugin_dir_path( __FILE__ ) . 'includes/race-data-functions.php';
+        // Load the REST API handling
         //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
-        require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
+        add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+        add_action( 'template_redirect', [ $this, 'handle_live_pages' ], 2 );
+
+        /* require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
         $this->pwa_subscription_handler = new PWA_Subscription_Handler();
         require_once plugin_dir_path( __FILE__ ) . 'includes/race-data-functions.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
+        include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php'; */
         
         // END of REST API handling
 
@@ -86,8 +93,8 @@ final class WP_RaceManager {
 
         // active on all pages
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php';
+        include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; // 
+        include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php'; // cpt admin functions
 
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
@@ -96,8 +103,8 @@ final class WP_RaceManager {
         //include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_tabs.php'; // SC for Shortcode
         
         // TODO: Include only on live pages request.
-        include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
+
+        
     }
     
 /*     public static function activate() {
@@ -111,14 +118,22 @@ final class WP_RaceManager {
      * Check if we need to load the PWA subscription code,
      * and then load it if necessary.
      */
-    // Currently not used!
-    public function maybe_init_rest_handlers() {
-        if ( $this->is_racemanager_rest_api_request() ) {
-            // Load the file and instantiate PWA_Subscription_Handler.
-            require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
-            $this->pwa_subscription_handler = new PWA_Subscription_Handler();
-            // Handle pilot download and results upload
-            include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
+    public function register_rest_routes() {
+        // Load instantiate PWA_Subscription_Handler.
+        require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
+        // the class registers its routes in the constructor
+        $this->pwa_subscription_handler = new PWA_Subscription_Handler(); 
+        // Handle pilot download and results upload
+        include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
+        rm_register_rest_routes_rh();
+    }
+    public function handle_live_pages() {
+        if ( $this->is_live_page() ) {
+            include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
+            rm_start_session();
+            rm_rewrite_live_urls();
+            include_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
+            rm_load_live_resources();
         }
     }
 
@@ -139,6 +154,42 @@ final class WP_RaceManager {
         //return ( 0 === strpos( ltrim( $_GET['rest_route'], '/' ), 'rm/v1' ) );
         return true;
     }
+    public static function is_live_page() {
+        // Only proceed on page requests.
+        if ( ! is_page() ) {
+            return false;
+        }
+    
+        // Get the current page ID.
+        $page_id = get_the_ID();
+        
+        // Retrieve the stored Live Races page ID.
+        $rm_live_page_id = get_option('rm_live_page_id');
+        if ( ! $rm_live_page_id ) {
+            return false;
+        }
+        
+        // Check if the current page is the Live Races page.
+        if ( $page_id == $rm_live_page_id ) {
+            return true;
+        }
+        
+        // Check if the Live Races page is one of the ancestors of the current page.
+        if ( in_array( $rm_live_page_id, get_post_ancestors( $page_id ) ) ) {
+            return true;
+        }
+        
+        return false;
+    }
+    public static function write_log($log) {
+        if (true === WP_DEBUG) {
+            if (is_array($log) || is_object($log)) {
+                error_log(print_r($log, true));
+            } else {
+                error_log($log);
+            }
+        }
+    }
 }
 
 /**
@@ -148,3 +199,5 @@ function racemanager_run() {
     return WP_RaceManager::instance();
 }
 racemanager_run(); // Instead of hooking, we can just run it directly here.
+// Optionally use the plugins_loaded or init hook to delay the launch.
+//add_action( 'plugins_loaded', 'RaceManager\racemanager_run' );

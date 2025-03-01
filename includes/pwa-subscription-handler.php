@@ -7,23 +7,6 @@ require_once __DIR__ . '/../../../../../vendor/autoload.php'; // Relative path t
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
-if (!function_exists('write_log')) {
-
-    function write_log($log) {
-        if (true === WP_DEBUG) {
-            if (is_array($log) || is_object($log)) {
-                error_log(print_r($log, true));
-            } else {
-                error_log($log);
-            }
-        }
-    }
-
-}
-
-//i can log data like objects
-//write_log($whatever_you_want_to_log);
-
 defined( 'ABSPATH' ) || exit;
 
 class PWA_Subscription_Handler {
@@ -36,7 +19,8 @@ class PWA_Subscription_Handler {
     ];
 
     public function __construct() {
-        add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+        //add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+        $this->register_rest_routes();
     }
 
     /**
@@ -70,8 +54,7 @@ class PWA_Subscription_Handler {
     
 
     /**
-     * Registers only the subscription endpoints.
-     * (We do NOT register a REST route for send_notifications.)
+     * Registers only the subscription and notify-racers endpoints.
      */
     public function register_rest_routes() {
         // Insert or update a subscription
@@ -103,6 +86,17 @@ class PWA_Subscription_Handler {
             [
                 'methods'  => 'DELETE',
                 'callback' => [ $this, 'remove_subscription' ],
+                'permission_callback' => [ $this, 'permission_check' ],
+            ]
+        );
+
+        // Send notifications to all in a race
+        register_rest_route(
+            'rm/v1',
+            '/notify-racers',
+            [
+                'methods'  => 'POST',
+                'callback' => [ $this, 'handle_notification_request' ],
                 'permission_callback' => [ $this, 'permission_check' ],
             ]
         );
@@ -203,6 +197,44 @@ class PWA_Subscription_Handler {
     }
 
     /**
+     * Handle notification requests from RotorHazard
+     * Sends notifications to all subscribers in a race.
+     * Expects JSON with:
+     * {   
+     *  "race_id": 123,
+     * }
+     */
+    public function handle_notification_request( \WP_REST_Request $request ) {
+        // 1. Validate API Key
+        $maybe_error = rm_validate_api_key( $request );
+        if ( is_wp_error( $maybe_error ) ) {
+            return new \WP_REST_Response([
+                'status'  => 'error',
+                'message' => $maybe_error->get_error_message(),
+            ], $maybe_error->get_error_data() ?: 401);
+        }
+        
+        $body = json_decode( $request->get_body(), true );
+    
+        if ( empty( $body['race_id'] ) || empty( $body['msg_title'] ) || empty( $body['msg_body'] ) ) {
+            return new \WP_REST_Response(
+                [ 'error' => 'Missing required field.' ],
+                400
+            );
+        }
+        
+        $race_id    = absint( $body['race_id'] );
+        $msg_title  = sanitize_text_field( $body['msg_title'] );
+        $msg_body   = sanitize_text_field( $body['msg_body'] );
+    
+        $this->send_notification_to_all_in_race( $race_id, $msg_title, $msg_body );
+
+        return new \WP_REST_Response(
+            [ 'success' => true, 'message' => 'Subscription inserted/updated successfully.' ],
+            200
+        );
+    }
+    /**
      * Public method to send notifications for a given race_id.
      * Called internally from your plugin's other code (not via REST).
      * TODO: could be called from rotorhazard to send notifications to all pilots in the event
@@ -218,12 +250,6 @@ class PWA_Subscription_Handler {
         if ( empty( $subscriptions ) ) {
             return false;
         }
-
-        // Example push logic: integrate your push library here.
-        // E.g., using Minishlink/WebPush:
-
-        //use Minishlink\WebPush\WebPush;
-        //use Minishlink\WebPush\Subscription;
 
         // Holy shit! This cost a whole day. was: $webPush = new WebPush($vapid);
         $webPush = new WebPush(['VAPID' => $this->vapid]); // $auth is your server/VAPID keys
@@ -246,17 +272,14 @@ class PWA_Subscription_Handler {
         foreach ($report as $result) {
             $endpoint = $result->getRequest()->getUri()->__toString();
             if ($result->isSuccess()) {
-                write_log('Notification sent successfully to: ' . $endpoint);
-                //echo "Notification sent successfully to {$endpoint}." . PHP_EOL;
+                WP_RaceManager::write_log('Notification sent successfully to: ' . $endpoint);
             } else {
                 if(strpos($result->getReason(), '410') !== false) {
                     $this->delete_subscription($endpoint);
-                    write_log('Subscription expired and removed: ' . $endpoint);
-                    //echo "Subscription expired and removed: {$endpoint}" . PHP_EOL;
+                    WP_RaceManager::write_log('Subscription expired and removed: ' . $endpoint);
                 }
                 else {
-                    write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
-                    //echo "Notification failed for {$endpoint}: " . $result->getReason() . PHP_EOL;
+                    WP_RaceManager::write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
                 }
             }
         }
@@ -417,23 +440,20 @@ class PWA_Subscription_Handler {
                 }
             }
         }
-
+        // Send all queued notifications.
         $report = $webPush->flush();
         // handle eventual errors here, and remove the subscription from your server if it is expired
         foreach ($report as $result) {
             $endpoint = $result->getRequest()->getUri()->__toString();
             if ($result->isSuccess()) {
-                write_log('Notification sent successfully to: ' . $endpoint);
-                //echo "Notification sent successfully to {$endpoint}." . PHP_EOL;
+                WP_RaceManager::write_log('Notification sent successfully to: ' . $endpoint);
             } else {
                 if(strpos($result->getReason(), '410') !== false) {
                     $this->delete_subscription($endpoint);
-                    write_log('Subscription expired and removed: ' . $endpoint);
-                    //echo "Subscription expired and removed: {$endpoint}" . PHP_EOL;
+                    WP_RaceManager::write_log('Subscription expired and removed: ' . $endpoint);
                 }
                 else {
-                    write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
-                    //echo "Notification failed for {$endpoint}: " . $result->getReason() . PHP_EOL;
+                    WP_RaceManager::write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
                 }
             }
         }
@@ -443,17 +463,13 @@ class PWA_Subscription_Handler {
 
     /**
      * Helper function to send a push notification for a given subscriber.
-     * Integrate this with your existing web push logic.
      *
      * @param array  $subscriber The subscriber record from the database.
      * @param string $message    The notification message.
      */
     private function sendPushNotificationForSubscriber($subscriber, $message) {
-        // Integrate your existing push notification code here.
         // For demonstration, we log the notification.
-        error_log("Push notification for pilot {$subscriber['pilot_id']}: $message");
-        // Example call:
-        // WebPush::sendNotification($subscriber['subscription_data'], $message);
+        WP_RaceManager::write_log("Push notification for pilot {$subscriber['pilot_id']}: $message");
     }
 
 

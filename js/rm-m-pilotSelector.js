@@ -42,6 +42,8 @@ class PilotSelector {
         // Save the selected pilot to sessionStorage
         sessionStorage.setItem(this.pilotSelectionKey, event.target.value);
         this.selectedPilotId = event.target.value;
+        //const pilotOption = this.pilotSelect.selectedOptions[0];
+        //this.selectedPilotId = pilotOption.getAttribute('data-pilot-id');
     }
 
     populatePilotSelect(data) {

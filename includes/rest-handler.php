@@ -9,7 +9,8 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
-add_action('rest_api_init', function () {
+//add_action('rest_api_init', function () {
+function rm_register_rest_routes_rh() {
     // Endpoint for uploading JSON data
     register_rest_route('rm/v1', '/upload', [
         'methods' => 'POST',
@@ -31,7 +32,8 @@ add_action('rest_api_init', function () {
             ],
         ],
     ]);
-});
+}
+//);
 
 /**
  * Callback for POST /wp-json/wp-racemanager/v1/races
@@ -98,8 +100,8 @@ function rm_handle_upload( WP_REST_Request $request ) {
             'id'      => 0,
         ], 400);
     }
-    $notified = rm_notify_race_subscribers($race_id, $upcomingPilots);
-    //rm_notify_race_subscribers_bak( $race_id, $is_update );
+    $notified = rm_notify_nextup($race_id, $upcomingPilots);
+    //rm_notify_nextup_bak( $race_id, $is_update );
 
     // 7. Return final success response
     return new WP_REST_Response([
@@ -265,7 +267,7 @@ function rm_find_or_create_race( $data ) {
  * @param int  $race_id   The Race CPT post ID
  * @param bool $is_update True if the race was updated; false if newly created
  */
-function rm_notify_race_subscribers( $race_id, $upcomingPilots ) {
+function rm_notify_nextup( $race_id, $upcomingPilots ) {
     // If you have direct access to $this->pwa_subscription_handler in scope, use it.
     // Otherwise, retrieve from your plugin instance:
     $manager = \RaceManager\WP_RaceManager::instance();
@@ -276,6 +278,7 @@ function rm_notify_race_subscribers( $race_id, $upcomingPilots ) {
         return;
     }
     $pwa = $manager->pwa_subscription_handler;
+    //$pwa = $this->pwa_subscription_handler; // TODO: Test this
 
     // Now call the method (public in pwa-subscription-handler.php).
     // If your PWA_Subscription_Handler uses the CPT post ID as `race_id`,
@@ -288,7 +291,7 @@ function rm_notify_race_subscribers( $race_id, $upcomingPilots ) {
 
     return $notified;
 }
-function rm_notify_race_subscribers_bak( $race_id, $is_update = false ) {
+function rm_notify_nextup_bak( $race_id, $is_update = false ) {
     // If you have direct access to $this->pwa_subscription_handler in scope, use it.
     // Otherwise, retrieve from your plugin instance:
     $manager = \RaceManager\WP_RaceManager::instance();
@@ -366,18 +369,15 @@ function rm_create_wp_attachment( $race_id, $filepath ) {
 // Callback function to fetch and return pilot registration data
 // Options: 'latest' or a specific form title
 // requires 'form_title' parameter and 'api_key' header to be set
-function rm_get_registration_data($request) {
+function rm_get_registration_data( WP_REST_Request $request) {
 
-    // API key authentication
-    $api_key = get_option('rm_api_key');
-    $provided_key = $request->get_header('api_key');
-
-    if ($provided_key !== $api_key) {
+    // 1. Validate API Key
+    $maybe_error = rm_validate_api_key( $request );
+    if ( is_wp_error( $maybe_error ) ) {
         return new WP_REST_Response([
-            'status' => 'error',
-            'message' => 'Invalid API Key.',
-        ], 401);
-        //return new WP_Error('unauthorized', 'Invalid API Key', ['status' => 401]);
+            'status'  => 'error',
+            'message' => $maybe_error->get_error_message(),
+        ], $maybe_error->get_error_data() ?: 401);
     }
 
     global $wpdb;

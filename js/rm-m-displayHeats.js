@@ -24,7 +24,7 @@ class DisplayHeats {
         // none
 
         // Optional properties
-        this.filterCheckboxId = window.RmJsConfig["displayHeats"].filterCheckboxId || 'filterCheckbox';
+        this.filterCheckboxId = configData.filterCheckboxId || 'filterCheckbox';
         this.filterCheckboxElement = document.getElementById(`${this.filterCheckboxId}`);
 
         // Other properties       

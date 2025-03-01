@@ -13,7 +13,7 @@ self.addEventListener('push', function (event) {
     body: data.body || 'Your selected pilot is in the lineup!',
     icon: data.icon || 'https://wherever-we-are.com/wp/wp-content/plugins/wp-racemanager/img/icon_192.png',
     data: data.url || '/wp/live/',
-    badge: 'https://wherever-we-are.com/wp/wp-content/plugins/wp-racemanager/img/icon_192.png',
+    badge: data.badge || 'https://wherever-we-are.com/wp/wp-content/plugins/wp-racemanager/img/icon_192.png',
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
