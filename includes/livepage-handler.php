@@ -176,8 +176,6 @@ function rm_bracket_shortcode( $atts ) {
                 'dataUrl'           => $file_data_url,
                 'storageKey'        => $race_id,
                 'timeout'           => 9000,  // in milliseconds (optional)
-                'loadBracketEngine' => false,
-                'loadUiRenderer'    => false,
             ],
             'pilotSelector' => [
                 'pilotSelectorId'    => 'pilotSelector',
