@@ -29,7 +29,8 @@ function rm_activate() {
     \RaceManager\PWA_Subscription_Handler::create_db_table();
     
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
-    rm_write_pwa_manifest_file();
+    rm_create_file_from_template('template-pwa-sw.js', ABSPATH);
+    rm_create_file_from_template('template-manifest.json', ABSPATH);
 
 }
 register_activation_hook(

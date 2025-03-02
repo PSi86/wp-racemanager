@@ -83,70 +83,47 @@ function rm_pwa_enqueue_scripts() {
  * Add the manifest link to the head only on live pages.
  */
 function rm_pwa_add_manifest_link() {
-    $manifest_file_url = plugin_dir_url(__DIR__) . 'manifest.json';
-    //echo '<link rel="manifest" href="' . esc_url( home_url('?pwa_manifest=true&ver=1.0.3') ) . '">' . "\n";
+    //$manifest_file_url = plugin_dir_url(__DIR__) . 'manifest.json';
+    $manifest_file_url = get_site_url() . '/manifest.json';
     echo '<link rel="manifest" href="' . esc_url( $manifest_file_url ) . '">' . "\n";
 }
 
 /**
- * Create the Manifest File for PWA on the webserver.
- * Executed on RaceManager Plugin Activation.
+ * Create a file from a template.
+ * Template folder: wp-content/plugins/racemanager/templates/
+ * Each template file should have placeholders in the format [placeholderName]
+ * The function replaces the placeholders with actual values and writes the content to a new file.
+ * The new filename is the same as the template filename without the "template-" prefix.
+ * The target file path has to be provided as second argument.
+ * 
+ * Example: rm_create_file_from_template('template-pwa-sw.js', ABSPATH);
+ * 
+ * @param string $template_filename
+ * @param string $output_file_path
+ * @return void
  */
-function rm_write_pwa_manifest_file() {
-        $rm_iconfolder = plugin_dir_url(__DIR__) . 'img';
-        $manifest_data = array(
-            "name" => "Copterrace Live",
-            "short_name" => "CopterraceLive",
-            "id" => "https://wherever-we-are.com/wp/wp/live/", //"com.example.copterracelive", // TESTING
-            "start_url" => "https://wherever-we-are.com/wp/wp/live/", // TESTING
-            "scope" => "https://wherever-we-are.com/wp/wp/live/", // TESTING
-            "display" => "standalone",
-            "background_color" => "#ffffff",
-            "theme_color" => "#000000",
-            "icons" => array(
-                array(
-                    "src" => $rm_iconfolder . '/icon_32.png',
-                    "sizes" => "32x32",
-                    "type" => "image/png"
-                ),
-                array(
-                    "src" => $rm_iconfolder . '/icon_96.png',
-                    "sizes" => "96x96",
-                    "type" => "image/png"
-                ),
-                array(
-                    "src" => $rm_iconfolder . '/icon_192.png',
-                    "sizes" => "192x192",
-                    "type" => "image/png"
-                ),
-                array(
-                    "src" => $rm_iconfolder . '/icon_512.png',
-                    "sizes" => "512x512",
-                    "type" => "image/png"
-                )
-            ),
-            "screenshots" => array(
-                array(
-                    "src" => $rm_iconfolder . '/icon_512.png',
-                    "sizes" => "512x512",
-                    "type" => "image/png",
-                    "form_factor" => "narrow",
-                ),
-                array(
-                    "src" => $rm_iconfolder . '/icon_512.png',
-                    "sizes" => "512x512",
-                    "type" => "image/png",
-                    "form_factor" => "wide",
-                )
-            ),
-        );
-        
-        // Encode the data as JSON
-        $json_data = json_encode($manifest_data, JSON_PRETTY_PRINT);
-        
-        // Define the path and filename where the manifest will be saved
-        $manifest_file = plugin_dir_path(__DIR__) . 'manifest.json';
-        
-        // Write the JSON data to the file
-        file_put_contents($manifest_file, $json_data);
+function rm_create_file_from_template($template_filename, $output_file_path) {
+    $rm_iconfolder = plugin_dir_url(__DIR__) . 'img';
+    $rm_wp_root_url = get_site_url();
+    // TODO: allowing editing the values in the admin panel?
+    $replace_pattern = array(
+        "[siteUrl]" => esc_js("https://wherever-we-are.com/wp/"), // wp start page url
+        "[livePagesUrl]" => esc_js("https://wherever-we-are.com/wp/live/"), // also used for pwa_id
+        "[pwaScope]" => esc_js("/wp/live/"),   // relative path to the live pages
+        "[pwaStartUrl]" => esc_js("https://wherever-we-are.com/wp/live/bracket/"), // when the PWA is started
+        "[pwaStartPage]" => esc_js("/wp/live/bracket/"), // '/wp/live/' relative path to the pwaScope start page
+        "[iconFolderUrl]" => esc_js($rm_iconfolder),
+    );
+    
+    // construct the full path to the template file
+    $template_file = plugin_dir_path(__DIR__) . '/templates/' . $template_filename;
+    // construct the full path to the output file
+    $output_file = $output_file_path . str_replace('template-', '', $template_filename);
+
+    // replace placeholders in the service worker template with actual values using the $replace_pattern array
+    $template_content = file_get_contents($template_file);
+    $template_content = str_replace(array_keys($replace_pattern), array_values($replace_pattern), $template_content);
+
+    // Write the service worker content to the file
+    file_put_contents($output_file, $template_content);
 }
