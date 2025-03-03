@@ -52,17 +52,17 @@ class DisplayHeats {
     }
 
     initialize() {
-        // Init UI elements
-        this.filterCheckboxElement.checked = this.filterCheckboxState;
-        
-        // Attach event handlers
+        // Init UI elements and attach event handlers
+        if (this.filterCheckboxElement !== null) {
+            this.filterCheckboxElement.checked = this.filterCheckboxState;
+            this.filterCheckboxElement.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+
         this.pilotSelectorElement.addEventListener('change', this.handleFilterChange.bind(this));
-        this.filterCheckboxElement.addEventListener('change', this.handleFilterChange.bind(this));
 
         // Subscribe to the dataLoader (singleton)
         console.log("DisplayHeats: Subscribed to DataLoader");
         dataLoaderInstance.subscribe(this.handleDataLoaderEvent.bind(this));
-
 
         // Only attach new mouse eventhandler once after the data is loaded
         this.attachPilotMouseEvents(); // attach mouse events to the pilot names
@@ -79,7 +79,7 @@ class DisplayHeats {
     handleFilterChange() {
         //this.selectedPilotId = event.target.value;
         this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
-        this.filterCheckboxState = this.filterCheckboxElement.checked
+        this.filterCheckboxState = this.filterCheckboxElement ? this.filterCheckboxElement.checked : false;
         sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
 
         console.log('DisplayHeats: Filter changed:', this.selectedPilotId, this.filterCheckboxState);
@@ -214,7 +214,7 @@ class DisplayHeats {
         }
         // no template found for this class
         if(bracketData.data.length == 0) { 
-            bracketData.data = structuredClone(default_template); // empty array
+            bracketData.data = [] //structuredClone(default_template); // empty array
             template="default"; 
         }
     
@@ -243,20 +243,46 @@ class DisplayHeats {
             return heats.filter(heat => heat.class_id === classId);
         }
 
-        // Find the class ID for the classname
-        const raceClassCapital=raceClass.charAt(0).toUpperCase() + raceClass.slice(1);
-        const raceClassObj = findRaceClassByName(rhData, raceClassCapital);
+        let eliminationHeats = [];
+        let raceClassObj = null;
 
-        if(!raceClassObj) { 
-            console.warn("updateClassData: raceClass not found in RHData");
-            return null;  // Exit if the class ID is not found
+        if(raceClass=="nextup") {
+            // if class is nextup, then do not care about classes, just show the next heats
+            //const eliminationHeats = filterHeatsByClassId(rhData.heat_data.heats, raceClassId);
+            // Sort eliminationHeats by id
+            //eliminationHeats.sort((a, b) => a.id - b.id);
+
+            const currentHeatId = rhData.current_heat.current_heat;
+
+            // Copy and sort the heats array by id in ascending order
+            //const sortedHeats = rhData.heat_data.heats.slice().sort((a, b) => a.id - b.id);
+            const sortedHeats = rhData.heat_data.heats.slice(); // extra sorting not necessary
+
+            // Find the index of the race with id matching currentHeatId
+            const startIndex = sortedHeats.findIndex(heat => heat.id === currentHeatId);
+            if (startIndex === -1) {
+                throw new Error('Current heat id not found in heats array.');
+            }
+
+            // Return the next 5 races (including the current heat)
+            eliminationHeats = sortedHeats.slice(startIndex, startIndex + 5);
         }
-        const raceClassId = raceClassObj.id;
+        else {
+            // Find the class ID for the classname
+            const raceClassCapital=raceClass.charAt(0).toUpperCase() + raceClass.slice(1);
+            raceClassObj = findRaceClassByName(rhData, raceClassCapital);
 
-        // TODO rename eliminationHeats to something more generic
-        const eliminationHeats = filterHeatsByClassId(rhData.heat_data.heats, raceClassId);
-        // Sort eliminationHeats by id
-        eliminationHeats.sort((a, b) => a.id - b.id);
+            if(!raceClassObj) { 
+                console.warn("updateClassData: raceClass not found in RHData");
+                return null;  // Exit if the class ID is not found
+            }
+            const raceClassId = raceClassObj.id;
+
+            // TODO rename eliminationHeats to something more generic
+            eliminationHeats = filterHeatsByClassId(rhData.heat_data.heats, raceClassId);
+            // Sort eliminationHeats by id
+            eliminationHeats = eliminationHeats.sort((a, b) => a.id - b.id);
+        }
 
         // Convert rhData.result_data.heats to an array if it's an object
         let resultHeatsArray
@@ -342,7 +368,7 @@ class DisplayHeats {
             }
 
             // check class_data for configured number of rounds per heat in this class
-            if(raceClassObj.rounds>1) {
+            if(raceClassObj && raceClassObj.rounds>1) {
                 
                 targetElement.title += "\n"+flownRounds+" of "+raceClassObj.rounds;
             }

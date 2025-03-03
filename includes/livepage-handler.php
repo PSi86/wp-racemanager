@@ -249,10 +249,15 @@ function rm_nextup_shortcode( $atts ) {
         if ( ! $race_id ) {
             return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
         }
+        
+        wp_enqueue_style(
+            'rm-sc-viewer-css', 
+            plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+        );
 
         wp_register_script_module(
             'rm-nextUp',
-            plugin_dir_url( __DIR__ ) . 'js/rm-m-pwa-subscribe.js',
+            plugin_dir_url( __DIR__ ) . 'js/rm-m-displayNextUp.js', //rm-m-pwa-subscribe.js
             array(), // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
             '1.0.3',
             true
@@ -272,7 +277,7 @@ function rm_nextup_shortcode( $atts ) {
             // Load dataLoader, pilotSelector, pushSubscription
             $config = array(
                 'dataLoader' => [
-                    'refreshInterval'   => 0, // no refresh here (in milliseconds)
+                    'refreshInterval'   => 10000, // no refresh here (in milliseconds)
                     'timestampUrl'      => $file_timestamp_url,
                     'dataUrl'           => $file_data_url,
                     'storageKey'        => $race_id,
@@ -287,6 +292,9 @@ function rm_nextup_shortcode( $atts ) {
                     'formId'               => 'pilot-push-form',
                     'subscribeButtonId'    => 'subscribe-button',
                     'subscriptionStatusId' => 'subscription-status',
+                ],
+                'displayHeats' => [
+                    'filterCheckboxId'   => 'none', // no filter checkbox here
                 ],
             );
             
@@ -308,6 +316,7 @@ function rm_nextup_shortcode( $atts ) {
 
     ob_start();
     ?>
+    <div id="nextup-display" class="raceclass-container"></div>
     <div id="pilot-push-container">
       <h2>Select Pilot for Race Notifications</h2>
       <form id="pilot-push-form">
