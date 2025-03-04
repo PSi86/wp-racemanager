@@ -5,7 +5,109 @@
 
 import { dataLoaderInstance } from './rm-m-dataLoader.js';
 import { pilotSelectInstance } from './rm-m-pilotSelector.js';
-const $ = window.jQuery;
+const RACING_MODE_INDV = 0;   // INDIVIDUAL
+const RACING_MODE_TEAM = 1;   // TEAM_ENABLED
+const RACING_MODE_COOP = 2;   // COOP_ENABLED
+const rotorhazard = {
+    min_lap: 0,
+    panelstates: {}
+};
+
+// Helper functions for sliding animations
+function slideUp(element, duration = 300) {
+    element.style.transitionProperty = 'height, margin, padding';
+    element.style.transitionDuration = duration + 'ms';
+    element.style.boxSizing = 'border-box';
+    element.style.height = element.offsetHeight + 'px';
+    element.offsetHeight; // force repaint
+    element.style.overflow = 'hidden';
+    element.style.height = 0;
+    window.setTimeout(() => {
+        element.style.display = 'none';
+        element.style.removeProperty('height');
+        element.style.removeProperty('overflow');
+        element.style.removeProperty('transition-duration');
+        element.style.removeProperty('transition-property');
+    }, duration);
+}
+
+function slideDown(element, duration = 300) {
+    element.style.removeProperty('display');
+    let display = window.getComputedStyle(element).display;
+    if (display === 'none') display = 'block';
+    element.style.display = display;
+    let height = element.offsetHeight;
+    element.style.overflow = 'hidden';
+    element.style.height = 0;
+    element.offsetHeight; // force repaint
+    element.style.transitionProperty = 'height, margin, padding';
+    element.style.transitionDuration = duration + 'ms';
+    element.style.height = height + 'px';
+    window.setTimeout(() => {
+        element.style.removeProperty('height');
+        element.style.removeProperty('overflow');
+        element.style.removeProperty('transition-duration');
+        element.style.removeProperty('transition-property');
+    }, duration);
+}
+
+// Event delegation for panel collapsing
+document.addEventListener('click', function (e) {
+    const header = e.target.closest('.collapsing .panel-header');
+    if (header) {
+        const panel = header.parentElement;
+        const panelId = panel.id;
+        const panelContent = panel.querySelectorAll('.panel-content');
+        if (panel.classList.contains('open')) {
+            panel.classList.remove('open');
+            panelContent.forEach(el => slideUp(el));
+            if (panelId) {
+                rotorhazard.panelstates[panelId] = false;
+            }
+        } else {
+            panel.classList.add('open');
+            panelContent.forEach(el => slideDown(el));
+            if (panelId) {
+                rotorhazard.panelstates[panelId] = true;
+            }
+        }
+    }
+});
+
+// Process all collapsing panels on page load
+document.querySelectorAll('.collapsing').forEach(function (el) {
+    el.classList.add('active');
+
+    // Hide all panel-content elements
+    el.querySelectorAll('.panel-content').forEach(function (pc) {
+        pc.style.display = 'none';
+    });
+
+    // Wrap inner contents of all direct children of .panel-header with a button
+    el.querySelectorAll('.panel-header > *').forEach(function (child) {
+        const btn = document.createElement('button');
+        btn.className = 'no-style';
+        // Move all child nodes into the new button element
+        while (child.firstChild) {
+            btn.appendChild(child.firstChild);
+        }
+        child.appendChild(btn);
+    });
+});
+
+// If there's a hash in the URL, open the corresponding panel
+if (window.location.hash) {
+    const panel = document.querySelector(window.location.hash);
+    if (panel && panel.querySelector('.panel-header')) {
+        panel.classList.add('open');
+        panel.querySelectorAll('.panel-content').forEach(function (pc) {
+            pc.style.display = 'block';
+        });
+        // Reassign the hash to trigger any hashchange events
+        location.hash = window.location.hash;
+    }
+}
+
 
 //import { __ } from './rm-m-i18n.js';
 
@@ -67,8 +169,8 @@ class DisplayStats {
     handleFilterChange() {
         //this.selectedPilotId = event.target.value;
         this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
-        
-        if(this.filterCheckboxElement) {
+
+        if (this.filterCheckboxElement) {
             this.filterCheckboxState = this.filterCheckboxElement.checked;
             sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
         }
@@ -84,29 +186,28 @@ class DisplayStats {
      * Displays race heats and leaderboards based on the given message object.
      * @param {Object} msg - The message object containing race data.
      */
-    displayStats(msg) {
-        const $ = window.jQuery;
+    displayStats(rhdata) {
+        const msg = rhdata.result_data;
         // Helper function to order leaderboard boards
         const orderBoards = (primary) => {
             const boards = ['by_race_time', 'by_fastest_lap', 'by_consecutives'];
-            boards.sort((x, y) => x === primary ? -1 : y === primary ? 1 : 0);
+            boards.sort((x, y) => (x === primary ? -1 : y === primary ? 1 : 0));
             return boards;
         };
-        const RACING_MODE_INDV = 0;   // INDIVIDUAL
-        const RACING_MODE_TEAM = 1;   // TEAM_ENABLED
-        const RACING_MODE_COOP = 2;   // COOP_ENABLED
-        // Set default meta using values from msg (RACING_MODE_INDV assumed global or imported)
+
+        // Default meta (assumes RACING_MODE_INDV is globally available)
         const defaultMeta = {
             team_racing_mode: RACING_MODE_INDV,
             start_behavior: 0,
-            consecutives_count: msg.consecutives_count
+            consecutives_count: msg.consecutives_count,
         };
 
-        const page = $('#results');
-        page.empty();
+        // Get the results container and clear it
+        const page = document.getElementById('results');
+        page.innerHTML = '';
 
-        if (!$.isEmptyObject(msg.heats)) {
-            // Move unclassified heats to end of list (assumes Object.keys ordering as per ES6 or server addition order)
+        if (Object.keys(msg.heats).length > 0) {
+            // Move unclassified heats to end of list (assumes ES6 key ordering)
             let classOrdered = Object.keys(msg.heats_by_class);
             classOrdered = classOrdered.concat(classOrdered.splice(0, 1));
 
@@ -122,47 +223,90 @@ class DisplayStats {
                 }
 
                 if (valid_heats) {
-                    const classPanel = $('<div>', { id: 'class_' + classIndex, class: 'panel collapsing' });
-                    const classPanelHeader = $('<div>', { class: 'panel-header' });
-                    const classPanelContent = $('<div>', { class: 'panel-content', style: 'display: none' });
+                    // Create class panel
+                    const classPanel = document.createElement('div');
+                    classPanel.id = 'class_' + classIndex;
+                    classPanel.className = 'panel collapsing';
+
+                    const classPanelHeader = document.createElement('div');
+                    classPanelHeader.className = 'panel-header';
+
+                    const classPanelContent = document.createElement('div');
+                    classPanelContent.className = 'panel-content';
+                    classPanelContent.style.display = 'none';
 
                     const currentClass = msg.classes[race_class];
                     if (currentClass) {
-                        if (currentClass.name) {
-                            classPanelHeader.append('<h2><button class="no-style">' + currentClass.name + '</button></h2>');
-                        } else {
-                            classPanelHeader.append('<h2><button class="no-style">' + __('Class') + ' ' + currentClass.id + '</button></h2>');
-                        }
+                        // Create header for class name
+                        const h2 = document.createElement('h2');
+                        const btn = document.createElement('button');
+                        btn.className = 'no-style';
+                        btn.textContent = currentClass.name
+                            ? currentClass.name
+                            : 'Class' + ' ' + currentClass.id;
+                        h2.appendChild(btn);
+                        classPanelHeader.appendChild(h2);
 
+                        // Create class ranking panel if available
                         if (currentClass.ranking) {
-                            const classSpecial = $('<div>', { id: 'class_' + classIndex + '_leaderboard', class: 'panel collapsing class-leaderboard' });
-                            const classSpecialHeader = $('<div>', { class: 'panel-header' });
-                            let classHeaderText = __('Class Ranking');
-                            if (currentClass.ranking.meta?.method_label) {
-                                classHeaderText += '&#8212;' + currentClass.ranking.meta.method_label;
-                            }
-                            classSpecialHeader.append('<h3><button class="no-style">' + classHeaderText + '</button></h3>');
-                            classSpecial.append(classSpecialHeader);
+                            const classSpecial = document.createElement('div');
+                            classSpecial.id = 'class_' + classIndex + '_leaderboard';
+                            classSpecial.className = 'panel collapsing class-leaderboard';
 
-                            const classSpecialContent = $('<div>', { class: 'panel-content', style: 'display: none' });
-                            classSpecialContent.append(build_ranking(currentClass.ranking));
-                            classSpecial.append(classSpecialContent);
-                            classPanelContent.append(classSpecial);
+                            const classSpecialHeader = document.createElement('div');
+                            classSpecialHeader.className = 'panel-header';
+                            const h3 = document.createElement('h3');
+                            const btnRanking = document.createElement('button');
+                            btnRanking.className = 'no-style';
+                            let classHeaderText = 'Class Ranking';
+                            if (
+                                currentClass.ranking.meta &&
+                                currentClass.ranking.meta.method_label
+                            ) {
+                                classHeaderText += '—' + currentClass.ranking.meta.method_label;
+                            }
+                            btnRanking.textContent = classHeaderText;
+                            h3.appendChild(btnRanking);
+                            classSpecialHeader.appendChild(h3);
+                            classSpecial.appendChild(classSpecialHeader);
+
+                            const classSpecialContent = document.createElement('div');
+                            classSpecialContent.className = 'panel-content';
+                            classSpecialContent.style.display = 'none';
+                            classSpecialContent.appendChild(this.buildRanking(currentClass.ranking));
+                            classSpecial.appendChild(classSpecialContent);
+                            classPanelContent.appendChild(classSpecial);
                         }
 
-                        const classLeaderboard = $('<div>', { id: 'class_' + classIndex + '_leaderboard', class: 'panel collapsing class-leaderboard' });
-                        const classLeaderboardHeader = $('<div>', { class: 'panel-header' });
-                        classLeaderboardHeader.append('<h3><button class="no-style">' + __('Class Summary') + '</button></h3>');
-                        classLeaderboard.append(classLeaderboardHeader);
+                        // Create class leaderboard summary
+                        const classLeaderboard = document.createElement('div');
+                        classLeaderboard.id = 'class_' + classIndex + '_leaderboard';
+                        classLeaderboard.className = 'panel collapsing class-leaderboard';
 
-                        const classLeaderboardContent = $('<div>', { class: 'panel-content', style: 'display: none' });
-                        const boards = orderBoards(currentClass.leaderboard.meta.primary_leaderboard);
+                        const classLeaderboardHeader = document.createElement('div');
+                        classLeaderboardHeader.className = 'panel-header';
+                        const h3Summary = document.createElement('h3');
+                        const btnSummary = document.createElement('button');
+                        btnSummary.className = 'no-style';
+                        btnSummary.textContent = 'Class Summary';
+                        h3Summary.appendChild(btnSummary);
+                        classLeaderboardHeader.appendChild(h3Summary);
+                        classLeaderboard.appendChild(classLeaderboardHeader);
 
+                        const classLeaderboardContent = document.createElement('div');
+                        classLeaderboardContent.className = 'panel-content';
+                        classLeaderboardContent.style.display = 'none';
+
+                        const boards = orderBoards(
+                            currentClass.leaderboard.meta.primary_leaderboard
+                        );
                         boards.forEach((board) => {
                             if (board === 'by_race_time') {
-                                classLeaderboardContent.append('<h4>' + __('Race Totals') + '</h4>');
-                                classLeaderboardContent.append(
-                                    build_leaderboard(
+                                const h4 = document.createElement('h4');
+                                h4.textContent = 'Race Totals';
+                                classLeaderboardContent.appendChild(h4);
+                                classLeaderboardContent.appendChild(
+                                    this.buildLeaderboard(
                                         currentClass.leaderboard.by_race_time,
                                         'by_race_time',
                                         currentClass.leaderboard.meta,
@@ -170,9 +314,11 @@ class DisplayStats {
                                     )
                                 );
                             } else if (board === 'by_fastest_lap') {
-                                classLeaderboardContent.append('<h4>' + __('Fastest Laps') + '</h4>');
-                                classLeaderboardContent.append(
-                                    build_leaderboard(
+                                const h4 = document.createElement('h4');
+                                h4.textContent = 'Fastest Laps';
+                                classLeaderboardContent.appendChild(h4);
+                                classLeaderboardContent.appendChild(
+                                    this.buildLeaderboard(
                                         currentClass.leaderboard.by_fastest_lap,
                                         'by_fastest_lap',
                                         currentClass.leaderboard.meta,
@@ -180,9 +326,11 @@ class DisplayStats {
                                     )
                                 );
                             } else if (board === 'by_consecutives') {
-                                classLeaderboardContent.append('<h4>' + __('Fastest Consecutive Laps') + '</h4>');
-                                classLeaderboardContent.append(
-                                    build_leaderboard(
+                                const h4 = document.createElement('h4');
+                                h4.textContent = 'Fastest Consecutive Laps';
+                                classLeaderboardContent.appendChild(h4);
+                                classLeaderboardContent.appendChild(
+                                    this.buildLeaderboard(
                                         currentClass.leaderboard.by_consecutives,
                                         'by_consecutives',
                                         currentClass.leaderboard.meta,
@@ -191,179 +339,288 @@ class DisplayStats {
                                 );
                             }
                         });
-                        classLeaderboard.append(classLeaderboardContent);
-                        classPanelContent.append(classLeaderboard);
+                        classLeaderboard.appendChild(classLeaderboardContent);
+                        classPanelContent.appendChild(classLeaderboard);
                     } else {
-                        if ($.isEmptyObject(msg.classes)) {
-                            classPanelHeader.append('<h2><button class="no-style">' + __('Heats') + '</button></h2>');
-                        } else {
-                            classPanelHeader.append('<h2><button class="no-style">' + __('Unclassified') + '</button></h2>');
-                        }
+                        // Fallback if there is no specific class info
+                        const h2 = document.createElement('h2');
+                        const btn = document.createElement('button');
+                        btn.className = 'no-style';
+                        btn.textContent =
+                            Object.keys(msg.classes).length === 0
+                                ? 'Heats'
+                                : 'Unclassified';
+                        h2.appendChild(btn);
+                        classPanelHeader.appendChild(h2);
                     }
 
-                    classPanel.append(classPanelHeader);
+                    classPanel.appendChild(classPanelHeader);
 
+                    // Process each heat for this class
                     msg.heats_by_class[race_class].forEach((heatId, heatIndex) => {
                         const heat = msg.heats[heatId];
                         if (heat) {
-                            const panel = $('<div>', { id: 'class_' + classIndex + '_heat_' + heatIndex, class: 'panel collapsing' });
-                            const panelHeader = $('<div>', { class: 'panel-header' });
-                            panelHeader.append('<h3><button class="no-style">' + heat.displayname + '</button></h3>');
-                            panel.append(panelHeader);
+                            const panel = document.createElement('div');
+                            panel.id = 'class_' + classIndex + '_heat_' + heatIndex;
+                            panel.className = 'panel collapsing';
 
-                            const panelContent = $('<div>', { class: 'panel-content', style: 'display: none' });
+                            const panelHeader = document.createElement('div');
+                            panelHeader.className = 'panel-header';
+                            const h3 = document.createElement('h3');
+                            const btnHeat = document.createElement('button');
+                            btnHeat.className = 'no-style';
+                            btnHeat.textContent = heat.displayname;
+                            h3.appendChild(btnHeat);
+                            panelHeader.appendChild(h3);
+                            panel.appendChild(panelHeader);
+
+                            const panelContent = document.createElement('div');
+                            panelContent.className = 'panel-content';
+                            panelContent.style.display = 'none';
 
                             // Heat leaderboard (if more than one round)
                             if (heat.rounds.length > 1) {
-                                const heatSummaryPanel = $('<div>', {
-                                    id: 'class_' + classIndex + '_heat_' + heatIndex + '_leaderboard',
-                                    class: 'panel collapsing open'
-                                });
-                                heatSummaryPanel.append(
-                                    '<div class="panel-header"><h4><button class="no-style">' + __('Heat Summary') + '</button></h4></div>'
-                                );
-                                const heatSummaryPanelContent = $('<div>', { class: 'panel-content' });
-                                const heatLeaderboard = $('<div>', { class: 'leaderboard' });
-                                heatLeaderboard.append(
-                                    build_leaderboard(
+                                const heatSummaryPanel = document.createElement('div');
+                                heatSummaryPanel.id =
+                                    'class_' + classIndex + '_heat_' + heatIndex + '_leaderboard';
+                                heatSummaryPanel.className = 'panel collapsing open';
+
+                                const heatSummaryPanelHeader = document.createElement('div');
+                                heatSummaryPanelHeader.className = 'panel-header';
+                                const h4 = document.createElement('h4');
+                                const btnHeatSummary = document.createElement('button');
+                                btnHeatSummary.className = 'no-style';
+                                btnHeatSummary.textContent = 'Heat Summary';
+                                h4.appendChild(btnHeatSummary);
+                                heatSummaryPanelHeader.appendChild(h4);
+                                heatSummaryPanel.appendChild(heatSummaryPanelHeader);
+
+                                const heatSummaryPanelContent = document.createElement('div');
+                                heatSummaryPanelContent.className = 'panel-content';
+                                const heatLeaderboard = document.createElement('div');
+                                heatLeaderboard.className = 'leaderboard';
+                                heatLeaderboard.appendChild(
+                                    this.buildLeaderboard(
                                         heat.leaderboard[heat.leaderboard.meta.primary_leaderboard],
                                         'heat',
                                         heat.leaderboard.meta,
                                         true
                                     )
                                 );
-                                heatSummaryPanelContent.append(heatLeaderboard);
-                                heatSummaryPanel.append(heatSummaryPanelContent);
-                                panelContent.append(heatSummaryPanel);
+                                heatSummaryPanelContent.appendChild(heatLeaderboard);
+                                heatSummaryPanel.appendChild(heatSummaryPanelContent);
+                                panelContent.appendChild(heatSummaryPanel);
                             }
 
-                            // Rounds for this heat
+                            // Process each round in the heat
                             heat.rounds.forEach((round) => {
-                                const roundDiv = $('<div>', {
-                                    id: 'class_' + classIndex + '_heat_' + heatIndex + '_round_' + round.id,
-                                    class: 'round panel collapsing open'
-                                });
-                                roundDiv.append(
-                                    '<div class="panel-header"><h4><button class="no-style">' +
-                                    __('Round') +
+                                const roundDiv = document.createElement('div');
+                                roundDiv.id =
+                                    'class_' +
+                                    classIndex +
+                                    '_heat_' +
+                                    heatIndex +
+                                    '_round_' +
+                                    round.id;
+                                roundDiv.className = 'round panel collapsing open';
+
+                                const roundHeader = document.createElement('div');
+                                roundHeader.className = 'panel-header';
+                                const h4 = document.createElement('h4');
+                                const btnRound = document.createElement('button');
+                                btnRound.className = 'no-style';
+                                btnRound.textContent =
+                                    'Round' +
                                     ' ' +
                                     round.id +
                                     ' (' +
                                     round.start_time_formatted +
-                                    ')</button></h4></div>'
-                                );
-                                const roundContent = $('<div>', { class: 'panel-content' });
-                                // Race leaderboard for the round
-                                const raceLeaderboard = $('<div>', { class: 'leaderboard' });
-                                raceLeaderboard.append(
-                                    build_leaderboard(
+                                    ')';
+                                h4.appendChild(btnRound);
+                                roundHeader.appendChild(h4);
+                                roundDiv.appendChild(roundHeader);
+
+                                const roundContent = document.createElement('div');
+                                roundContent.className = 'panel-content';
+
+                                const raceLeaderboard = document.createElement('div');
+                                raceLeaderboard.className = 'leaderboard';
+                                raceLeaderboard.appendChild(
+                                    this.buildLeaderboard(
                                         round.leaderboard[round.leaderboard.meta.primary_leaderboard],
                                         'round',
                                         round.leaderboard.meta
                                     )
                                 );
-                                const raceResults = $('<div>', { class: 'race-results' });
 
-                                // Race laps for each node in the round
+                                const raceResults = document.createElement('div');
+                                raceResults.className = 'race-results';
+
+                                // Process each node (racer) in the round
                                 round.nodes.forEach((node) => {
                                     if (node.callsign !== null) {
-                                        const nodeDiv = $('<div>', { class: 'node' });
-                                        nodeDiv.append('<h5>' + node.callsign + '</h5>');
-                                        const table = $('<table>', { class: 'laps' });
-                                        const tbody = $('<tbody>');
-                                        let lapIndex = ('start_behavior' in round.leaderboard.meta && round.leaderboard.meta.start_behavior == 1)
-                                            ? 1
-                                            : 0;
+                                        const nodeDiv = document.createElement('div');
+                                        nodeDiv.className = 'node';
+                                        const h5 = document.createElement('h5');
+                                        h5.textContent = node.callsign;
+                                        nodeDiv.appendChild(h5);
+
+                                        const table = document.createElement('table');
+                                        table.className = 'laps';
+                                        const tbody = document.createElement('tbody');
+                                        let lapIndex =
+                                            'start_behavior' in round.leaderboard.meta &&
+                                                round.leaderboard.meta.start_behavior == 1
+                                                ? 1
+                                                : 0;
                                         node.laps.forEach((lap) => {
                                             if (!lap.deleted) {
+                                                const tr = document.createElement('tr');
+                                                tr.className = 'lap_' + lapIndex;
+                                                const tdIndex = document.createElement('td');
+                                                tdIndex.textContent = lapIndex;
+                                                const tdTime = document.createElement('td');
                                                 if (lapIndex) {
                                                     let timestamp;
-                                                    if ('start_behavior' in round.leaderboard.meta && round.leaderboard.meta.start_behavior == 2) {
+                                                    if (
+                                                        'start_behavior' in round.leaderboard.meta &&
+                                                        round.leaderboard.meta.start_behavior == 2
+                                                    ) {
                                                         timestamp =
-                                                            formatTimeMillis(lap.lap_time_stamp - node.laps[0].lap_time_stamp, "{m}:{s}.{d}") +
+                                                            this.formatTimeMillis(
+                                                                lap.lap_time_stamp - node.laps[0].lap_time_stamp,
+                                                                '{m}:{s}.{d}'
+                                                            ) +
                                                             ' / ' +
-                                                            formatTimeMillis(lap.lap_time_stamp, "{m}:{s}.{d}");
+                                                            this.formatTimeMillis(
+                                                                lap.lap_time_stamp,
+                                                                '{m}:{s}.{d}'
+                                                            );
                                                     } else {
-                                                        timestamp = formatTimeMillis(lap.lap_time_stamp, "{m}:{s}.{d}");
+                                                        timestamp = this.formatTimeMillis(
+                                                            lap.lap_time_stamp,
+                                                            '{m}:{s}.{d}'
+                                                        );
                                                     }
-                                                    tbody.append(
-                                                        '<tr class="lap_' +
-                                                        lapIndex +
-                                                        '"><td>' +
-                                                        lapIndex +
-                                                        '</td><td><span class="from_start">' +
-                                                        timestamp +
-                                                        '</span>' +
-                                                        formatTimeMillis(lap.lap_time, "{m}:{s}.{d}") +
-                                                        '</td></tr>'
+                                                    const span = document.createElement('span');
+                                                    span.className = 'from_start';
+                                                    span.textContent = timestamp;
+                                                    tdTime.appendChild(span);
+                                                    tdTime.insertAdjacentText(
+                                                        'beforeend',
+                                                        this.formatTimeMillis(lap.lap_time, '{m}:{s}.{d}')
                                                     );
                                                 } else {
-                                                    tbody.append(
-                                                        '<tr class="lap_0"><td>0</td><td>' +
-                                                        formatTimeMillis(lap.lap_time, "{m}:{s}.{d}") +
-                                                        '</td></tr>'
+                                                    tdTime.textContent = this.formatTimeMillis(
+                                                        lap.lap_time,
+                                                        '{m}:{s}.{d}'
                                                     );
                                                 }
+                                                tr.appendChild(tdIndex);
+                                                tr.appendChild(tdTime);
+                                                tbody.appendChild(tr);
                                                 lapIndex++;
                                             }
                                         });
-                                        table.append(tbody);
-                                        nodeDiv.append(table);
-                                        raceResults.append(nodeDiv);
+                                        table.appendChild(tbody);
+                                        nodeDiv.appendChild(table);
+                                        raceResults.appendChild(nodeDiv);
                                     }
                                 });
-                                roundContent.append(raceLeaderboard);
-                                roundContent.append(raceResults);
-                                roundDiv.append(roundContent);
-                                panelContent.append(roundDiv);
+
+                                roundContent.appendChild(raceLeaderboard);
+                                roundContent.appendChild(raceResults);
+                                roundDiv.appendChild(roundContent);
+                                panelContent.appendChild(roundDiv);
                             });
-                            panel.append(panelContent);
-                            classPanelContent.append(panel);
+                            panel.appendChild(panelContent);
+                            classPanelContent.appendChild(panel);
                         }
                     });
-                    classPanel.append(classPanelContent);
-                    page.append(classPanel);
+                    classPanel.appendChild(classPanelContent);
+                    page.appendChild(classPanel);
                 }
             });
 
-            // Event leaderboard
-            const eventPanel = $('<div>', { id: 'event_leaderboard', class: 'panel collapsing' });
-            const eventPanelHeader = $('<div>', { class: 'panel-header' });
-            eventPanelHeader.append('<h2><button class="no-style">' + __('Event Totals') + '</button></h2>');
-            eventPanel.append(eventPanelHeader);
+            // Build the event leaderboard
+            const eventPanel = document.createElement('div');
+            eventPanel.id = 'event_leaderboard';
+            eventPanel.className = 'panel collapsing';
 
-            const eventPanelContent = $('<div>', { class: 'panel-content', style: 'display: none' });
-            const eventLeaderboard = $('<div>', { class: 'event-leaderboards' });
-            eventLeaderboard.append('<h3>' + __('Race Totals') + '</h3>');
-            eventLeaderboard.append(
-                build_leaderboard(msg.event_leaderboard.by_race_time, 'by_race_time', msg.event_leaderboard.meta, true)
-            );
-            eventLeaderboard.append('<h3>' + __('Fastest Laps') + '</h3>');
-            eventLeaderboard.append(
-                build_leaderboard(msg.event_leaderboard.by_fastest_lap, 'by_fastest_lap', msg.event_leaderboard.meta)
-            );
-            eventLeaderboard.append('<h3>' + __('Fastest Consecutive Laps') + '</h3>');
-            eventLeaderboard.append(
-                build_leaderboard(msg.event_leaderboard.by_consecutives, 'by_consecutives', msg.event_leaderboard.meta)
-            );
-            eventPanelContent.append(eventLeaderboard);
-            eventPanel.append(eventPanelContent);
-            page.append(eventPanel);
+            const eventPanelHeader = document.createElement('div');
+            eventPanelHeader.className = 'panel-header';
+            const h2Event = document.createElement('h2');
+            const btnEvent = document.createElement('button');
+            btnEvent.className = 'no-style';
+            btnEvent.textContent = 'Event Totals';
+            h2Event.appendChild(btnEvent);
+            eventPanelHeader.appendChild(h2Event);
+            eventPanel.appendChild(eventPanelHeader);
 
-            // Load panel state based on rotorhazard.panelstates (assumed available globally)
+            const eventPanelContent = document.createElement('div');
+            eventPanelContent.className = 'panel-content';
+            eventPanelContent.style.display = 'none';
+
+            const eventLeaderboard = document.createElement('div');
+            eventLeaderboard.className = 'event-leaderboards';
+
+            const h3RaceTotals = document.createElement('h3');
+            h3RaceTotals.textContent = 'Race Totals';
+            eventLeaderboard.appendChild(h3RaceTotals);
+            eventLeaderboard.appendChild(
+                this.buildLeaderboard(
+                    msg.event_leaderboard.by_race_time,
+                    'by_race_time',
+                    msg.event_leaderboard.meta,
+                    true
+                )
+            );
+
+            const h3FastestLaps = document.createElement('h3');
+            h3FastestLaps.textContent = 'Fastest Laps';
+            eventLeaderboard.appendChild(h3FastestLaps);
+            eventLeaderboard.appendChild(
+                this.buildLeaderboard(
+                    msg.event_leaderboard.by_fastest_lap,
+                    'by_fastest_lap',
+                    msg.event_leaderboard.meta
+                )
+            );
+
+            const h3FastestConsecutives = document.createElement('h3');
+            h3FastestConsecutives.textContent = 'Fastest Consecutive Laps';
+            eventLeaderboard.appendChild(h3FastestConsecutives);
+            eventLeaderboard.appendChild(
+                this.buildLeaderboard(
+                    msg.event_leaderboard.by_consecutives,
+                    'by_consecutives',
+                    msg.event_leaderboard.meta
+                )
+            );
+
+            eventPanelContent.appendChild(eventLeaderboard);
+            eventPanel.appendChild(eventPanelContent);
+            page.appendChild(eventPanel);
+
+            // Restore panel state (using rotorhazard.panelstates, assumed global)
             for (const panelId in rotorhazard.panelstates) {
-                const panelObj = $('#' + panelId);
-                const panelState = rotorhazard.panelstates[panelId];
-                if (panelState) {
-                    panelObj.addClass('open');
-                    panelObj.children('.panel-content').stop().slideDown();
-                } else {
-                    panelObj.removeClass('open');
-                    panelObj.children('.panel-content').stop().slideUp();
+                const panelObj = document.getElementById(panelId);
+                if (panelObj) {
+                    const panelState = rotorhazard.panelstates[panelId];
+                    const panelContent = panelObj.querySelector('.panel-content');
+                    if (panelState) {
+                        panelObj.classList.add('open');
+                        if (panelContent) panelContent.style.display = 'block';
+                    } else {
+                        panelObj.classList.remove('open');
+                        if (panelContent) panelContent.style.display = 'none';
+                    }
                 }
             }
         } else {
-            page.append('<p>' + __('There is no saved race data available to view.') + '</p>');
+            const p = document.createElement('p');
+            p.innerHTML = 'There is no saved race data available to view.';
+            page.appendChild(p);
         }
     }
     formatTimeMillis(s, timeformat = '{m}:{s}.{d}') {
@@ -376,322 +633,493 @@ class DisplayStats {
         if (!formatted_time) {
             timeformat = '{m}:{s}.{d}';
         }
-        var formatted_time = timeformat.replace('{d}', pad(ms, 3));
-        formatted_time = formatted_time.replace('{s}', pad(secs));
+        var formatted_time = timeformat.replace('{d}', this.pad(ms, 3));
+        formatted_time = formatted_time.replace('{s}', this.pad(secs));
         formatted_time = formatted_time.replace('{m}', mins)
 
         return formatted_time;
     }
-    /* Leaderboards */
-    build_leaderboard(leaderboard, display_type, meta, display_starts = false) {
-        if (typeof (display_type) === 'undefined')
-            var display_type = 'by_race_time';
-        if (typeof (meta) === 'undefined') {
-            var meta = new Object;
+
+    /**
+     * Build a leaderboard table.
+     * @param {Array} leaderboard - Array of leaderboard data.
+     * @param {String} display_type - Type of leaderboard display.
+     * @param {Object} meta - Meta data object.
+     * @param {Boolean} display_starts - Whether to display the starts column.
+     * @returns {HTMLElement} - A DIV element containing the responsive leaderboard table.
+     */
+    buildLeaderboard(leaderboard, display_type = 'by_race_time', meta, display_starts = false) {
+        if (typeof meta === 'undefined') {
+            meta = {};
             meta.team_racing_mode = RACING_MODE_INDV;
             meta.start_behavior = 0;
             meta.consecutives_count = 0;
             meta.primary_leaderboard = null;
         }
+        const show_points = (display_type === 'round');
+        const total_label = (meta.start_behavior === 2) ? 'Laps Total' : 'Total';
 
-        if (display_type == 'round') {
-            var show_points = true;
-        } else {
-            var show_points = false;
+        const twrap = document.createElement('div');
+        twrap.className = 'responsive-wrap';
+
+        const table = document.createElement('table');
+        table.className = 'leaderboard';
+
+        const header = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+
+        // Rank column
+        let th = document.createElement('th');
+        th.className = 'pos';
+        let span = document.createElement('span');
+        span.className = 'screen-reader-text';
+        span.textContent = 'Rank';
+        th.appendChild(span);
+        headerRow.appendChild(th);
+
+        // Pilot column
+        th = document.createElement('th');
+        th.className = 'pilot';
+        th.textContent = 'Pilot';
+        headerRow.appendChild(th);
+
+        // Team column if in team mode
+        if (meta.team_racing_mode === RACING_MODE_TEAM) {
+            th = document.createElement('th');
+            th.className = 'team';
+            th.textContent = 'Team';
+            headerRow.appendChild(th);
         }
 
-        if (meta.start_behavior == 2) {
-            var total_label = __('Laps Total');
-        } else {
-            var total_label = __('Total');
+        // Starts column if requested
+        if (display_starts === true) {
+            th = document.createElement('th');
+            th.className = 'starts';
+            th.textContent = 'Starts';
+            headerRow.appendChild(th);
         }
 
-        var twrap = $('<div class="responsive-wrap">');
-        var table = $('<table class="leaderboard">');
-        var header = $('<thead>');
-        var header_row = $('<tr>');
-        header_row.append('<th class="pos"><span class="screen-reader-text">' + __('Rank') + '</span></th>');
-        header_row.append('<th class="pilot">' + __('Pilot') + '</th>');
-        if (meta.team_racing_mode == RACING_MODE_TEAM) {
-            header_row.append('<th class="team">' + __('Team') + '</th>');
+        // Laps, Total, and Avg columns for several display types
+        if (['by_race_time', 'heat', 'round', 'current'].includes(display_type)) {
+            th = document.createElement('th');
+            th.className = 'laps';
+            th.textContent = 'Laps';
+            headerRow.appendChild(th);
+
+            th = document.createElement('th');
+            th.className = 'total';
+            th.textContent = total_label;
+            headerRow.appendChild(th);
+
+            th = document.createElement('th');
+            th.className = 'avg';
+            th.textContent = 'Avg.';
+            headerRow.appendChild(th);
         }
-        if (display_starts == true) {
-            header_row.append('<th class="starts">' + __('Starts') + '</th>');
-        }
-        if (display_type == 'by_race_time' ||
-            display_type == 'heat' ||
-            display_type == 'round' ||
-            display_type == 'current') {
-            header_row.append('<th class="laps">' + __('Laps') + '</th>');
-            header_row.append('<th class="total">' + total_label + '</th>');
-            header_row.append('<th class="avg">' + __('Avg.') + '</th>');
-        }
-        if (display_type == 'by_fastest_lap' ||
-            display_type == 'heat' ||
-            display_type == 'round' ||
-            display_type == 'current') {
-            header_row.append('<th class="fast">' + __('Fastest') + '</th>');
-            if (display_type == 'by_fastest_lap') {
-                header_row.append('<th class="source">' + __('Source') + '</th>');
+
+        // Fastest lap columns
+        if (['by_fastest_lap', 'heat', 'round', 'current'].includes(display_type)) {
+            th = document.createElement('th');
+            th.className = 'fast';
+            th.textContent = 'Fastest';
+            headerRow.appendChild(th);
+            if (display_type === 'by_fastest_lap') {
+                th = document.createElement('th');
+                th.className = 'source';
+                th.textContent = 'Source';
+                headerRow.appendChild(th);
             }
         }
-        if (display_type == 'by_consecutives' ||
-            display_type == 'heat' ||
-            display_type == 'round' ||
-            display_type == 'current') {
-            header_row.append('<th class="consecutive">' + __('Consecutive') + '</th>');
-            if (display_type == 'by_consecutives') {
-                header_row.append('<th class="source">' + __('Source') + '</th>');
+
+        // Consecutives columns
+        if (['by_consecutives', 'heat', 'round', 'current'].includes(display_type)) {
+            th = document.createElement('th');
+            th.className = 'consecutive';
+            th.textContent = 'Consecutive';
+            headerRow.appendChild(th);
+            if (display_type === 'by_consecutives') {
+                th = document.createElement('th');
+                th.className = 'source';
+                th.textContent = 'Source';
+                headerRow.appendChild(th);
             }
         }
+
+        // Points column if applicable
         if (show_points && 'primary_points' in meta) {
-            header_row.append('<th class="points">' + __('Points') + '</th>');
+            th = document.createElement('th');
+            th.className = 'points';
+            th.textContent = 'Points';
+            headerRow.appendChild(th);
         }
-        header.append(header_row);
-        table.append(header);
 
-        var body = $('<tbody>');
+        header.appendChild(headerRow);
+        table.appendChild(header);
 
-        for (var i in leaderboard) {
-            var row = $('<tr>');
+        // Build table body
+        const body = document.createElement('tbody');
+        for (const i in leaderboard) {
+            const data = leaderboard[i];
+            const row = document.createElement('tr');
 
-            row.append('<td class="pos">' + (leaderboard[i].position != null ? leaderboard[i].position : '-') + '</td>');
-            row.append('<td class="pilot">' + leaderboard[i].callsign + '</td>');
-            if (meta.team_racing_mode == RACING_MODE_TEAM) {
-                row.append('<td class="team">' + leaderboard[i].team_name + '</td>');
+            // Position
+            let td = document.createElement('td');
+            td.className = 'pos';
+            td.innerHTML = (data.position != null ? data.position : '-');
+            row.appendChild(td);
+
+            // Pilot
+            td = document.createElement('td');
+            td.className = 'pilot';
+            td.textContent = data.callsign;
+            row.appendChild(td);
+
+            // Team (if in team mode)
+            if (meta.team_racing_mode === RACING_MODE_TEAM) {
+                td = document.createElement('td');
+                td.className = 'team';
+                td.textContent = data.team_name;
+                row.appendChild(td);
             }
-            if (display_starts == true) {
-                row.append('<td class="starts">' + leaderboard[i].starts + '</td>');
-            }
-            if (display_type == 'by_race_time' ||
-                display_type == 'heat' ||
-                display_type == 'round' ||
-                display_type == 'current') {
-                var lap = leaderboard[i].laps;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="laps">' + lap + '</td>');
 
-                if (meta.start_behavior == 2) {
-                    var lap = leaderboard[i].total_time_laps;
+            // Starts (if requested)
+            if (display_starts === true) {
+                td = document.createElement('td');
+                td.className = 'starts';
+                td.textContent = data.starts;
+                row.appendChild(td);
+            }
+
+            // Laps, Total, and Average
+            if (['by_race_time', 'heat', 'round', 'current'].includes(display_type)) {
+                let lap = data.laps;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'laps';
+                td.innerHTML = lap;
+                row.appendChild(td);
+
+                lap = (meta.start_behavior === 2) ? data.total_time_laps : data.total_time;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'total';
+                td.innerHTML = lap;
+                row.appendChild(td);
+
+                lap = data.average_lap;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'avg';
+                td.innerHTML = lap;
+                row.appendChild(td);
+            }
+
+            // Fastest lap and optional source
+            if (['by_fastest_lap', 'heat', 'round', 'current'].includes(display_type)) {
+                let lap = data.fastest_lap;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'fast';
+                td.innerHTML = lap;
+                let source_text;
+                if (data.fastest_lap_source) {
+                    const source = data.fastest_lap_source;
+                    source_text = source.round
+                        ? source.displayname + ' / ' + 'Round' + ' ' + source.round
+                        : source.displayname;
                 } else {
-                    var lap = leaderboard[i].total_time;
+                    source_text = 'None';
                 }
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="total">' + lap + '</td>');
-
-                var lap = leaderboard[i].average_lap;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="avg">' + lap + '</td>');
-            }
-            if (display_type == 'by_fastest_lap' ||
-                display_type == 'heat' ||
-                display_type == 'round' ||
-                display_type == 'current') {
-                var lap = leaderboard[i].fastest_lap;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-
-                var el = $('<td class="fast">' + lap + '</td>');
-
-                if (leaderboard[i].fastest_lap_source) {
-                    var source = leaderboard[i].fastest_lap_source;
-                    if (source.round) {
-                        var source_text = source.displayname + ' / ' + __('Round') + ' ' + source.round;
-                    } else {
-                        var source_text = source.displayname;
-                    }
-                } else {
-                    var source_text = 'None';
+                if (display_type === 'heat') {
+                    td.dataset.source = source_text;
+                    td.title = source_text;
                 }
-
-                if (display_type == 'heat') {
-                    el.data('source', source_text);
-                    el.attr('title', source_text);
+                if ('min_lap' in rotorhazard &&
+                    rotorhazard.min_lap > 0 &&
+                    data.fastest_lap_raw > 0 &&
+                    (rotorhazard.min_lap * 1000) > data.fastest_lap_raw) {
+                    td.classList.add('min-lap-warning');
                 }
-
-                if ('min_lap' in rotorhazard
-                    && rotorhazard.min_lap > 0
-                    && leaderboard[i].fastest_lap_raw > 0
-                    && (rotorhazard.min_lap * 1000) > leaderboard[i].fastest_lap_raw
-                ) {
-                    el.addClass('min-lap-warning');
-                }
-
-                row.append(el);
-
-                if (display_type == 'by_fastest_lap') {
-                    row.append('<td class="source">' + source_text + '</td>');
+                row.appendChild(td);
+                if (display_type === 'by_fastest_lap') {
+                    td = document.createElement('td');
+                    td.className = 'source';
+                    td.textContent = source_text;
+                    row.appendChild(td);
                 }
             }
-            if (display_type == 'by_consecutives' ||
-                display_type == 'heat' ||
-                display_type == 'round' ||
-                display_type == 'current') {
-                var data = leaderboard[i];
-                if (!data.consecutives || data.consecutives == '0:00.000') {
+
+            // Consecutives and optional source
+            if (['by_consecutives', 'heat', 'round', 'current'].includes(display_type)) {
+                let lap;
+                if (!data.consecutives || data.consecutives === '0:00.000') {
                     lap = '&#8212;';
                 } else {
                     lap = data.consecutives_base + '/' + data.consecutives;
                 }
-
-                var el = $('<td class="consecutive">' + lap + '</td>');
-
-                if (leaderboard[i].consecutives_source) {
-                    var source = leaderboard[i].consecutives_source;
-                    if (source.round) {
-                        var source_text = source.displayname + ' / ' + __('Round') + ' ' + source.round;
-                    } else {
-                        var source_text = source.displayname;
-                    }
+                td = document.createElement('td');
+                td.className = 'consecutive';
+                td.innerHTML = lap;
+                let source_text;
+                if (data.consecutives_source) {
+                    const source = data.consecutives_source;
+                    source_text = source.round
+                        ? source.displayname + ' / ' + 'Round' + ' ' + source.round
+                        : source.displayname;
                 } else {
-                    var source_text = 'None';
+                    source_text = 'None';
                 }
-
-                if (display_type == 'heat') {
-                    el.data('source', source_text);
-                    el.attr('title', source_text);
+                if (display_type === 'heat') {
+                    td.dataset.source = source_text;
+                    td.title = source_text;
                 }
-
-                row.append(el);
-
-                if (display_type == 'by_consecutives') {
-                    row.append('<td class="source">' + source_text + '</td>');
+                row.appendChild(td);
+                if (display_type === 'by_consecutives') {
+                    td = document.createElement('td');
+                    td.className = 'source';
+                    td.textContent = source_text;
+                    row.appendChild(td);
                 }
             }
 
+            // Points (if applicable)
             if (show_points && 'primary_points' in meta) {
-                row.append('<td class="points">' + leaderboard[i].points + '</td>');
+                td = document.createElement('td');
+                td.className = 'points';
+                td.textContent = data.points;
+                row.appendChild(td);
             }
-            body.append(row);
+            body.appendChild(row);
         }
-
-        table.append(body);
-        twrap.append(table);
+        table.appendChild(body);
+        twrap.appendChild(table);
         return twrap;
     }
-    build_team_leaderboard(leaderboard, display_type, meta) {
-        if (typeof (display_type) === 'undefined')
-            display_type = 'by_race_time';
-        if (typeof (meta) === 'undefined') {
-            meta = new Object;
+
+    /**
+     * Build a team leaderboard table.
+     * @param {Array} leaderboard - Array of team leaderboard data.
+     * @param {String} display_type - Type of leaderboard display.
+     * @param {Object} meta - Meta data object.
+     * @returns {HTMLElement} - A DIV element containing the responsive team leaderboard table.
+     */
+    buildTeamLeaderboard(leaderboard, display_type = 'by_race_time', meta) {
+        if (typeof meta === 'undefined') {
+            meta = {};
             meta.team_racing_mode = RACING_MODE_TEAM;
             meta.consecutives_count = 0;
         }
-        var coop_flag = (leaderboard.length == 1 && leaderboard[0].name == "Group")
+        const coop_flag = (leaderboard.length === 1 && leaderboard[0].name === "Group");
 
-        var twrap = $('<div class="responsive-wrap">');
-        var table = $('<table class="leaderboard">');
-        var header = $('<thead>');
-        var header_row = $('<tr>');
+        const twrap = document.createElement('div');
+        twrap.className = 'responsive-wrap';
+
+        const table = document.createElement('table');
+        table.className = 'leaderboard';
+
+        const header = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+
+        let th;
         if (coop_flag) {
-            header_row.append('<th class="team">' + __('Co-op') + '</th>');
+            th = document.createElement('th');
+            th.className = 'team';
+            th.textContent = 'Co-op';
+            headerRow.appendChild(th);
         } else {
-            header_row.append('<th class="pos"><span class="screen-reader-text">' + __('Rank') + '</span></th>');
-            header_row.append('<th class="team">' + __('Team') + '</th>');
-        }
-        header_row.append('<th class="contribution">' + __('Contributors') + '</th>');
-        if (display_type == 'by_race_time') {
-            header_row.append('<th class="laps">' + __('Laps') + '</th>');
-            header_row.append('<th class="total">' + __('Average Lap') + '</th>');
-        }
-        if (display_type == 'by_avg_fastest_lap') {
-            header_row.append('<th class="fast">' + __('Average Fastest') + '</th>');
-        }
-        if (display_type == 'by_avg_consecutives') {
-            header_row.append('<th class="consecutive">' + __('Average') + ' ' + meta.consecutives_count + ' ' + __('Consecutive') + '</th>');
-        }
-        header.append(header_row);
-        table.append(header);
+            th = document.createElement('th');
+            th.className = 'pos';
+            let span = document.createElement('span');
+            span.className = 'screen-reader-text';
+            span.textContent = 'Rank';
+            th.appendChild(span);
+            headerRow.appendChild(th);
 
-        var body = $('<tbody>');
+            th = document.createElement('th');
+            th.className = 'team';
+            th.textContent = 'Team';
+            headerRow.appendChild(th);
+        }
+        th = document.createElement('th');
+        th.className = 'contribution';
+        th.textContent = 'Contributors';
+        headerRow.appendChild(th);
 
-        for (var i in leaderboard) {
-            var row = $('<tr>');
+        if (display_type === 'by_race_time') {
+            th = document.createElement('th');
+            th.className = 'laps';
+            th.textContent = 'Laps';
+            headerRow.appendChild(th);
+
+            th = document.createElement('th');
+            th.className = 'total';
+            th.textContent = 'Average Lap';
+            headerRow.appendChild(th);
+        }
+        if (display_type === 'by_avg_fastest_lap') {
+            th = document.createElement('th');
+            th.className = 'fast';
+            th.textContent = 'Average Fastest';
+            headerRow.appendChild(th);
+        }
+        if (display_type === 'by_avg_consecutives') {
+            th = document.createElement('th');
+            th.className = 'consecutive';
+            th.textContent = 'Average' + ' ' + meta.consecutives_count + ' ' + 'Consecutive';
+            headerRow.appendChild(th);
+        }
+        header.appendChild(headerRow);
+        table.appendChild(header);
+
+        const body = document.createElement('tbody');
+        for (const i in leaderboard) {
+            const data = leaderboard[i];
+            const row = document.createElement('tr');
             if (!coop_flag) {
-                row.append('<td class="pos">' + (leaderboard[i].position != null ? leaderboard[i].position : '-') + '</td>');
+                let td = document.createElement('td');
+                td.className = 'pos';
+                td.innerHTML = (data.position != null ? data.position : '-');
+                row.appendChild(td);
             }
-            row.append('<td class="team">' + leaderboard[i].name + '</td>');
-            row.append('<td class="contribution">' + leaderboard[i].contributing + '/' + leaderboard[i].members + '</td>');
-            if (display_type == 'by_race_time') {
-                var lap = leaderboard[i].laps;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="laps">' + lap + '</td>');
+            let td = document.createElement('td');
+            td.className = 'team';
+            td.textContent = data.name;
+            row.appendChild(td);
 
-                var lap = leaderboard[i].average_lap;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="total">' + lap + '</td>');
-            }
-            if (display_type == 'by_avg_fastest_lap') {
-                var lap = leaderboard[i].average_fastest_lap;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="fast">' + lap + '</td>');
-            }
-            if (display_type == 'by_avg_consecutives') {
-                var lap = leaderboard[i].average_consecutives;
-                if (!lap || lap == '0:00.000')
-                    lap = '&#8212;';
-                row.append('<td class="consecutive">' + lap + '</td>');
-            }
+            td = document.createElement('td');
+            td.className = 'contribution';
+            td.textContent = data.contributing + '/' + data.members;
+            row.appendChild(td);
 
-            body.append(row);
+            if (display_type === 'by_race_time') {
+                let lap = data.laps;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'laps';
+                td.innerHTML = lap;
+                row.appendChild(td);
+
+                lap = data.average_lap;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'total';
+                td.innerHTML = lap;
+                row.appendChild(td);
+            }
+            if (display_type === 'by_avg_fastest_lap') {
+                let lap = data.average_fastest_lap;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'fast';
+                td.innerHTML = lap;
+                row.appendChild(td);
+            }
+            if (display_type === 'by_avg_consecutives') {
+                let lap = data.average_consecutives;
+                if (!lap || lap === '0:00.000') lap = '&#8212;';
+                td = document.createElement('td');
+                td.className = 'consecutive';
+                td.innerHTML = lap;
+                row.appendChild(td);
+            }
+            body.appendChild(row);
         }
-
-        table.append(body);
-        twrap.append(table);
+        table.appendChild(body);
+        twrap.appendChild(table);
         return twrap;
     }
-    build_ranking(ranking) {
-        var leaderboard = ranking.ranking;
-        var meta = ranking.meta;
 
-        if (!leaderboard || !meta?.rank_fields) {
-            return $('<p>' + __(meta.method_label) + " " + __('did not produce a ranking.') + '</p>');
+    /**
+     * Build a ranking table.
+     * @param {Object} ranking - Ranking object containing ranking data and meta.
+     * @returns {HTMLElement} - A DOM element (either a DIV wrapping the table or a paragraph if no ranking was produced).
+     */
+    buildRanking(ranking) {
+        const leaderboard = ranking.ranking;
+        const meta = ranking.meta;
+        if (!leaderboard || !(meta && meta.rank_fields)) {
+            const p = document.createElement('p');
+            p.textContent = __(meta.method_label) + " " + 'did not produce a ranking.';
+            return p;
         }
 
-        var twrap = $('<div class="responsive-wrap">');
-        var table = $('<table class="leaderboard">');
-        var header = $('<thead>');
-        var header_row = $('<tr>');
-        header_row.append('<th class="pos"><span class="screen-reader-text">' + __('Rank') + '</span></th>');
-        header_row.append('<th class="pilot">' + __('Pilot') + '</th>');
-        if ('team_racing_mode' in meta && meta.team_racing_mode == RACING_MODE_TEAM) {
-            header_row.append('<th class="team">' + __('Team') + '</th>');
+        const twrap = document.createElement('div');
+        twrap.className = 'responsive-wrap';
+
+        const table = document.createElement('table');
+        table.className = 'leaderboard';
+
+        const header = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+
+        let th = document.createElement('th');
+        th.className = 'pos';
+        let span = document.createElement('span');
+        span.className = 'screen-reader-text';
+        span.textContent = 'Rank';
+        th.appendChild(span);
+        headerRow.appendChild(th);
+
+        th = document.createElement('th');
+        th.className = 'pilot';
+        th.textContent = 'Pilot';
+        headerRow.appendChild(th);
+
+        if ('team_racing_mode' in meta && meta.team_racing_mode === RACING_MODE_TEAM) {
+            th = document.createElement('th');
+            th.className = 'team';
+            th.textContent = 'Team';
+            headerRow.appendChild(th);
         }
-        for (var f in meta.rank_fields) {
-            field = meta.rank_fields[f];
-            header_row.append('<th class="' + field.name + '">' + __(field.label) + '</th>');
+
+        for (const f in meta.rank_fields) {
+            const field = meta.rank_fields[f];
+            th = document.createElement('th');
+            th.className = field.name;
+            th.textContent = __(field.label);
+            headerRow.appendChild(th);
         }
-        header.append(header_row);
-        table.append(header);
+        header.appendChild(headerRow);
+        table.appendChild(header);
 
-        var body = $('<tbody>');
+        const body = document.createElement('tbody');
+        for (const i in leaderboard) {
+            const data = leaderboard[i];
+            const row = document.createElement('tr');
 
-        for (var i in leaderboard) {
-            var row = $('<tr>');
+            let td = document.createElement('td');
+            td.className = 'pos';
+            td.innerHTML = (data.position != null ? data.position : '-');
+            row.appendChild(td);
 
-            row.append('<td class="pos">' + (leaderboard[i].position != null ? leaderboard[i].position : '-') + '</td>');
-            row.append('<td class="pilot">' + leaderboard[i].callsign + '</td>');
-            if ('team_racing_mode' in meta && meta.team_racing_mode == RACING_MODE_TEAM) {
-                row.append('<td class="team">' + leaderboard[i].team_name + '</td>');
+            td = document.createElement('td');
+            td.className = 'pilot';
+            td.textContent = data.callsign;
+            row.appendChild(td);
+
+            if ('team_racing_mode' in meta && meta.team_racing_mode === RACING_MODE_TEAM) {
+                td = document.createElement('td');
+                td.className = 'team';
+                td.textContent = data.team_name;
+                row.appendChild(td);
             }
-            for (var f in meta.rank_fields) {
-                field = meta.rank_fields[f];
-                row.append('<td class="' + field.name + '">' + leaderboard[i][field.name] + '</td>');
+            for (const f in meta.rank_fields) {
+                const field = meta.rank_fields[f];
+                td = document.createElement('td');
+                td.className = field.name;
+                td.textContent = data[field.name];
+                row.appendChild(td);
             }
-            body.append(row);
+            body.appendChild(row);
         }
-
-        table.append(body);
-        twrap.append(table);
+        table.appendChild(body);
+        twrap.appendChild(table);
         return twrap;
     }
-    /* Frequency Table */
+
+    /**
+     * Frequency table helper object.
+     */
     freq = {
         frequencies: {
             R1: 5658,
@@ -782,20 +1210,18 @@ class DisplayStats {
             Q2: 5794,
             Q3: 5902,
         },
-        getFObjbyFData: function (fData) {
-            var keyNames = Object.keys(this.frequencies);
-
+        getFObjbyFData(fData) {
+            const keyNames = Object.keys(this.frequencies);
             if (fData.frequency == 0) {
                 return {
                     key: '—',
                     fString: 0,
                     band: null,
                     channel: null,
-                    frequency: 0
-                }
+                    frequency: 0,
+                };
             }
-
-            var fKey = "" + fData.band + fData.channel;
+            const fKey = "" + fData.band + fData.channel;
             if (fKey in this.frequencies) {
                 if (this.frequencies[fKey] == fData.frequency) {
                     return {
@@ -803,138 +1229,119 @@ class DisplayStats {
                         fString: fKey + ':' + this.frequencies[fKey],
                         band: fData.band,
                         channel: fData.channel,
-                        frequency: fData.frequency
-                    }
+                        frequency: fData.frequency,
+                    };
                 }
             }
-
-            return this.findByFreq(fData.frequency)
+            return this.findByFreq(fData.frequency);
         },
-        getFObjbyKey: function (key) {
-            var regex = /([A-Za-z]*)([0-9]*)/;
-            var parts = key.match(regex);
-            if (parts && parts.length == 3) {
+        getFObjbyKey(key) {
+            const regex = /([A-Za-z]*)([0-9]*)/;
+            const parts = key.match(regex);
+            if (parts && parts.length === 3) {
                 return {
                     key: key,
                     fString: key + ':' + this.frequencies[key],
                     band: parts[1],
                     channel: parts[2],
-                    frequency: this.frequencies[key]
-                }
+                    frequency: this.frequencies[key],
+                };
             }
             return false;
         },
-        getFObjbyFString: function (fstring) {
+        getFObjbyFString(fstring) {
             if (fstring == 0) {
                 return {
                     key: '—',
                     fString: 0,
                     band: null,
                     channel: null,
-                    frequency: 0
-                }
+                    frequency: 0,
+                };
             }
-
             if (fstring == "n/a") {
                 return {
-                    key: __("X"),
+                    key: "X",
                     fString: "n/a",
                     band: null,
                     channel: null,
-                    frequency: frequency
-                }
+                    frequency: 0,
+                };
             }
-            var regex = /([A-Za-z]*)([0-9]*):([0-9]{4})/;
-            var parts = fstring.match(regex);
-            if (parts && parts.length == 4) {
+            const regex = /([A-Za-z]*)([0-9]*):([0-9]{4})/;
+            const parts = fstring.match(regex);
+            if (parts && parts.length === 4) {
                 return {
                     key: "" + parts[1] + parts[2],
                     fString: fstring,
                     band: parts[1],
                     channel: parts[2],
-                    frequency: parts[3]
-                }
+                    frequency: parts[3],
+                };
             }
             return false;
         },
-        getFObjbyKey: function (key) {
-            var regex = /([A-Za-z]*)([0-9]*)/;
-            var parts = key.match(regex);
-            return {
-                key: key,
-                fString: key + ':' + this.frequencies[key],
-                band: parts[1],
-                channel: parts[2],
-                frequency: this.frequencies[key]
-            }
-        },
-        findByFreq: function (frequency) {
+        findByFreq(frequency) {
             if (frequency == 0) {
                 return {
                     key: '—',
                     fString: 0,
                     band: null,
                     channel: null,
-                    frequency: 0
-                }
+                    frequency: 0,
+                };
             }
-            var keyNames = Object.keys(this.frequencies);
-            for (var i in keyNames) {
+            const keyNames = Object.keys(this.frequencies);
+            for (const i in keyNames) {
                 if (this.frequencies[keyNames[i]] == frequency) {
-                    var fObj = this.getFObjbyKey(keyNames[i]);
+                    const fObj = this.getFObjbyKey(keyNames[i]);
                     if (fObj) return fObj;
                 }
             }
             return {
-                key: __("X"),
+                key: "X",
                 fString: "n/a",
                 band: null,
                 channel: null,
-                frequency: frequency
-            }
+                frequency: frequency,
+            };
         },
-        buildSelect: function () {
-            var output = '<option value="0">' + __('Disabled') + '</option>';
-            var keyNames = Object.keys(this.frequencies);
-            for (var i in keyNames) {
+        buildSelect() {
+            let output = '<option value="0">' + 'Disabled' + '</option>';
+            const keyNames = Object.keys(this.frequencies);
+            for (const i in keyNames) {
                 output += '<option value="' + keyNames[i] + ':' + this.frequencies[keyNames[i]] + '">' + keyNames[i] + ' ' + this.frequencies[keyNames[i]] + '</option>';
             }
-            output += '<option value="n/a">' + __('N/A') + '</option>';
+            output += '<option value="n/a">' + 'N/A' + '</option>';
             return output;
         },
-        /*
-        updateSelects: function() {
-            for (var i in rotorhazard.nodes) {
-                var freqExists = $('#f_table_' + i + ' option[value=' + rotorhazard.nodes[i].frequency + ']').length;
-                if (freqExists) {
-                    $('#f_table_' + i).val(rotorhazard.nodes[i].frequency);
-                } else {
-                    $('#f_table_' + i).val('n/a');
-                }
-            }
-        },
-        */
-        updateBlock: function (fObj, node_idx) {
-            // populate channel block
-            var channelBlock = $('.channel-block[data-node="' + node_idx + '"]');
+        updateBlock(fObj, node_idx) {
+            const channelBlock = document.querySelector(`.channel-block[data-node="${node_idx}"]`);
+            if (!channelBlock) return;
+            const ch = channelBlock.querySelector('.ch');
+            const fr = channelBlock.querySelector('.fr');
             if (fObj === null || fObj.frequency == 0) {
-                channelBlock.children('.ch').html('—');
-                channelBlock.children('.fr').html('');
-                channelBlock.attr('title', '');
+                if (ch) ch.innerHTML = '—';
+                if (fr) fr.innerHTML = '';
+                channelBlock.setAttribute('title', '');
             } else {
-                channelBlock.children('.ch').html(fObj.key);
-                channelBlock.children('.fr').html(fObj.frequency);
-                channelBlock.attr('title', fObj.frequency);
+                if (ch) ch.innerHTML = fObj.key;
+                if (fr) fr.innerHTML = fObj.frequency;
+                channelBlock.setAttribute('title', fObj.frequency);
             }
         },
-        updateBlocks: function () {
-            // populate channel blocks
-            for (var i in rotorhazard.nodes) {
+        updateBlocks() {
+            for (const i in rotorhazard.nodes) {
                 this.updateBlock(rotorhazard.nodes[i].fObj, i);
             }
             this.updateBlock(null, null);
-        }
+        },
+    };
+    // Pad to 2 or 3 digits, default is 2
+    pad(n, z = 2) {
+        return ('000000' + n).slice(-z);
     }
+
 }
 export const displayStatsInstance = new DisplayStats();
 // End of rm-m-displayStats.js
