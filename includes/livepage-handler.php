@@ -227,7 +227,7 @@ add_shortcode( 'rm_bracket', 'rm_bracket_shortcode' );
  * Usage: [rm_stats]
  */
 function rm_stats_shortcode( $atts ) {
-    $race_id = rm_get_current_race_id();
+/*     $race_id = rm_get_current_race_id();
     if ( ! $race_id ) {
         return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
     }
@@ -238,6 +238,79 @@ function rm_stats_shortcode( $atts ) {
     } else {
         echo '<p>No stats data available for this race_id:' . esc_html( $race_id ) . '</p>';
     }
+    return ob_get_clean(); */
+    add_action('wp_enqueue_scripts', function() {
+        $race_id = rm_get_current_race_id();
+    
+        if ( ! $race_id ) {
+            return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
+        }
+
+        wp_register_script_module(
+            'rm-stats',
+            plugin_dir_url( __DIR__ ) . 'js/rm-m-displayStats.js', //rm-m-pwa-subscribe.js
+            ['jquery'], // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
+            '1.0.3',
+            true
+        );
+    
+        function rm_print_js_config() {
+            $race_id = rm_get_current_race_id();
+            $upload_dir = wp_upload_dir();
+            $upload_path_url = trailingslashit( $upload_dir['baseurl'] ) . 'races/';
+        
+            $filename_timestamp = $race_id . '-timestamp.json';
+            $filename_data = $race_id . '-data.json';
+        
+            $file_timestamp_url = $upload_path_url . $filename_timestamp;
+            $file_data_url = $upload_path_url . $filename_data;
+    
+            // Load dataLoader, pilotSelector, pushSubscription
+            $config = array(
+                'dataLoader' => [
+                    'refreshInterval'   => 10000, // no refresh here (in milliseconds)
+                    'timestampUrl'      => $file_timestamp_url,
+                    'dataUrl'           => $file_data_url,
+                    'storageKey'        => $race_id,
+                    'timeout'           => 9000,  // in milliseconds (optional)
+                ],
+                'pilotSelector' => [
+                    'pilotSelectorId'    => 'pilotSelector',
+                ],
+                'displayStats' => [
+                    'filterCheckboxId'   => 'filterCheckbox', // no filter checkbox here
+                ],
+            );
+            
+            /* // Convert the configuration to JSON.
+            $config_json = wp_json_encode($config);
+            // Inject the configuration as an inline script before your module loads.
+            $inline_script = "window.RmJsConfig = {$config_json};";
+            wp_add_inline_script( 'rm-pilotSelector', $inline_script, 'before' ); //rm-config */
+            
+            echo '<script>window.RmJsConfig = ' . wp_json_encode($config) . ';</script>';
+        }
+        add_action( 'wp_head', 'rm_print_js_config' ); // necessary if using one of the js modules
+    
+        // Enqueue the module.
+        wp_enqueue_script_module( 'rm-stats' );
+      });
+
+
+
+    ob_start();
+    ?>
+        <div class="web-controls">
+            <label for="pilotSelector">Highlight Pilot: </label>
+            <select id="pilotSelector">
+                <option value="0">-- Select a Pilot --</option>
+            </select>
+            <label>
+                <input type="checkbox" id="filterCheckbox"> Filter by Selected Pilot
+            </label>
+        </div>
+        <div id="results" class="raceclass-container"></div>
+    <?php
     return ob_get_clean();
 }
 add_shortcode( 'rm_stats', 'rm_stats_shortcode' );
