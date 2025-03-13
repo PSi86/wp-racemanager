@@ -1,11 +1,11 @@
 <?php
 // includes/pwa-handler.php
-// Handle the delivery of the pwa scripts .
+// Handle the delivery of the pwa scripts, meta-tags, manifest link.
+// On live pages, the PWA resources are loaded.
+// The PWA resources include the service worker registration script, the manifest link, and the meta tags.
 
-// Reminder: if you need to check for permissions, you can use a callback like this:
-//'permission_callback' => function() {
-//    return current_user_can( 'edit_posts' );
-//},
+// INIT: rm_load_live_resources() is called from wp-racemanager.php
+// Plugin activation: rm_create_file_from_template() is called from pwa-subscription-handler.php
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -75,7 +75,7 @@ function rm_pwa_enqueue_scripts() {
         plugin_dir_url( __DIR__ ) . 'js/pwa-sw-register.js', //plugins_url('pwa-sw-register.js', __FILE__),
         array(),
         '1.0.3',
-        true
+        false
     );
 }
 

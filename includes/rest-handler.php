@@ -211,7 +211,7 @@ function rm_find_or_create_race( $data ) {
         if ( '1' !== $post_live ) {
             return new WP_Error(
                 'race_locked',
-                'Race is not live and cannot be overwritten',
+                'Race is locked and cannot be overwritten',
                 $race_id
             );
         }
@@ -251,7 +251,8 @@ function rm_find_or_create_race( $data ) {
     update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
     // Optionally set older races inactive
-    rm_meta_set_last_race_inactive( $race_id );
+    //rm_meta_set_last_race_inactive( $race_id );
+    // TODO: another idea would be to set all races to locked which did not have an upload in the last 48 hours.
 
     return [
         'status'  => 'success',
