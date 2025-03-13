@@ -4,12 +4,13 @@
 // https://github.com/RotorHazard/RotorHazard/blob/main/src/server/static/rotorhazard.js
 
 import { dataLoaderInstance } from './rm-m-dataLoader.js';
-import { pilotSelectInstance } from './rm-m-pilotSelector.js';
+//import { pilotSelectInstance } from './rm-m-pilotSelector.js';
+
 const RACING_MODE_INDV = 0;   // INDIVIDUAL
 const RACING_MODE_TEAM = 1;   // TEAM_ENABLED
 const RACING_MODE_COOP = 2;   // COOP_ENABLED
 const rotorhazard = {
-    min_lap: 0,
+    min_lap: 10,
     panelstates: {}
 };
 
@@ -57,7 +58,7 @@ document.addEventListener('click', function (e) {
     if (header) {
         const panel = header.parentElement;
         const panelId = panel.id;
-        const panelContent = panel.querySelectorAll('.panel-content');
+        const panelContent = panel.querySelectorAll(':scope > .panel-content'); //'.panel-content'
         if (panel.classList.contains('open')) {
             panel.classList.remove('open');
             panelContent.forEach(el => slideUp(el));
@@ -121,12 +122,17 @@ class DisplayStats {
         // Configuration properties
         // Read dependency configuration
         this.raceId = dataLoaderInstance.storageKey; // Load storageKey from dataLoader
+        
+        this.pilotSelectorId = null;
+        this.pilotSelectorElement = null;
+        this.selectedPilotId = null;
 
-        this.pilotSelectorId = pilotSelectInstance.pilotSelectorId; // Load pilotSelectorId from pilotSelector
-        this.pilotSelectorElement = document.getElementById(`${this.pilotSelectorId}`);
-        this.selectedPilotId = pilotSelectInstance.selectedPilotId;
-        //console.log("displayStats: initialized with selected pilot ID:", typeof(this.selectedPilotId), this.selectedPilotId);
-
+        if(typeof pilotSelectInstance !== 'undefined') {
+            this.pilotSelectorId = pilotSelectInstance.pilotSelectorId; // Load pilotSelectorId from pilotSelector
+            this.pilotSelectorElement = document.getElementById(`${this.pilotSelectorId}`);
+            this.selectedPilotId = pilotSelectInstance.selectedPilotId;
+            console.log("displayStats: initialized with selected pilot ID:", typeof(this.selectedPilotId), this.selectedPilotId);
+        }
         // Required properties
         // none
 
@@ -159,7 +165,9 @@ class DisplayStats {
             this.filterCheckboxElement.addEventListener('change', this.handleFilterChange.bind(this));
         }
 
-        this.pilotSelectorElement.addEventListener('change', this.handleFilterChange.bind(this));
+        if (this.pilotSelectorElement !== null) {
+            this.pilotSelectorElement.addEventListener('change', this.handleFilterChange.bind(this));
+        }
 
         // Subscribe to the dataLoader (singleton)
         console.log("displayStats: Subscribed to DataLoader");
@@ -168,9 +176,10 @@ class DisplayStats {
 
     handleFilterChange() {
         //this.selectedPilotId = event.target.value;
-        this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
-
         if (this.filterCheckboxElement) {
+            this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
+        }
+        if (this.pilotSelectorElement) {
             this.filterCheckboxState = this.filterCheckboxElement.checked;
             sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
         }
@@ -189,18 +198,22 @@ class DisplayStats {
     displayStats(rhdata) {
         const msg = rhdata.result_data;
         // Helper function to order leaderboard boards
-        const orderBoards = (primary) => {
+        const order_boards = (primary) => {
             const boards = ['by_race_time', 'by_fastest_lap', 'by_consecutives'];
             boards.sort((x, y) => (x === primary ? -1 : y === primary ? 1 : 0));
             return boards;
         };
 
         // Default meta (assumes RACING_MODE_INDV is globally available)
-        const defaultMeta = {
+        /* const defaultMeta = {
             team_racing_mode: RACING_MODE_INDV,
             start_behavior: 0,
             consecutives_count: msg.consecutives_count,
-        };
+        }; */
+        var defaultMeta = new Object;
+			defaultMeta.team_racing_mode = RACING_MODE_INDV;
+			defaultMeta.start_behavior = 0;
+			defaultMeta.consecutives_count = msg.consecutives_count;
 
         // Get the results container and clear it
         const page = document.getElementById('results');
@@ -273,7 +286,7 @@ class DisplayStats {
                             const classSpecialContent = document.createElement('div');
                             classSpecialContent.className = 'panel-content';
                             classSpecialContent.style.display = 'none';
-                            classSpecialContent.appendChild(this.buildRanking(currentClass.ranking));
+                            classSpecialContent.appendChild(this.build_ranking(currentClass.ranking));
                             classSpecial.appendChild(classSpecialContent);
                             classPanelContent.appendChild(classSpecial);
                         }
@@ -297,7 +310,7 @@ class DisplayStats {
                         classLeaderboardContent.className = 'panel-content';
                         classLeaderboardContent.style.display = 'none';
 
-                        const boards = orderBoards(
+                        const boards = order_boards(
                             currentClass.leaderboard.meta.primary_leaderboard
                         );
                         boards.forEach((board) => {
@@ -306,7 +319,7 @@ class DisplayStats {
                                 h4.textContent = 'Race Totals';
                                 classLeaderboardContent.appendChild(h4);
                                 classLeaderboardContent.appendChild(
-                                    this.buildLeaderboard(
+                                    this.build_leaderboard(
                                         currentClass.leaderboard.by_race_time,
                                         'by_race_time',
                                         currentClass.leaderboard.meta,
@@ -318,7 +331,7 @@ class DisplayStats {
                                 h4.textContent = 'Fastest Laps';
                                 classLeaderboardContent.appendChild(h4);
                                 classLeaderboardContent.appendChild(
-                                    this.buildLeaderboard(
+                                    this.build_leaderboard(
                                         currentClass.leaderboard.by_fastest_lap,
                                         'by_fastest_lap',
                                         currentClass.leaderboard.meta,
@@ -330,7 +343,7 @@ class DisplayStats {
                                 h4.textContent = 'Fastest Consecutive Laps';
                                 classLeaderboardContent.appendChild(h4);
                                 classLeaderboardContent.appendChild(
-                                    this.buildLeaderboard(
+                                    this.build_leaderboard(
                                         currentClass.leaderboard.by_consecutives,
                                         'by_consecutives',
                                         currentClass.leaderboard.meta,
@@ -400,7 +413,7 @@ class DisplayStats {
                                 const heatLeaderboard = document.createElement('div');
                                 heatLeaderboard.className = 'leaderboard';
                                 heatLeaderboard.appendChild(
-                                    this.buildLeaderboard(
+                                    this.build_leaderboard(
                                         heat.leaderboard[heat.leaderboard.meta.primary_leaderboard],
                                         'heat',
                                         heat.leaderboard.meta,
@@ -446,7 +459,7 @@ class DisplayStats {
                                 const raceLeaderboard = document.createElement('div');
                                 raceLeaderboard.className = 'leaderboard';
                                 raceLeaderboard.appendChild(
-                                    this.buildLeaderboard(
+                                    this.build_leaderboard(
                                         round.leaderboard[round.leaderboard.meta.primary_leaderboard],
                                         'round',
                                         round.leaderboard.meta
@@ -568,7 +581,7 @@ class DisplayStats {
             h3RaceTotals.textContent = 'Race Totals';
             eventLeaderboard.appendChild(h3RaceTotals);
             eventLeaderboard.appendChild(
-                this.buildLeaderboard(
+                this.build_leaderboard(
                     msg.event_leaderboard.by_race_time,
                     'by_race_time',
                     msg.event_leaderboard.meta,
@@ -580,7 +593,7 @@ class DisplayStats {
             h3FastestLaps.textContent = 'Fastest Laps';
             eventLeaderboard.appendChild(h3FastestLaps);
             eventLeaderboard.appendChild(
-                this.buildLeaderboard(
+                this.build_leaderboard(
                     msg.event_leaderboard.by_fastest_lap,
                     'by_fastest_lap',
                     msg.event_leaderboard.meta
@@ -591,7 +604,7 @@ class DisplayStats {
             h3FastestConsecutives.textContent = 'Fastest Consecutive Laps';
             eventLeaderboard.appendChild(h3FastestConsecutives);
             eventLeaderboard.appendChild(
-                this.buildLeaderboard(
+                this.build_leaderboard(
                     msg.event_leaderboard.by_consecutives,
                     'by_consecutives',
                     msg.event_leaderboard.meta
@@ -648,7 +661,7 @@ class DisplayStats {
      * @param {Boolean} display_starts - Whether to display the starts column.
      * @returns {HTMLElement} - A DIV element containing the responsive leaderboard table.
      */
-    buildLeaderboard(leaderboard, display_type = 'by_race_time', meta, display_starts = false) {
+    build_leaderboard(leaderboard, display_type = 'by_race_time', meta, display_starts = false) {
         if (typeof meta === 'undefined') {
             meta = {};
             meta.team_racing_mode = RACING_MODE_INDV;
@@ -903,7 +916,7 @@ class DisplayStats {
      * @param {Object} meta - Meta data object.
      * @returns {HTMLElement} - A DIV element containing the responsive team leaderboard table.
      */
-    buildTeamLeaderboard(leaderboard, display_type = 'by_race_time', meta) {
+    build_team_leaderboard(leaderboard, display_type = 'by_race_time', meta) {
         if (typeof meta === 'undefined') {
             meta = {};
             meta.team_racing_mode = RACING_MODE_TEAM;
@@ -1034,7 +1047,7 @@ class DisplayStats {
      * @param {Object} ranking - Ranking object containing ranking data and meta.
      * @returns {HTMLElement} - A DOM element (either a DIV wrapping the table or a paragraph if no ranking was produced).
      */
-    buildRanking(ranking) {
+    build_ranking(ranking) {
         const leaderboard = ranking.ranking;
         const meta = ranking.meta;
         if (!leaderboard || !(meta && meta.rank_fields)) {
@@ -1065,7 +1078,7 @@ class DisplayStats {
         th.textContent = 'Pilot';
         headerRow.appendChild(th);
 
-        if ('team_racing_mode' in meta && meta.team_racing_mode === RACING_MODE_TEAM) {
+        if ('team_racing_mode' in meta && meta.team_racing_mode == RACING_MODE_TEAM) {
             th = document.createElement('th');
             th.className = 'team';
             th.textContent = 'Team';
