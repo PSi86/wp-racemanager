@@ -73,11 +73,12 @@ final class WP_RaceManager {
         //add_action( 'plugins_loaded', [ $this, 'maybe_init_rest_handlers' ] );
         //require_once WP_RACEMANAGER_DIR . 'vendor/autoload.php'; // if you’re using Composer
         // First load helper functions or implement them here
-        require_once plugin_dir_path( __FILE__ ) . 'includes/race-data-functions.php';
+
         // Load the REST API handling
         //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
-        add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-        add_action( 'template_redirect', [ $this, 'handle_live_pages' ], 2 );
+        
+        add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] ); // only called on REST API requests
+        add_action( 'template_redirect', [ $this, 'handle_live_pages' ], 2 ); // called on every page load
 
         /* require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
         $this->pwa_subscription_handler = new PWA_Subscription_Handler();
@@ -120,14 +121,17 @@ final class WP_RaceManager {
      * and then load it if necessary.
      */
     public function register_rest_routes() {
+        // Load helper functions for RH JSON data
+        require_once plugin_dir_path( __FILE__ ) . 'includes/race-data-functions.php';
         // Load instantiate PWA_Subscription_Handler.
         require_once plugin_dir_path( __FILE__ ) . 'includes/pwa-subscription-handler.php';
-        // the class registers its routes in the constructor
+        // PWA class registers its rest routes in the constructor
         $this->pwa_subscription_handler = new PWA_Subscription_Handler(); 
         // Handle pilot download and results upload
-        include_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
+        require_once plugin_dir_path(__FILE__) . 'includes/rest-handler.php';
         rm_register_rest_routes_rh();
     }
+
     public function handle_live_pages() {
         if ( $this->is_live_page() ) {
             include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
@@ -155,6 +159,7 @@ final class WP_RaceManager {
         //return ( 0 === strpos( ltrim( $_GET['rest_route'], '/' ), 'rm/v1' ) );
         return true;
     }
+    
     public static function is_live_page() {
         // Only proceed on page requests.
         if ( ! is_page() ) {
