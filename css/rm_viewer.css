@@ -67,6 +67,12 @@
     margin-right: 10px;
     z-index: 2;
 }
+#nextup-display .grid-container {
+    /* display: grid; */
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
 .svg-container {
     position: absolute;
     top: 0;
@@ -93,6 +99,9 @@
     /* padding-top: 1em; */
     /* color: white; */
     /* margin-bottom: 10px; */
+}
+#nextup-display .class-title {
+    display: none;
 }
 .node {
     display: flex;
