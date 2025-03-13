@@ -79,8 +79,11 @@ class DisplayHeats {
     handleFilterChange() {
         //this.selectedPilotId = event.target.value;
         this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
-        this.filterCheckboxState = this.filterCheckboxElement ? this.filterCheckboxElement.checked : false;
-        sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
+        
+        if(this.filterCheckboxElement) {
+            this.filterCheckboxState = this.filterCheckboxElement.checked;
+            sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
+        }
 
         console.log('DisplayHeats: Filter changed:', this.selectedPilotId, this.filterCheckboxState);
         // Filter and display heats for the selected pilot
