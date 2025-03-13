@@ -13,6 +13,12 @@ function rm_render_race_select_block( $attributes, $content ) {
         'post_type'      => 'race',
         'posts_per_page' => $posts_per_page,
         'paged'          => $paged,
+        'meta_query'     => [
+            [
+                'key'     => '_race_last_upload',
+                'compare' => 'EXISTS',
+            ],
+        ],
     );
     $query = new WP_Query( $args );
     
@@ -20,16 +26,30 @@ function rm_render_race_select_block( $attributes, $content ) {
         return '<p>' . esc_html__( 'No races found.', 'wp-racemanager' ) . '</p>';
     }
     
+    // Use current_time('timestamp') to get the site's local timestamp.
+    $current_timestamp = current_time( 'timestamp' );
+
     $output = '<ul class="race-select-list">';
     while ( $query->have_posts() ) {
         $query->the_post();
         $race_id = get_the_ID();
-        $race_live = get_post_meta( $race_id, '_race_live', true );
+        
+        //$race_live = get_post_meta( $race_id, '_race_live', true );
+        
+        $last_upload = get_post_meta( $race_id, '_race_last_upload', true );
+        // Convert the MySQL timestamp to a Unix timestamp
+        $upload_timestamp = strtotime( $last_upload );
+        
         // Build a custom URL with a "race_id" parameter. Adjust the target page as needed.
         $custom_link = site_url( '/live/bracket/?race_id=' . $race_id );
         $output .= '<li><a href="' . esc_url( $custom_link ) . '">';
+        
         // TODO: use css stylesheet instead of inline style
-        $output .=  $race_live ? '<span style="color: red;">Live: </span>' : '';
+        //$output .=  $race_live ? '<span style="color: red;">Live: </span>' : '';
+        // If the last upload timestamp is less than two hours old, add the "Live:" prefix.
+        if ( $upload_timestamp && ( $current_timestamp - $upload_timestamp ) < ( 2 * HOUR_IN_SECONDS ) ) {
+            $output .= '<span style="color: red;">Live: </span>';
+        }
         $output .=  get_the_title() . '</a></li>';
     }
     $output .= '</ul>';

@@ -1,8 +1,7 @@
 <?php
 // includes/main-navigation-handler.php
-// Live Microsite Session & URL Rewrite
-// Uses PHP sessions to persist a selected race post ID and rewrites all /live/ page URLs to include the race_id parameter.
-// Starts a session (only for /live pages) and appends the race_id from the session to all links in the /live hierarchy.
+// All functions in this file are related to the main navigation (not the live pages navigation).
+// Modify the navigation block output to include a blinking dot indicator when a race is live.
 
 // Reminder: if you need to check for permissions, you can use a callback like this:
 //'permission_callback' => function() {
@@ -14,9 +13,10 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 /**
  * Modify the navigation block output to include a blinking dot indicator when a live race is happening
  */
-function rm_replace_custom_navigation_class( $block_content, $block ) {
+function rm_indicate_live_race( $block_content, $block ) {
     if ( isset( $block['blockName'] ) && 'core/navigation' === $block['blockName'] ) {
         // Replace the custom class with one that includes your blinking dot indicator.
+        // TODO: make conditional on a race beeing live right now. check last upload timestamp or live flag
         $block_content = str_replace( 'rm-live-page-link', 'rm-live-page-link has-blinking-dot', $block_content );
         wp_enqueue_style(
             'rm-live-page-link-css', 
@@ -26,5 +26,5 @@ function rm_replace_custom_navigation_class( $block_content, $block ) {
     return $block_content;
 }
 // TODO: make this conditional on a race being live
-add_filter( 'render_block', 'rm_replace_custom_navigation_class', 10, 2 );
+add_filter( 'render_block', 'rm_indicate_live_race', 10, 2 );
 

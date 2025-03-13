@@ -1,0 +1,10 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/race-title",
+    "title": "Race Title",
+    "category": "widgets",
+    "icon": "flag",
+    "description": "Displays the title of the currently selected race based on the race_id URL parameter.",
+    "editorScript": "file:./index.js"
+  }
+  

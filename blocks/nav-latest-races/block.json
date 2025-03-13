@@ -1,0 +1,16 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/nav-latest-races",
+    "title": "Latest Races Submenu",
+    "category": "navigation",
+    "icon": "megaphone",
+    "description": "A dynamic block for displaying the latest races submenu.",
+    "parent": [ "core/navigation-submenu" ],
+    "supports": {
+      "align": false,
+      "anchor": true,
+      "customClassName": true
+    },
+    "editorScript": "file:./index.js"
+  }
+  

@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-function rm_render_nav_latest_races_submenu( $attributes, $content ) {
+function rm_render_nav_latest_races_block( $attributes, $content ) {
     // Query the five latest published race posts.
     $rm_last_races_count = get_option('rm_last_races_count', 5);
     $args  = array(
