@@ -1,109 +1,13 @@
-@font-face {
-	font-family: 'Barlow';
-	font-style: normal;
-	font-weight: 400;
-	src: local(''),
-			 url('fonts/BarlowRH-Light.woff2') format('woff2'),
-			 url('fonts/BarlowRH-Light.woff') format('woff');
-}
-
-@font-face {
-	font-family: 'Barlow';
-	font-style: italic;
-	font-weight: 400;
-	src: local(''),
-			 url('fonts/Barlow-LightItalic.woff2') format('woff2'),
-			 url('fonts/Barlow-LightItalic.woff') format('woff');
-}
-
-@font-face {
-	font-family: 'Barlow';
-	font-style: normal;
-	font-weight: 700;
-	src: local(''),
-			 url('fonts/BarlowRH-Bold.woff2') format('woff2'),
-			 url('fonts/BarlowRH-Bold.woff') format('woff');
-}
-
-@font-face {
-	font-family: 'Barlow';
-	font-style: italic;
-	font-weight: 700;
-	src: local(''),
-			 url('fonts/Barlow-BoldItalic.woff2') format('woff2'),
-			 url('fonts/Barlow-BoldItalic.woff') format('woff');
-}
-
-[hidden] {
-	display: none !important;
-}
-
-html {
-	background: #fff;
-	color: #000;
-	margin: 0;
-	padding: 0;
-	overflow-x: clip;
-	font-family: 'Barlow', sans-serif;
-	font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-color-scheme: dark) {
-	html {
-		background: #333;
-		color: #fff;
-	}
-}
-
-body {
-	font-size: 1.2em;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-	min-height: 100vh;
-	max-width:100vw;
-	overflow-x: clip;
-}
-
-body>* {
-	width: 100%;
-	box-sizing: border-box;
-}
-
-pre {
-	white-space:pre-wrap;
-}
-
-img {
-	max-width: 100%;
-}
-
-a {
-	color: hsl(212.7, 67.8%, 29.2%);
-	color: hsl(var(--hue_0), var(--sat_0), var(--lum_0_low));
-}
-
-a:hover {
-	color: #ee7c28;
-	color: hsl(var(--hue_1), var(--sat_1), var(--lum_1_low));
-}
-
-@media (prefers-color-scheme: dark) {
-	a {
-		color: hsl(var(--hue_0), var(--sat_0), var(--lum_1_high));
-	}
-
-	a:hover {
-		color: hsl(var(--hue_1), var(--sat_1), var(--lum_1_high));
-	}
-}
-
-h1, h2, h3, h4, h5, h6 {
+.js-container h1,
+.js-container h2,
+.js-container h3,
+.js-container h4,
+.js-container h5,
+.js-container h6 {
 	margin: 0;
 }
 
-h2 {
+.js-container h2 {
 	padding: 0.25rem;
 	background: #386fb6;
 	color: #fff;
@@ -114,7 +18,7 @@ h2 {
 	color: var(--contrast_0_high);
 }
 
-h2:before {
+.js-container h2:before {
 	content: '';
 	display: block;
 	position: absolute;
@@ -123,16 +27,16 @@ h2:before {
 	top: 0;
 	bottom: 0;
 	left: calc(calc(100vw - 100%) / -2);
-	width: 100vw;
+	width: 100%;
 	background: hsl(var(--hue_0), var(--sat_0), var(--lum_0_high));
 	color: var(--contrast_0_high);
 }
 
-*+h2 {
+.js-container *+h2 {
 	margin-top: 4rem;
 }
 
-h3 {
+.js-container h3 {
 	padding: 0.25rem;
 	background: hsl(212.7, 67.8%, 29.2%);
 	color: #fff;
@@ -140,12 +44,12 @@ h3 {
 	color: var(--contrast_0_low);
 }
 
-h4 {
+.js-container h4 {
 	padding: 0.25rem;
 	background: hsl(25, 85%, 55%);
 	color: #000;
 	background: hsl(var(--hue_1), var(--sat_1), var(--lum_1_high));
-	color: var(--contrast_1_high);
+	color: var(--contrast_0_high);
 }
 
 table {
@@ -160,87 +64,24 @@ table {
 	}
 }
 
-th {
+/* th {
 	white-space: nowrap;
-}
+} */
 
 th, td {
 	padding: 0.25em;
-	text-align: right;
+	text-align: center;
 	border-top: solid 1px #d1d3d4;
 	vertical-align: top;
+}
+
+th:first-child, td:first-child {
+    text-align: left;
 }
 
 @media (prefers-color-scheme: dark) {
 	th, td {
 		border-color: #4c4c4c;
-	}
-}
-
-input, select, textarea {
-	font: inherit;
-	box-sizing: border-box;
-	max-width: 100%;
-}
-
-input[type="text"],
-input[type="password"],
-input[type="number"],
-textarea {
-	width: 100%;
-	border: solid 0.125em hsl(212.7, 67.8%, 29.2%);
-	border-color: hsl(var(--hue_0), var(--sat_0), var(--lum_0_low));
-	border-radius: 0.25rem;
-	background: #fff;
-	padding: 0.25rem 0.5rem;
-	color: #000;
-}
-
-@media (prefers-color-scheme: dark) {
-	input[type="text"],
-	input[type="password"],
-	input[type="number"],
-	textarea {
-		border-color: hsl(var(--hue_0), var(--sat_0), var(--lum_0_high));
-		background: #000;
-		color: #fff;
-	}
-}
-
-input[type="range"] {
-	width: 100%;
-	padding: 0;
-	margin: 0;
-}
-
-textarea {
-	height: 6em;
-	max-width: 30em;
-}
-
-input[type="checkbox"],
-input[type="radio"] {
-	width: auto;
-	border: none;
-	background: transparent;
-	padding: 0;
-}
-
-select {
-	width: 100%;
-}
-
-input:invalid,
-textarea:invalid,
-.value-invalid {
-	border-color: hsl(13.1, 64.6%, 37.6%);
-}
-
-@media (prefers-color-scheme: dark) {
-	input:invalid,
-	textarea:invalid,
-	.value-invalid {
-		border-color: hsl(8.2, 86.5%, 53.7%);
 	}
 }
 
