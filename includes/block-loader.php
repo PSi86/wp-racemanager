@@ -10,7 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Include the server-side render callback.
-require_once plugin_dir_path(__DIR__) . 'includes/main-navigation-handler.php'; // does its own init (add_filter)
 require_once plugin_dir_path(__DIR__) . 'includes/block-render-nav-latest-races.php'; // block-render-submenu.php
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-select.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-title.php';
