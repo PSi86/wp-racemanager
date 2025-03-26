@@ -112,17 +112,58 @@ function rm_rewrite_live_urls() {
  */
 function rm_pilots_shortcode( $atts ) {
     $race_id = rm_get_current_race_id();
+
     if ( ! $race_id ) {
         return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
     }
-    // Retrieve pilots data from race post meta (change 'pilots_data' as needed).
-    $pilots = get_post_meta( $race_id, 'pilots_data', true );
+
+    wp_enqueue_style(
+        'rm-sc-rotorhazard-css', 
+        plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css'
+    );
+    wp_enqueue_style(
+        'rm-sc-viewer-css', 
+        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+    );
+
+    wp_register_script_module(
+        'rm-pilot-stats',
+        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayPilotStats.js', //rm-m-pwa-subscribe.js
+        ['jquery'], // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
+        '1.0.3',
+        true
+    );
+
+    // Load dataLoader, pilotSelector, pushSubscription
+    global $rm_js_config;
+    $rm_js_config = array(
+        'dataLoader' => [], // Auto-filled by rm_print_js_module_config
+        'pilotSelector' => [
+            'pilotSelectorId'    => 'pilotSelector',
+        ],
+        'displayStats' => [
+            'filterCheckboxId'   => 'filterCheckbox', // no filter checkbox here
+        ],
+    );
+        
+    add_action( 'wp_head', 'rm_print_js_module_config' ); // necessary if using one of the js modules
+
+    // Enqueue the module.
+    wp_enqueue_script_module( 'rm-pilot-stats' );
+
     ob_start();
-    if ( $pilots ) {
-        echo '<div class="rm-pilots-content">' . esc_html( $pilots ) . '</div>';
-    } else {
-        echo '<p>No pilots data available for this race.</p>';
-    }
+    ?>
+        <!-- <div class="web-controls">
+            <label for="pilotSelector">Highlight Pilot: </label>
+            <select id="pilotSelector">
+                <option value="0">-- Select a Pilot --</option>
+            </select>
+            <label>
+                <input type="checkbox" id="filterCheckbox"> Filter by Selected Pilot
+            </label>
+        </div> -->
+        <div id="pilot-stats" class="responsive-wrap js-container"></div>
+    <?php
     return ob_get_clean();
 }
 add_shortcode( 'rm_pilots', 'rm_pilots_shortcode' );
@@ -246,7 +287,7 @@ function rm_stats_shortcode( $atts ) {
                 <input type="checkbox" id="filterCheckbox"> Filter by Selected Pilot
             </label>
         </div> -->
-        <div id="results" class="raceclass-container"></div>
+        <div id="results" class="js-container"></div>
     <?php
     return ob_get_clean();
 }
@@ -257,6 +298,13 @@ function rm_nextup_shortcode( $atts ) {
 
     if ( ! $race_id ) {
         return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
+    }
+
+    // TODO: centralize the meta queries for live pages and make them available as global variables
+    // TODO: show final results when race is locked
+    $race_live = get_post_meta( $race_id, '_race_live', true );
+    if ( ! $race_live ) {
+        return '<p>This race is over.</p>';
     }
     
     wp_enqueue_style(
@@ -272,6 +320,9 @@ function rm_nextup_shortcode( $atts ) {
         true
     );
 
+    // Generate a nonce using the wp_rest action (the default for REST API endpoints)
+    $nonce = wp_create_nonce( 'wp_rest' );
+
     // Load dataLoader, pilotSelector, pushSubscription
     global $rm_js_config;
     $rm_js_config = array(
@@ -281,6 +332,7 @@ function rm_nextup_shortcode( $atts ) {
         ],
         'pushSubscription' => [
             'restUrlSubscribe'     => home_url('/wp-json/rm/v1/subscription'),
+            'nonce'                => $nonce,
             'publicVapid'          => 'BLtUYsLUAC8rx0_LlTs4SEIcOwKPv1N4ydICV_f3C3v4aGlh1wLs2Bg-XNwzTndptldsZB3gm4RuYVBTUAK1jGQ',
             'formId'               => 'pilot-push-form',
             'subscribeButtonId'    => 'subscribe-button',
