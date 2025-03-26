@@ -17,5 +17,6 @@ function rm_render_race_title_block( $attributes ) {
     }
 
     // Fallback output if no valid race is found.
-    return '<h1>No race selected</h1>';
+    //return '<h1>No race selected</h1>';
+    return '';
 }
