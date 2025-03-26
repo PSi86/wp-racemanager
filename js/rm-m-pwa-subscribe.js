@@ -15,6 +15,7 @@ export class PushSubscription {
 
         // Configuration properties
         // Required properties
+        this.nonce = configData.nonce;
         this.publicVapid = configData.publicVapid;
         this.restUrlSubscribe = configData.restUrlSubscribe;
 
@@ -169,7 +170,10 @@ export class PushSubscription {
 
             const response = await fetch(this.restUrlSubscribe, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': this.nonce  // include the nonce header
+                },
                 body: JSON.stringify(bodyData),
             });
 
@@ -206,7 +210,10 @@ export class PushSubscription {
 
         await fetch(this.restUrlSubscribe, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': this.nonce  // include the nonce header
+            },
             body: JSON.stringify({
                 race_id: raceId,
                 pilot_id: pilotId,
