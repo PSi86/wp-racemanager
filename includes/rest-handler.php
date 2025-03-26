@@ -12,28 +12,51 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 //add_action('rest_api_init', function () {
 function rm_register_rest_routes_rh() {
     // Endpoint for uploading JSON data
-    register_rest_route('rm/v1', '/upload', [
-        'methods' => 'POST',
-        'callback' => 'rm_handle_upload',
-        'permission_callback' => '__return_true',
-    ]);
+    register_rest_route(
+        'rm/v1', 
+        '/upload', 
+        [
+            'methods' => 'POST',
+            'callback' => 'rm_handle_upload',
+            'permission_callback' => 'permission_check_user',
+        ]
+    );
 
     // Endpoint for retrieving the latest pilot registrations
-    register_rest_route('rm/v1', '/get-pilots', [
-        'methods'  => 'GET',
-        'callback' => 'rm_get_registration_data',
-        'permission_callback' => '__return_true', // Adjust permission as needed
-        'args' => [
-            'form_title' => [
-                'required' => true,
-                'validate_callback' => function ($param) {
-                    return is_string($param);
-                },
+    register_rest_route(
+        'rm/v1',
+        '/get-pilots', 
+        [
+            'methods'  => 'GET',
+            'callback' => 'rm_get_registration_data',
+            'permission_callback' => 'permission_check_user',
+            'args' => [
+                'form_title' => [
+                    'required' => true,
+                    'validate_callback' => function ($param) {
+                        return is_string($param);
+                    },
+                ],
             ],
-        ],
-    ]);
+        ]
+    );
+
+    // Send notifications to all in a race
+    register_rest_route(
+        'rm/v1',
+        '/notify-racers',
+        [
+            'methods'  => 'POST',
+            'callback' => 'handle_notification_request',
+            'permission_callback' => 'permission_check_user',
+        ]
+    );
 }
 //);
+
+function permission_check_user( \WP_REST_Request $request ) {
+    return is_user_logged_in(); 
+}
 
 /**
  * Callback for POST /wp-json/wp-racemanager/v1/races
@@ -47,13 +70,13 @@ function rm_register_rest_routes_rh() {
  */
 function rm_handle_upload( WP_REST_Request $request ) {
     // 1. Validate API Key
-    $maybe_error = rm_validate_api_key( $request );
+    /* $maybe_error = rm_validate_api_key( $request );
     if ( is_wp_error( $maybe_error ) ) {
         return new WP_REST_Response([
             'status'  => 'error',
             'message' => $maybe_error->get_error_message(),
         ], $maybe_error->get_error_data() ?: 401);
-    }
+    } */
 
     // 2. Validate request size & decode JSON
     $data = rm_validate_and_decode_json( $request );
@@ -207,6 +230,18 @@ function rm_find_or_create_race( $data ) {
     if ( $existing_query->have_posts() ) {
         // Existing Race found
         $race_id  = $existing_query->posts[0];
+
+        // Check if the current user is allowed to edit this post.
+        // This check respects the default capabilities, allowing higher-level users
+        // (e.g. editors, administrators) to update any post.
+        if ( ! current_user_can( 'edit_posts', $race_id ) ) {
+            return new WP_Error( 
+                'forbidden',
+                __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ), 
+                array( 'status' => 403 ) 
+            );
+        }
+                
         $post_live = get_post_meta( $race_id, '_race_live', true );
         if ( '1' !== $post_live ) {
             return new WP_Error(
@@ -226,39 +261,47 @@ function rm_find_or_create_race( $data ) {
             'message' => 'Event updated successfully',
         ];
     }
+    else {
+        if ( ! current_user_can( 'publish_posts', $race_id ) ) {
+            return new WP_Error( 
+                'forbidden',
+                __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ), 
+                array( 'status' => 403 ) 
+            );
+        }
+        // Otherwise, no existing race found -> create a new CPT post
+        $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
+                        "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n";
+        
+        $race_id = wp_insert_post([
+            'post_type'    => 'race',
+            'post_title'   => $race_name,
+            'post_content' => $post_content,
+            'post_status'  => 'publish',
+        ]);
 
-    // Otherwise, no existing race found -> create a new CPT post
-    $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
-                    "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n";
-    
-    $race_id = wp_insert_post([
-        'post_type'    => 'race',
-        'post_title'   => $race_name,
-        'post_content' => $post_content,
-        'post_status'  => 'publish',
-    ]);
+        if ( is_wp_error( $race_id ) ) {
+            return new WP_Error(
+                'post_creation_failed',
+                'Could not create Race CPT post.',
+                500
+            );
+        }
 
-    if ( is_wp_error( $race_id ) ) {
-        return new WP_Error(
-            'post_creation_failed',
-            'Could not create Race CPT post.',
-            500
-        );
+        rm_write_files( $race_id, $encoded_json_data, 1 );
+        update_post_meta( $race_id, '_race_live', 1 );
+        update_post_meta( $race_id, '_race_last_upload', $timestamp );
+
+        // Optionally set older races inactive
+        //rm_meta_set_last_race_inactive( $race_id );
+        // TODO: another idea would be to set all races to locked which did not have an upload in the last 48 hours.
+
+        return [
+            'status'  => 'success',
+            'id'      => $race_id,
+            'message' => 'Event created successfully',
+        ];
     }
-
-    rm_write_files( $race_id, $encoded_json_data, 1 );
-    update_post_meta( $race_id, '_race_live', 1 );
-    update_post_meta( $race_id, '_race_last_upload', $timestamp );
-
-    // Optionally set older races inactive
-    //rm_meta_set_last_race_inactive( $race_id );
-    // TODO: another idea would be to set all races to locked which did not have an upload in the last 48 hours.
-
-    return [
-        'status'  => 'success',
-        'id'      => $race_id,
-        'message' => 'Event created successfully',
-    ];
 }
 
 /**
@@ -373,13 +416,13 @@ function rm_create_wp_attachment( $race_id, $filepath ) {
 function rm_get_registration_data( WP_REST_Request $request) {
 
     // 1. Validate API Key
-    $maybe_error = rm_validate_api_key( $request );
+    /* $maybe_error = rm_validate_api_key( $request );
     if ( is_wp_error( $maybe_error ) ) {
         return new WP_REST_Response([
             'status'  => 'error',
             'message' => $maybe_error->get_error_message(),
         ], $maybe_error->get_error_data() ?: 401);
-    }
+    } */
 
     global $wpdb;
 
@@ -461,4 +504,61 @@ function rm_get_registration_data( WP_REST_Request $request) {
     }
 
     return rest_ensure_response($formatted_data);
+}
+
+/**
+ * Handle notification requests from RotorHazard
+ * Sends notifications to all subscribers in a race.
+ * Expects JSON with:
+ * {   
+ *  "race_id": 123,
+ * }
+ */
+function handle_notification_request( \WP_REST_Request $request ) {
+    /* // 1. Validate API Key
+    $maybe_error = rm_validate_api_key( $request );
+    if ( is_wp_error( $maybe_error ) ) {
+        return new \WP_REST_Response([
+            'status'  => 'error',
+            'message' => $maybe_error->get_error_message(),
+        ], $maybe_error->get_error_data() ?: 401);
+    } */
+    
+    $body = json_decode( $request->get_body(), true );
+
+    if ( empty( $body['race_id'] ) || empty( $body['msg_title'] ) || empty( $body['msg_body'] ) ) {
+        return new \WP_REST_Response(
+            [ 'error' => 'Missing required field.' ],
+            400
+        );
+    }
+    
+    $race_id    = absint( $body['race_id'] );
+    
+    if ( ! current_user_can( 'edit_posts', $race_id ) ) {
+        return new \WP_REST_Response(
+            [ 'error' => 'Unauthorized. The current user cannot access this post.' ],
+            403
+        );
+    }
+
+    $msg_title  = sanitize_text_field( $body['msg_title'] );
+    $msg_body   = sanitize_text_field( $body['msg_body'] );
+
+    $manager = \RaceManager\WP_RaceManager::instance();
+
+    // Ensure the subscription handler is available.
+    if ( empty( $manager->pwa_subscription_handler ) ) {
+        // Maybe just bail out silently if there's no subscription system loaded
+        return;
+    }
+    $pwa = $manager->pwa_subscription_handler;
+
+    //$notified = $pwa->send_next_up_notifications( $race_id, $upcomingPilots );
+    $pwa->send_notification_to_all_in_race( $race_id, $msg_title, $msg_body );
+
+    return new \WP_REST_Response(
+        [ 'success' => true, 'message' => 'Notification sent successfully' ],
+        200
+    );
 }
