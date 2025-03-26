@@ -16,7 +16,6 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 function rm_indicate_live_race( $block_content, $block ) {
     if ( isset( $block['blockName'] ) && 'core/navigation' === $block['blockName'] ) {
         // Replace the custom class with one that includes your blinking dot indicator.
-        // TODO: make conditional on a race beeing live right now. check last upload timestamp or live flag
         $block_content = str_replace( 'rm-live-page-link', 'rm-live-page-link has-blinking-dot', $block_content );
         wp_enqueue_style(
             'rm-live-page-link-css', 
@@ -25,6 +24,5 @@ function rm_indicate_live_race( $block_content, $block ) {
     }
     return $block_content;
 }
-// TODO: make this conditional on a race being live
-add_filter( 'render_block', 'rm_indicate_live_race', 10, 2 );
 
+//add_filter( 'render_block', 'rm_indicate_live_race', 10, 2 ); // Now called in wp-racemanager.php on init in is_a_race_live() if a race is live

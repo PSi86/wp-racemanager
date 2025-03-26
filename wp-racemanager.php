@@ -49,6 +49,7 @@ final class WP_RaceManager {
     private static $instance = null;
 
     public $pwa_subscription_handler;
+    public $live_race_in_progress = false;
 
     /**
      * Instantiate or retrieve the existing instance of this class (Singleton).
@@ -73,7 +74,9 @@ final class WP_RaceManager {
         //add_action( 'plugins_loaded', [ $this, 'maybe_init_rest_handlers' ] );
         //require_once WP_RACEMANAGER_DIR . 'vendor/autoload.php'; // if you’re using Composer
         // First load helper functions or implement them here
-
+        // Init global variables
+        add_action( 'init', [ $this, 'is_a_race_live' ] ); // Check if a race has been updated in the last two hours
+        
         // Load the REST API handling
         //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
         
@@ -88,6 +91,7 @@ final class WP_RaceManager {
         // END of REST API handling
 
         // active on every page
+        require_once plugin_dir_path(__FILE__) . 'includes/main-navigation-handler.php'; // filter function for main navigation to indicate live race in progress
         require_once plugin_dir_path(__FILE__) . 'includes/block-loader.php';
 
         // TODO: Load only on admin pages
@@ -97,7 +101,9 @@ final class WP_RaceManager {
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; // 
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php'; // cpt admin functions
-
+        
+        include_once plugin_dir_path(__FILE__) . 'includes/sc-gallery.php';
+        
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
         include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
         
@@ -187,6 +193,35 @@ final class WP_RaceManager {
         
         return false;
     }
+
+    public function is_a_race_live() {
+        //
+        // Generate the datetime string for two hours ago
+        $two_hours_ago = date( 'Y-m-d H:i:s', strtotime( '-2 hours', current_time( 'timestamp' ) ) );
+
+        $args = array(
+            'post_type'      => 'race',
+            'posts_per_page' => 1,              // Limit to one result
+            'fields'         => 'ids',          // Only retrieve IDs for efficiency
+            'meta_query'     => array(
+                array(
+                    'key'     => '_race_last_upload',
+                    'value'   => $two_hours_ago,
+                    'compare' => '>',
+                    'type'    => 'DATETIME'
+                ),
+            ),
+        );
+
+        $query = new \WP_Query( $args );
+        $this->live_race_in_progress = $query->have_posts();
+        
+        if($this->live_race_in_progress) {
+            add_filter( 'render_block', 'rm_indicate_live_race', 10, 2 );
+        }
+        //return $query->have_posts();
+    }
+    
     public static function write_log($log) {
         if (true === WP_DEBUG) {
             if (is_array($log) || is_object($log)) {
