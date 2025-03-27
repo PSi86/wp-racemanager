@@ -23,6 +23,12 @@
 //      - it listens to dataLoader updates and updates the display accordingly
 //      - it uses the pilotSelector module
 //      - filterCheckbox element is handled by this module
+// displayStats is a module that displays the pilot stats with the option to filter for or highlight a specific pilot.
+//      - it listens to dataLoader updates and updates the display accordingly
+// displayNextUp is a module that displays the next up pilots and allows for push notification subscription.
+//      - it listens to dataLoader updates and updates the display accordingly
+// displayPilotStats is a module that displays the pilot stats as a sortable table.
+//      - it listens to dataLoader updates and updates the display accordingly
 
 
 // Reminder: if you need to check for permissions, you can use a callback like this:

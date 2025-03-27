@@ -28,11 +28,16 @@ if ( is_admin() ) { // && $query->is_main_query()
 // Add custom columns to the admin posts list for the 'race' CPT
 function rm_add_race_columns( $columns ) {
     // Add new columns
+    $columns['event_start'] = __( 'Event Start', 'wp-racemanager' );
+    $columns['event_end'] = __( 'Event End', 'wp-racemanager' );
     $columns['race_live'] = __( 'Live Status', 'wp-racemanager' );
     $columns['last_upload'] = __( 'Last Upload', 'wp-racemanager' );
+    $columns['registrations'] = __('Registrations', 'wp-racemanager');
+    return $columns;
 
+    // TODO: necessary?
     // Rearrange or modify columns (optional)
-    $new_columns = [];
+/*     $new_columns = [];
     foreach ( $columns as $key => $title ) {
         $new_columns[$key] = $title;
         if ( $key === 'title' ) {
@@ -41,7 +46,7 @@ function rm_add_race_columns( $columns ) {
         }
     }
 
-    return $new_columns;
+    return $new_columns; */
 }
 
 // Populate custom column content
@@ -57,15 +62,38 @@ function rm_race_custom_column_content( $column, $post_id ) {
         echo '<div class="hidden" id="custom_inline_' . $post_id . '">';
         echo '<div class="rm_live_status">' . esc_html( $race_live ) . '</div>';
         echo '</div>';
+    } elseif ( $column === 'event_start' ) {
+        // Display event start timestamp
+        $event_start = get_post_meta( $post_id, '_race_event_start', true );
+        echo $event_start ? esc_html( $event_start ) : __( 'Not available', 'wp-racemanager' );
+    } elseif ( $column === 'event_end' ) {
+        // Display event end timestamp
+        $event_end = get_post_meta( $post_id, '_race_event_end', true );
+        echo $event_end ? esc_html( $event_end ) : __( 'Not available', 'wp-racemanager' );
     } elseif ( $column === 'last_upload' ) {
         // Display last upload date
         $last_upload = get_post_meta( $post_id, '_race_last_upload', true );
         echo $last_upload ? esc_html( $last_upload ) : __( 'Not available', 'wp-racemanager' );
+    } elseif ($column === 'registrations') {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'rm_registrations';
+        
+        // Look for the race_id within the custom table records
+        $count = $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_name WHERE race_id = %d", 
+            $post_id
+        ) );
+        
+        // Link to the hidden admin page with the race id as a GET parameter
+        $url = admin_url("admin.php?page=rm_race_registrations&race_id=" . $post_id);
+        echo '<a href="' . esc_url($url) . '">' . intval($count) . '</a>';
     }
 }
 
 // Make the columns sortable (optional)
 function rm_make_race_columns_sortable( $columns ) {
+    $columns['event_start'] = 'event_start';
+    $columns['event_end'] = 'event_end';
     $columns['race_live'] = 'race_live';
     $columns['last_upload'] = 'last_upload';
     return $columns;
@@ -84,6 +112,16 @@ function rm_sort_race_columns( $query ) {
 
     if ( $query->get( 'orderby' ) === 'last_upload' ) {
         $query->set( 'meta_key', '_race_last_upload' );
+        $query->set( 'orderby', 'meta_value' );
+    }
+
+    if ( $query->get( 'orderby' ) === 'event_start' ) {
+        $query->set( 'meta_key', '_race_event_start' );
+        $query->set( 'orderby', 'meta_value' );
+    }
+
+    if ( $query->get( 'orderby' ) === 'event_end' ) {
+        $query->set( 'meta_key', '_race_event_end' );
         $query->set( 'orderby', 'meta_value' );
     }
 }
@@ -152,6 +190,8 @@ function rm_add_meta_box() {
 }
 
 function rm_render_meta_box( $post ) {
+    $event_start = get_post_meta( $post->ID, '_race_event_start', true );
+    $event_end = get_post_meta( $post->ID, '_race_event_end', true );
     // Retrieve existing metadata (for example, the last update time)
     $last_upload = get_post_meta( $post->ID, '_race_last_upload', true );
     //$json_attach_id = get_post_meta( $post->ID, '_race_json_attachment_id', true );
@@ -162,6 +202,22 @@ function rm_render_meta_box( $post ) {
     
     ?>
     <p>
+        <label for="rm_event_start"><?php _e( 'Event Start:', 'wp-racemanager' ); ?></label>
+        <input type="datetime-local" 
+               id="rm_event_start" 
+               name="rm_event_start" 
+               value="<?php echo esc_attr( $event_start ); ?>" 
+                />
+    </p>
+    <p>
+        <label for="rm_event_end"><?php _e( 'Event End:', 'wp-racemanager' ); ?></label>
+        <input type="datetime-local" 
+               id="rm_event_end" 
+               name="rm_event_end" 
+               value="<?php echo esc_attr( $event_end ); ?>" 
+                />
+    </p>
+    <p>
         <label for="rm_live"><?php _e( 'Race Live?', 'wp-racemanager' ); ?></label>
         <input type="checkbox" 
                id="rm_live" 
@@ -171,7 +227,7 @@ function rm_render_meta_box( $post ) {
     </p>
     <p>
         <label for="rm_last_upload"><?php _e( 'Last Upload:', 'wp-racemanager' ); ?></label>
-        <input type="text" 
+        <input type="datetime-local" 
                id="rm_last_upload" 
                name="rm_last_upload" 
                value="<?php echo esc_attr( $last_upload ); ?>" 
@@ -211,6 +267,14 @@ function rm_save_meta_box_data( $post_id ) {
         update_post_meta( $post_id, '_race_live', 1 );
     } else {
         update_post_meta( $post_id, '_race_live', 0 );
+    }
+
+    if( isset( $_POST['rm_event_start'] ) ) {
+        update_post_meta( $post_id, '_race_event_start', sanitize_text_field( $_POST['rm_event_start'] ) );
+    }
+
+    if( isset( $_POST['rm_event_end'] ) ) {
+        update_post_meta( $post_id, '_race_event_end', sanitize_text_field( $_POST['rm_event_end'] ) );
     }
 
     // Potentially update last_upload if you want it editable or

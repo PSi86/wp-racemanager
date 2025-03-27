@@ -30,7 +30,7 @@ class PWA_Subscription_Handler {
     public static function create_db_table() {
         global $wpdb;
     
-        $table_name      = $wpdb->prefix . 'race_subscriptions';
+        $table_name      = $wpdb->prefix . 'rm_subscriptions';
         $charset_collate = $wpdb->get_charset_collate();
     
         $sql = "CREATE TABLE IF NOT EXISTS $table_name (
@@ -254,7 +254,7 @@ class PWA_Subscription_Handler {
      *
      * This function takes the current race_id and the upcoming pilots list (each element contains:
      * heat_id, heat_displayname, pilot_id, callsign, slot_id, and channel). It retrieves all subscriptions for
-     * the given race_id from the race_subscriptions table, compares the stored heat_id and slot_id for
+     * the given race_id from the rm_subscriptions table, compares the stored heat_id and slot_id for
      * each pilot with the new data, and sends a push notification with a precise message if needed.
      *
      * The notification messages are:
@@ -272,7 +272,7 @@ class PWA_Subscription_Handler {
      */
     public function send_next_up_notifications($race_id, $upcomingPilots) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'race_subscriptions';
+        $table_name = $wpdb->prefix . 'rm_subscriptions';
 
         // Build a mapping of upcoming pilots keyed by pilot_id.
         // If a pilot appears more than once, use the entry with the highest heat_id.
@@ -440,7 +440,7 @@ class PWA_Subscription_Handler {
      */
     public function get_subscriptions( $race_id ) {
         global $wpdb;
-        $table = $wpdb->prefix . 'race_subscriptions';
+        $table = $wpdb->prefix . 'rm_subscriptions';
 
         $sql = $wpdb->prepare(
             "SELECT * FROM $table WHERE race_id = %d",
@@ -456,7 +456,7 @@ class PWA_Subscription_Handler {
 
     private function upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth ) {
         global $wpdb;
-        $table = $wpdb->prefix . 'race_subscriptions';
+        $table = $wpdb->prefix . 'rm_subscriptions';
     
         // Check if subscription already exists for (race_id, endpoint).
         $existing = $wpdb->get_row(
@@ -488,7 +488,7 @@ class PWA_Subscription_Handler {
     private function delete_subscription( $endpoint ) {
         // remove individual subscription
         global $wpdb;
-        $table = $wpdb->prefix . 'race_subscriptions';
+        $table = $wpdb->prefix . 'rm_subscriptions';
 
         return $wpdb->delete(
             $table,
@@ -497,10 +497,10 @@ class PWA_Subscription_Handler {
         );
     }
 
-    private function delete_all_race_subscriptions( $race_id) {
+    private function delete_all_rm_subscriptions( $race_id) {
         // remove all subscriptions for a race_id
         global $wpdb;
-        $table = $wpdb->prefix . 'race_subscriptions';
+        $table = $wpdb->prefix . 'rm_subscriptions';
 
         return $wpdb->delete(
             $table,

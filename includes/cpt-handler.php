@@ -45,6 +45,34 @@ function rm_register_cpt() {
 
     register_post_type( 'race', $args );
 
+    // Post-Meta: event start date
+    register_post_meta(
+        'race',
+        '_race_event_start',
+        array(
+            'show_in_rest' => false,
+            'single'       => true,
+            'type'         => 'datetime', // or 'datetime'
+            'auth_callback' => function() {
+                return current_user_can( 'edit_posts' );
+            },
+        )
+    );    
+    
+    // Post-Meta: event end date
+    register_post_meta(
+        'race',
+        '_race_event_end',
+        array(
+            'show_in_rest' => false,
+            'single'       => true,
+            'type'         => 'datetime', // or 'datetime'
+            'auth_callback' => function() {
+                return current_user_can( 'edit_posts' );
+            },
+        )
+    );    
+    
     // Post-Meta for the last update time
     register_post_meta(
         'race',
@@ -52,7 +80,7 @@ function rm_register_cpt() {
         array(
             'show_in_rest' => false,
             'single'       => true,
-            'type'         => 'string', // or 'datetime'
+            'type'         => 'datetime', // or 'datetime'string
             'auth_callback' => function() {
                 return current_user_can( 'edit_posts' );
             },

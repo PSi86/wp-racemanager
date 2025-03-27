@@ -27,7 +27,12 @@ function rm_activate() {
     //require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
     \RaceManager\PWA_Subscription_Handler::create_db_table();
-    
+
+    // Create Registration Table
+    require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php';
+    rm_create_registration_table();
+
+    // Create the service worker and manifest files
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
     rm_create_file_from_template('template-pwa-sw.js', ABSPATH);
     rm_create_file_from_template('template-manifest.json', ABSPATH);
@@ -100,6 +105,8 @@ final class WP_RaceManager {
         // active on all pages
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; // 
+        require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php'; // Admin functions for registrations
+        include_once plugin_dir_path(__FILE__) . 'includes/sc-cf7-event-dropdown.php'; // SC for Contact Form 7
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php'; // cpt admin functions
         
         include_once plugin_dir_path(__FILE__) . 'includes/sc-gallery.php';
