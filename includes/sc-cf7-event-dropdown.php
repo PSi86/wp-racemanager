@@ -32,16 +32,40 @@ function get_upcoming_races() {
 }
 
 add_action('wpcf7_init', 'register_race_dropdown_form_tag');
+
+// Register the custom form tag with Contact Form 7
 function register_race_dropdown_form_tag() {
     wpcf7_add_form_tag('race_dropdown*', 'race_dropdown_handler', array('do_not_trim' => true));
 }
 
+// Handler for the custom form tag [race_dropdown]
 function race_dropdown_handler($tag) {
+    // Parse attributes: allow a "preselected" attribute.
+    $preselected = null;
+    
+    if (isset($_GET['race_id'])) {
+        $preselected = intval($_GET['race_id']);
+    }
+    
+    // Get upcoming races.
     $races = get_upcoming_races();
-    $html = '<select name="race">';
+    
+    // If a race ID was provided but isn't available, set an error message.
+    $error_message = '';
+    if ($preselected && !array_key_exists($preselected, $races)) {
+        $error_message = '<p class="error">The link is not valid, please select a race from the list.</p>';
+        // Optionally, reset preselected to avoid marking any option as selected.
+        $preselected = 0;
+    }
+    
+    // Build the dropdown.
+    $html = $error_message;
+    $html .= '<select name="race_id">';
     foreach ($races as $id => $title) {
-        $html .= sprintf('<option value="%d">%s</option>', $id, esc_html($title));
+        $selected = ($id == $preselected) ? ' selected="selected"' : '';
+        $html .= sprintf('<option value="%d"%s>%s</option>', $id, $selected, esc_html($title));
     }
     $html .= '</select>';
+    
     return $html;
 }

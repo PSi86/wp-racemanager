@@ -9,11 +9,12 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 function rm_create_registration_table() {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'rm_registrations';
+    $registrations_table = $wpdb->prefix . 'rm_registrations';
     $charset_collate = $wpdb->get_charset_collate();
     
-    $sql = "CREATE TABLE $table_name (
+    $sql = "CREATE TABLE $registrations_table (
       id mediumint(9) NOT NULL AUTO_INCREMENT,
+      user_id INT(11) NOT NULL DEFAULT 0,
       race_id int(11) NOT NULL,
       form_value longtext NOT NULL,
       form_date datetime NOT NULL,
@@ -31,7 +32,7 @@ function rm_save_submission($cf7) {
     if ( $submission ) {
         $data = $submission->get_posted_data();
         // Assume the field name "race" holds the race_id. Adjust if needed.
-        $race_id = isset($data['race']) ? intval($data['race']) : 0;
+        $race_id = isset($data['race_id']) ? intval($data['race_id']) : 0;
 
         // Check if a valid race_id was provided and if the CPT "race" exists with this ID.
         if ( ! $race_id || 'race' !== get_post_type( $race_id ) ) {
@@ -39,19 +40,34 @@ function rm_save_submission($cf7) {
             return; // Skip storing if the condition isn't met.
         }
 
+        // Retrieve the user_login from the submitted data.
+        $user_login = isset( $data['user_login'] ) ? sanitize_text_field( $data['user_login'] ) : '';
+
+        // Initialize user ID to 0 (not logged in).
+        $user_id = 0;
+
+        // If user_login is present, look up the user object.
+        if ( ! empty( $user_login ) ) {
+            $user = get_user_by( 'login', $user_login );
+            if ( $user ) {
+                $user_id = $user->ID;
+            }
+        }
+
         // Serialize the entire submitted data.
         $form_value = maybe_serialize($data);
 
         global $wpdb;
-        $table_name = $wpdb->prefix . 'rm_registrations';
+        $registrations_table = $wpdb->prefix . 'rm_registrations';
         $wpdb->insert(
-            $table_name,
+            $registrations_table,
             array(
+                'user_id'    => $user_id,
                 'race_id'    => $race_id,
                 'form_value' => $form_value,
                 'form_date'  => current_time('mysql')
             ),
-            array('%d', '%s', '%s')
+            array('%d', '%d', '%s', '%s')
         );
     }
 }
@@ -91,38 +107,40 @@ function rm_render_race_registrations() {
     // Handle bulk deletion
     if ( isset($_POST['bulk_delete']) && !empty($_POST['registration_ids']) ) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'rm_registrations';
+        $registrations_table = $wpdb->prefix . 'rm_registrations';
         $ids = array_map('absint', $_POST['registration_ids']);
         $ids_placeholder = implode(',', $ids);
-        $wpdb->query("DELETE FROM $table_name WHERE id IN ($ids_placeholder)");
+        $wpdb->query("DELETE FROM $registrations_table WHERE id IN ($ids_placeholder)");
         echo '<div class="updated"><p>' . __('Registrations deleted.', 'wp-racemanager') . '</p></div>';
     }
     
     // Query the custom table for registrations for this race.
     global $wpdb;
-    $table_name = $wpdb->prefix . 'rm_registrations';
+    $registrations_table = $wpdb->prefix . 'rm_registrations';
     $results = $wpdb->get_results( $wpdb->prepare(
-        "SELECT * FROM $table_name WHERE race_id = %d", 
+        "SELECT * FROM $registrations_table WHERE race_id = %d", 
         $race_id
     ), ARRAY_A );
     
+    // Define the whitelist of columns that should be visible in the UI.
+    
+    $allowed_columns = array('pilot_name_1', 'pilot_nickname_1', 'pilot_phone_1', 'pilot_mail_1', 'user_id', 'form_date');
+    
     // Process the results: unserialize the form data and prepare the table rows.
     $rows = array();
-    $headers = array();
     if ( $results ) {
         foreach ( $results as $row ) {
             $data = maybe_unserialize($row['form_value']);
             // Add additional info from the custom table record.
-            $data['id'] = $row['id'];
+            $data['user_id'] = $row['user_id'];
             $data['form_date'] = $row['form_date'];
-            
-            // Use keys from the first record as table headers.
-            if ( empty($headers) ) {
-                $headers = array_keys($data);
-            }
+            $data['id'] = $row['id']; // needed for checkboxes
             $rows[] = $data;
         }
     }
+    
+    // Use the whitelist as our headers so that only these columns will be shown.
+    $headers = $allowed_columns;
     ?>
     <div class="wrap">
         <h1><?php echo sprintf( __('Registrations for Race: %s', 'wp-racemanager'), esc_html( get_the_title( $race_id ) ) ); ?></h1>
@@ -134,7 +152,7 @@ function rm_render_race_registrations() {
                             <input type="checkbox" id="cb-select-all">
                         </th>
                         <?php foreach ( $headers as $header ) : ?>
-                            <th scope="col"><?php echo esc_html( ucfirst($header) ); ?></th>
+                            <th scope="col"><?php echo esc_html( ucfirst(str_replace('_', ' ', $header)) ); ?></th>
                         <?php endforeach; ?>
                     </tr>
                 </thead>
@@ -198,15 +216,15 @@ function rm_handle_csv_download() {
 
 function rm_download_csv($race_id, $selected_ids = array()) {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'rm_registrations';
+    $registrations_table = $wpdb->prefix . 'rm_registrations';
     
     // If there are selected IDs, filter by those. Otherwise, get all rows for the race.
     if ( ! empty($selected_ids) ) {
         $ids_placeholder = implode(',', $selected_ids);
-        $query = "SELECT * FROM $table_name WHERE id IN ($ids_placeholder) AND race_id = %d";
+        $query = "SELECT * FROM $registrations_table WHERE id IN ($ids_placeholder) AND race_id = %d";
         $results = $wpdb->get_results( $wpdb->prepare( $query, $race_id ), ARRAY_A );
     } else {
-        $results = $wpdb->get_results( $wpdb->prepare("SELECT * FROM $table_name WHERE race_id = %d", $race_id), ARRAY_A );
+        $results = $wpdb->get_results( $wpdb->prepare("SELECT * FROM $registrations_table WHERE race_id = %d", $race_id), ARRAY_A );
     }
     
     $csv_rows = array();
@@ -216,6 +234,7 @@ function rm_download_csv($race_id, $selected_ids = array()) {
             if ( ! is_array($data) ) {
                 $data = array();
             }
+            $data['user_id'] = $row['user_id'];
             $data['id'] = $row['id'];
             $data['form_date'] = $row['form_date'];
             // Flatten any array values and replace nulls with an empty string

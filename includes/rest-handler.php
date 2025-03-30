@@ -31,10 +31,10 @@ function rm_register_rest_routes_rh() {
             'callback' => 'rm_get_registration_data',
             'permission_callback' => 'permission_check_user',
             'args' => [
-                'form_title' => [
+                'race_id' => [
                     'required' => true,
                     'validate_callback' => function ($param) {
-                        return is_string($param);
+                        return is_int($param);
                     },
                 ],
             ],
@@ -412,7 +412,7 @@ function rm_create_wp_attachment( $race_id, $filepath ) {
 
 // Callback function to fetch and return pilot registration data
 // Options: 'latest' or a specific form title
-// requires 'form_title' parameter and 'api_key' header to be set
+// requires 'race_id' parameter and 'api_key' header to be set
 function rm_get_registration_data( WP_REST_Request $request) {
 
     // 1. Validate API Key
@@ -426,62 +426,23 @@ function rm_get_registration_data( WP_REST_Request $request) {
 
     global $wpdb;
 
-    $form_title = $request['form_title']; // Get the form_title from the request
-    $form_title = sanitize_text_field($form_title);
-    $cfdb7_table = $wpdb->prefix . 'db7_forms'; // cfdb7 table name holds all form replies
-    $posts_table = $wpdb->prefix . 'posts'; // WordPress posts table. The 'wpcf7_contact_form' post type holds the form definitions
+    $race_id = $request['race_id']; // Get the race_id from the request
+    $race_id = intval(sanitize_text_field($race_id)); // Sanitize the input
+    $registrations_table = $wpdb->prefix . 'rm_registrations'; // cfdb7 table name holds all form replies
 
-    $form_post_id = null;
-
-    if ($form_title === 'latest') {
-        // Get the highest form_post_id directly from the cfdb7 table
-        //$form_post_id = $wpdb->get_var("SELECT MAX(form_post_id) FROM $cfdb7_table");
-
-        // Find the latest published form in the posts table otherwise there is the risk of reading registrations from a old, deleted or unpublished form
-        $form_post_id = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT MAX(ID) FROM $posts_table 
-                WHERE post_status = 'publish' AND post_type = 'wpcf7_contact_form'"
-            )
-        );
-        
-        if (!$form_post_id) {
-            return new WP_REST_Response([
-                'status' => 'error',
-                'message' => 'No registration form found in the database.',
-            ], 404);
-            //return new WP_Error('no_latest_form', 'No form data found in the database.', ['status' => 404]);
-        }
-    } elseif (strlen($form_title) > 1) {
-        // Find the highest post_id for the given form_title in the posts table
-        $form_post_id = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT MAX(ID) FROM $posts_table 
-                WHERE post_title = %s AND post_type = 'wpcf7_contact_form'",
-                $form_title
-            )
-        );
-
-        if (!$form_post_id) {
-            return new WP_REST_Response([
-                'status' => 'error',
-                'message' => 'No form found with the specified form_title.',
-            ], 404);
-            //return new WP_Error('no_form_found', 'No form found with the specified form_title.', ['status' => 404]);
-        }
-    } else {
+    if ("race" != get_post_type($race_id)) {
         return new WP_REST_Response([
             'status' => 'error',
-            'message' => 'Invalid form_title parameter.',
+            'message' => 'Invalid race_id parameter.',
         ], 404);
-        //return new WP_Error('invalid_form_title', 'Invalid form_title parameter.', ['status' => 404]);
+        //return new WP_Error('invalid_race_id', 'Invalid race_id parameter.', ['status' => 404]);
     }
 
-    // Query the cfdb7 table for entries matching the form_post_id
+    // Query the registrations table for entries matching the race_id
     $results = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT form_value, form_date FROM $cfdb7_table WHERE form_post_id = %d",
-            $form_post_id
+            "SELECT form_value, form_date FROM $registrations_table WHERE race_id = %d",
+            $race_id
         ),
         ARRAY_A
     );
@@ -489,7 +450,7 @@ function rm_get_registration_data( WP_REST_Request $request) {
     if (empty($results)) {
         return new WP_REST_Response([
             'status' => 'error',
-            'message' => 'No registration data found for the form_post_id:' .$form_post_id. '.',
+            'message' => 'No registration data found for the race_id:' .$race_id. '.',
         ], 404);
         //return new WP_Error('no_form_data', 'No data found for the matching form.', ['status' => 404]);
     }
@@ -498,7 +459,7 @@ function rm_get_registration_data( WP_REST_Request $request) {
     $formatted_data = [];
     foreach ($results as $row) {
         $formatted_data[] = [
-            'form_values' => maybe_unserialize($row['form_value']),
+            'pilot_data' => maybe_unserialize($row['form_value']),
             'submission_date' => $row['form_date'],
         ];
     }

@@ -1,6 +1,6 @@
 <?php
 // includes/shortcodes.php
-// Register the custom shortcode [rm_viewer]
+// Register the shortcode [rm_registered]
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
@@ -10,18 +10,14 @@ function rm_sc_registered_handler($atts) {
     // Merge default shortcode attributes
     $atts = shortcode_atts(
         array(
-            'form_title' => null,
+            'race_id' => null,
         ),
         $atts,
         'rm_registered'
     );
 
     // Define your form ID either via shortcode attributes or directly.
-    $form_title = ! empty( $atts['form_title'] ) ? $atts['form_title'] : 'latest';
-
-    if ( ! $form_title ) {
-        return '<p>No valid post found for [rm_registered].</p>';
-    }
+    $race_id = ! empty( $atts['race_id'] ) ? $atts['race_id'] : get_the_ID();
 
     // check race meta for form_id
     /* $form_id_from_post_id = get_post_meta( $post_id, '_race_registration', true );
@@ -29,16 +25,16 @@ function rm_sc_registered_handler($atts) {
         return '<p>No form ID found for current page.</p>';
     } */
 
-    // Retrieve the pilot nicknames.
-    $nicknames = rm_get_registered_callsigns( $form_title );
+    // Retrieve the pilot callsigns.
+    $callsigns = rm_get_registered_callsigns( $race_id );
     
-    if ( empty( $nicknames ) ) {
-        return 'No pilot nicknames found.';
+    if ( empty( $callsigns ) ) {
+        return 'No pilots registered yet.';
     }
     
     // Build the output. Customize this as needed.
     $output = '<ul>';
-    foreach ( $nicknames as $nickname ) {
+    foreach ( $callsigns as $nickname ) {
         $output .= '<li>' . esc_html( $nickname ) . '</li>';
     }
     $output .= '</ul>';
