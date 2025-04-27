@@ -24,13 +24,23 @@ define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 // Activation hook to create the database table
 
 function rm_activate() {
-    //require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    // Ensure Contact Form 7 is active.
+    if ( ! class_exists( 'WPCF7_ContactForm' ) ) {
+        deactivate_plugins( plugin_basename( __FILE__ ) );
+        wp_die( 
+            __( 'Contact Form 7 Plugin not installed or active', 'wp-racemanager' ), 
+            __( 'Plugin Activation Error', 'wp-racemanager' ), 
+            array( 'back_link' => true )
+        );
+    }
+    // Create the database table for PWA subscriptions    
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
     \RaceManager\PWA_Subscription_Handler::create_db_table();
 
     // Create Registration Table
     require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php';
     rm_create_registration_table();
+    create_event_registration_cf7_form();
 
     // Create the service worker and manifest files
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
@@ -95,24 +105,29 @@ final class WP_RaceManager {
         
         // END of REST API handling
 
-        // active on every page
-        require_once plugin_dir_path(__FILE__) . 'includes/main-navigation-handler.php'; // filter function for main navigation to indicate live race in progress
-        require_once plugin_dir_path(__FILE__) . 'includes/block-loader.php';
+
 
         // TODO: Load only on admin pages
         include_once plugin_dir_path(__FILE__) . 'includes/settings-handler.php';
 
         // active on all pages
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; // 
+        include_once plugin_dir_path(__FILE__) . 'includes/ajax-subscription-handler.php'; // Handles all subscription-related AJAX requests for the RaceManager plugin.
+        // active on every page
+        require_once plugin_dir_path(__FILE__) . 'includes/main-navigation-handler.php'; // filter function for main navigation to indicate live race in progress
+        require_once plugin_dir_path(__FILE__) . 'includes/block-loader.php';
+        include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; //
+        include_once plugin_dir_path(__FILE__) . 'includes/race-archive.php'; // Race archive page (ordering by event start date)
         require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php'; // Admin functions for registrations
         include_once plugin_dir_path(__FILE__) . 'includes/sc-cf7-event-dropdown.php'; // SC for Contact Form 7
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php'; // cpt admin functions
         
+        include_once plugin_dir_path(__FILE__) . 'includes/block-modifiers.php'; // filter modifiers for default wp blocks
         include_once plugin_dir_path(__FILE__) . 'includes/sc-gallery.php';
         
-        include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php';
-        include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for Shortcode
+        include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_viewer.php'; // SC for heat viewer
+        include_once plugin_dir_path(__FILE__) . 'includes/sc-race-log.php'; // SC for race log
+        include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_registered.php'; // SC for registered pilots
         
         //include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_cards.php'; // SC for Shortcode
         //include_once plugin_dir_path(__FILE__) . 'includes/sc-rm_tabs.php'; // SC for Shortcode
