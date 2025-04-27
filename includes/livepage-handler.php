@@ -134,7 +134,7 @@ function rm_pilots_shortcode( $atts ) {
 
     wp_register_script_module(
         'rm-pilot-stats',
-        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayPilotStats.js', //rm-m-pwa-subscribe.js
+        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayPilotStats.js',
         ['jquery'], // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
         '1.0.3',
         true
@@ -259,7 +259,7 @@ function rm_stats_shortcode( $atts ) {
     );
     wp_register_script_module(
         'rm-stats',
-        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayStats.js', //rm-m-pwa-subscribe.js
+        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayStats.js',
         ['jquery'], // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
         '1.0.3',
         true
@@ -320,14 +320,14 @@ function rm_nextup_shortcode( $atts ) {
 
     wp_register_script_module(
         'rm-nextUp',
-        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayNextUp.js', //rm-m-pwa-subscribe.js
+        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayNextUp.js',
         array(), // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
         '1.0.3',
         true
     );
 
     // Generate a nonce using the wp_rest action (the default for REST API endpoints)
-    $nonce = wp_create_nonce( 'wp_rest' );
+    $nonce = wp_create_nonce( 'rm_ajax_nonce' );
 
     // Load dataLoader, pilotSelector, pushSubscription
     global $rm_js_config;
@@ -337,9 +337,9 @@ function rm_nextup_shortcode( $atts ) {
             'pilotSelectorId'    => 'pilotSelector',
         ],
         'pushSubscription' => [
-            'restUrlSubscribe'     => home_url('/wp-json/rm/v1/subscription'),
+            'ajaxUrl'              => admin_url( 'admin-ajax.php' ),
             'nonce'                => $nonce,
-            'publicVapid'          => 'BLtUYsLUAC8rx0_LlTs4SEIcOwKPv1N4ydICV_f3C3v4aGlh1wLs2Bg-XNwzTndptldsZB3gm4RuYVBTUAK1jGQ',
+            'publicVapid'          => '',
             'formId'               => 'pilot-push-form',
             'subscribeButtonId'    => 'subscribe-button',
             'subscriptionStatusId' => 'subscription-status',
@@ -358,13 +358,13 @@ function rm_nextup_shortcode( $atts ) {
     ?>
     <div id="nextup-display" class="raceclass-container"></div>
     <div id="pilot-push-container">
-      <h2>Select Pilot for Race Notifications</h2>
+      <h2>Select Pilot for Notifications</h2>
       <form id="pilot-push-form">
         <select id="pilotSelector">
           <option value="0">-- Select a pilot --</option>
           <!-- Pilots are added by pilotSelector module -->
         </select>
-        <button type="submit" id="subscribe-button">Subscribe</button>
+        <input style="margin-top: var(--wp--preset--spacing--x-small);" type="submit" id="subscribe-button"></input>
       </form>
       <div id="subscription-status"></div>
     </div>

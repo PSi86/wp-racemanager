@@ -20,7 +20,7 @@ class PWA_Subscription_Handler {
 
     public function __construct() {
         //add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-        $this->register_rest_routes();
+        //$this->register_ajax_handlers();
     }
 
     /**
@@ -51,150 +51,6 @@ class PWA_Subscription_Handler {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
     }
-    
-
-    /**
-     * Registers only the subscription and notify-racers endpoints.
-     */
-    public function register_rest_routes() {
-        // Insert or update a subscription
-        register_rest_route(
-            'rm/v1',
-            '/subscription',
-            [
-                'methods'  => 'POST',
-                'callback' => [ $this, 'handle_subscription' ],
-                'permission_callback' => [ $this, 'permission_check_nonce' ],
-            ]
-        );
-
-        // Update a subscription
-        register_rest_route(
-            'rm/v1',
-            '/subscription',
-            [
-                'methods'  => 'PUT',
-                'callback' => [ $this, 'handle_subscription' ],
-                'permission_callback' => [ $this, 'permission_check_nonce' ],
-            ]
-        );
-
-        // Delete a subscription
-        register_rest_route(
-            'rm/v1',
-            '/subscription',
-            [
-                'methods'  => 'DELETE',
-                'callback' => [ $this, 'remove_subscription' ],
-                'permission_callback' => [ $this, 'permission_check_nonce' ],
-            ]
-        );
-    }
-
-    /**
-     * Basic permission check. Adjust if you want admin-only, etc.
-     */
-    public function permission_check( \WP_REST_Request $request ) {
-        return true;
-    }
-
-    /**
-     * Basic permission check. Adjust if you want admin-only, etc.
-     */
-    public function permission_check_nonce( \WP_REST_Request $request ) {
-        $nonce = $request->get_header( 'X-WP-Nonce' );
-        if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
-            return new \WP_Error( 'rest_forbidden', esc_html__( 'Invalid nonce.' ), array( 'status' => 403 ) );
-        }
-        return true;
-    }
-
-    /**
-     * Handle creation or update of a subscription (POST, PUT).
-     * Expects JSON with:
-     * {
-     *   "race_id": 123,
-     *   "pilot_id": "...",
-     *   "endpoint": "...",
-     *   "keys": { "p256dh": "...", "auth": "..." }
-     * }
-     */
-    public function handle_subscription( \WP_REST_Request $request ) {
-        $body = json_decode( $request->get_body(), true );
-    
-        if ( empty( $body['race_id'] ) || empty( $body['endpoint'] ) ) {
-            return new \WP_REST_Response(
-                [ 'error' => 'Missing required fields: race_id and endpoint.' ],
-                400
-            );
-        }
-    
-        if ( empty( $body['pilot_id'] ) ) {
-            return new \WP_REST_Response(
-                [ 'error' => 'Missing required field: pilot_id.' ],
-                400
-            );
-        }
-    
-        $race_id        = absint( $body['race_id'] );
-        $endpoint       = sanitize_text_field( $body['endpoint'] );
-        $pilot_id = sanitize_text_field( $body['pilot_id'] );
-    
-        // keys may be optional
-        $keys     = ( isset( $body['keys'] ) && is_array( $body['keys'] ) ) ? $body['keys'] : [];
-        $p256dh   = isset( $keys['p256dh'] ) ? sanitize_text_field( $keys['p256dh'] ) : '';
-        $auth     = isset( $keys['auth'] )   ? sanitize_text_field( $keys['auth'] )   : '';
-    
-        // Insert or update subscription in DB
-        $result = $this->upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth );
-        if ( false === $result ) {
-            return new \WP_REST_Response(
-                [ 'success' => false, 'message' => 'Failed to insert/update subscription.' ],
-                500
-            );
-        }
-        $this->send_notification_to_all_in_race( $race_id, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' ); // For debugging
-        return new \WP_REST_Response(
-            [ 'success' => true, 'message' => 'Subscription inserted/updated successfully.' ],
-            200
-        );
-    }
-    
-
-    /**
-     * Handle deletion of a subscription (DELETE).
-     * Expects JSON with:
-     * {
-     *   "race_id": 123,
-     *   "endpoint": "..."
-     * }
-     */
-    public function remove_subscription( \WP_REST_Request $request ) {
-        $body = json_decode( $request->get_body(), true );
-        //if ( empty( $body['race_id'] ) || empty( $body['endpoint'] ) ) {
-        if ( empty( $body['endpoint'] ) ) {
-            return new \WP_REST_Response(
-                [ 'error' => 'Missing required fields: endpoint.' ],
-                400
-            );
-        }
-
-        //$race_id  = absint( $body['race_id'] );
-        $endpoint = sanitize_text_field( $body['endpoint'] );
-
-        $deleted = $this->delete_subscription( $endpoint );
-        if ( false === $deleted ) {
-            return new \WP_REST_Response(
-                [ 'success' => false, 'message' => 'Failed to remove subscription.' ],
-                500
-            );
-        }
-
-        return new \WP_REST_Response(
-            [ 'success' => true, 'message' => 'Subscription removed successfully.' ],
-            200
-        );
-    }
 
     /**
      * Public method to send notifications for a given race_id.
@@ -208,7 +64,7 @@ class PWA_Subscription_Handler {
             return false;
         }
 
-        $subscriptions = $this->get_subscriptions( $race_id );
+        $subscriptions = rm_get_subscriptions( $race_id );
         if ( empty( $subscriptions ) ) {
             return false;
         }
@@ -237,7 +93,7 @@ class PWA_Subscription_Handler {
                 WP_RaceManager::write_log('Notification sent successfully to: ' . $endpoint);
             } else {
                 if(strpos($result->getReason(), '410') !== false) {
-                    $this->delete_subscription($endpoint);
+                    rm_delete_subscription($endpoint);
                     WP_RaceManager::write_log('Subscription expired and removed: ' . $endpoint);
                 }
                 else {
@@ -287,7 +143,7 @@ class PWA_Subscription_Handler {
         // Retrieve all subscriber records for the given race_id with a valid pilot_id.
         //$query = $wpdb->prepare("SELECT * FROM $table_name WHERE race_id = %d AND pilot_id != 0", $race_id);
         //$subscribers = $wpdb->get_results($query, ARRAY_A);
-        $subscribers = $this->get_subscriptions( $race_id );
+        $subscribers = rm_get_subscriptions( $race_id );
         if ( empty( $subscribers ) ) {
             return false; // return true? TODO: test this
         }
@@ -411,7 +267,7 @@ class PWA_Subscription_Handler {
                 WP_RaceManager::write_log('Notification sent successfully to: ' . $endpoint);
             } else {
                 if(strpos($result->getReason(), '410') !== false) {
-                    $this->delete_subscription($endpoint);
+                    rm_delete_subscription($endpoint);
                     WP_RaceManager::write_log('Subscription expired and removed: ' . $endpoint);
                 }
                 else {
@@ -432,80 +288,5 @@ class PWA_Subscription_Handler {
     private function sendPushNotificationForSubscriber($subscriber, $message) {
         // For demonstration, we log the notification.
         WP_RaceManager::write_log("Push notification for pilot {$subscriber['pilot_id']}: $message");
-    }
-
-
-    /**
-     * Retrieve all subscriptions for a given race_id.
-     */
-    public function get_subscriptions( $race_id ) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'rm_subscriptions';
-
-        $sql = $wpdb->prepare(
-            "SELECT * FROM $table WHERE race_id = %d",
-            $race_id
-        );
-
-        return $wpdb->get_results( $sql, ARRAY_A );
-    }
-
-    // -------------------------------------------------------------------------
-    // Internal DB Helpers
-    // -------------------------------------------------------------------------
-
-    private function upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth ) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'rm_subscriptions';
-    
-        // Check if subscription already exists for (race_id, endpoint).
-        $existing = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id FROM $table WHERE endpoint = %s LIMIT 1",
-                $endpoint
-            )
-        );
-    
-        $data = [
-            'race_id'        => $race_id,
-            'pilot_id'       => $pilot_id,
-            'endpoint'       => $endpoint,
-            'p256dh_key'     => $p256dh,
-            'auth_key'       => $auth,
-            'updated_at'     => current_time( 'mysql' ),
-        ];
-    
-        if ( $existing ) {
-            // Update existing
-            return $wpdb->update( $table, $data, [ 'id' => $existing->id ] );
-        }
-    
-        // Insert new
-        $data['created_at'] = current_time( 'mysql' );
-        return $wpdb->insert( $table, $data );
-    }    
-
-    private function delete_subscription( $endpoint ) {
-        // remove individual subscription
-        global $wpdb;
-        $table = $wpdb->prefix . 'rm_subscriptions';
-
-        return $wpdb->delete(
-            $table,
-            [ 'endpoint' => $endpoint ],
-            [ '%s' ]
-        );
-    }
-
-    private function delete_all_rm_subscriptions( $race_id) {
-        // remove all subscriptions for a race_id
-        global $wpdb;
-        $table = $wpdb->prefix . 'rm_subscriptions';
-
-        return $wpdb->delete(
-            $table,
-            [ 'race_id' => $race_id ],
-            [ '%d' ]
-        );
     }
 }

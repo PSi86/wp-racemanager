@@ -4,8 +4,8 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       //navigator.serviceWorker.register(pluginsUrl + '/wp-racemanager/js/pwa-sw.js?ver=1.0.3')
       //navigator.serviceWorker.register('/wp/pwa-sw.js?ver=1.0.3')
-      navigator.serviceWorker.register('/wp/pwa-sw.js?ver=1.0.3', {
-        scope: '/wp/live/' // works as "/wp/live/" or as full URL
+      navigator.serviceWorker.register('/pwa-sw.js?ver=1.0.3', {
+        scope: '/live/' // works as "/wp/live/" or as full URL
       })
         .then(function(registration) {
           console.log('Service Worker registered with scope:', registration.scope);

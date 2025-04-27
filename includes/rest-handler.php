@@ -33,9 +33,7 @@ function rm_register_rest_routes_rh() {
             'args' => [
                 'race_id' => [
                     'required' => true,
-                    'validate_callback' => function ($param) {
-                        return is_int($param);
-                    },
+                    'validate_callback' => 'permission_check_race_id',
                 ],
             ],
         ]
@@ -56,6 +54,29 @@ function rm_register_rest_routes_rh() {
 
 function permission_check_user( \WP_REST_Request $request ) {
     return is_user_logged_in(); 
+}
+
+function permission_check_race_id( $param, \WP_REST_Request $request, $key ) {
+    if ( rest_is_integer($param) ) {
+        $race_id = intval($param);
+        if( current_user_can( 'edit_post', $race_id ) ) {
+            return true;
+        } else {
+            // User is not allowed to edit this post
+            return new WP_Error( 
+                'forbidden',
+                __( 'Wrong user. You do not have permission to access this race.', 'wp-racemanager' ), 
+                array( 'status' => 403 ) 
+            );
+        }
+    }
+    else {
+        return new WP_Error( 
+            'forbidden',
+            __( 'Wrong prarameter format [race_id]', 'wp-racemanager' ), 
+            array( 'status' => 400 ) 
+        );
+    }
 }
 
 /**
@@ -97,6 +118,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
     }
 
     // 4. Process the race (either update existing or create new)
+    //  User rights are checked within rm_find_or_create_race()
     $race_result = rm_find_or_create_race( $data );
     if ( is_wp_error( $race_result ) ) {
         return new WP_REST_Response([
@@ -203,7 +225,7 @@ function rm_validate_required_fields( $data ) {
 }
 
 /**
- * Finds an existing Race CPT (by title=race_name) or creates a new one.
+ * Finds an existing Race CPT (by title=race_name) or creates a new one, if the current user is allowed to do so.
  * Returns array on success: ['status' => 'updated'|'success', 'id' => (race_id), 'message' => '...']
  * Returns WP_Error on failure.
  */
@@ -234,7 +256,7 @@ function rm_find_or_create_race( $data ) {
         // Check if the current user is allowed to edit this post.
         // This check respects the default capabilities, allowing higher-level users
         // (e.g. editors, administrators) to update any post.
-        if ( ! current_user_can( 'edit_posts', $race_id ) ) {
+        if ( ! current_user_can( 'edit_post', $race_id ) ) {
             return new WP_Error( 
                 'forbidden',
                 __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ), 
@@ -250,8 +272,7 @@ function rm_find_or_create_race( $data ) {
                 $race_id
             );
         }
-
-        // We can now write new data to files, etc.
+        
         rm_write_files( $race_id, $encoded_json_data );
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
@@ -262,6 +283,8 @@ function rm_find_or_create_race( $data ) {
         ];
     }
     else {
+        // Create new race post
+        // Check if the current user is allowed to publish posts.
         if ( ! current_user_can( 'publish_posts', $race_id ) ) {
             return new WP_Error( 
                 'forbidden',
@@ -270,8 +293,49 @@ function rm_find_or_create_race( $data ) {
             );
         }
         // Otherwise, no existing race found -> create a new CPT post
-        $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
-                        "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n";
+        /* $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
+                        "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n"; */
+        $post_content = '<!-- wp:group {"metadata":{"name":"Link Row"},"layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between"}} -->
+            <div class="wp-block-group">
+            <!-- wp:wp-racemanager/race-buttons /-->
+
+            <!-- wp:social-links {"iconColor":"base","iconColorValue":"#ffffff","iconBackgroundColor":"contrast","iconBackgroundColorValue":"#000000","openInNewTab":true,"metadata":{"name":"Social Links"},"className":"is-style-default","layout":{"type":"flex","justifyContent":"right","orientation":"horizontal"}} -->
+            <ul class="wp-block-social-links has-icon-color has-icon-background-color is-style-default">
+            <!-- wp:social-link {"url":"https://www.youtube.com/channel/00000","service":"youtube"} /-->
+            <!-- wp:social-link {"url":"https://www.instagram.com/00000/","service":"instagram"} /-->
+            <!-- wp:social-link {"url":"https://discord.gg/00000","service":"discord"} /--></ul>
+            <!-- /wp:social-links --></div>
+            <!-- /wp:group -->
+
+            <!-- wp:columns {"className":"is-style-columns-reverse","style":{"spacing":{"margin":{"top":"var:preset|spacing|x-small","bottom":"var:preset|spacing|x-small"}}}} -->
+            <div class="wp-block-columns is-style-columns-reverse" style="margin-top:var(--wp--preset--spacing--x-small);margin-bottom:var(--wp--preset--spacing--x-small)"><!-- wp:column {"width":"66.66%","layout":{"type":"default"}} -->
+            <div class="wp-block-column" style="flex-basis:66.66%"><!-- wp:paragraph {"align":"left","placeholder":"Enter race description here...","style":{"layout":{"selfStretch":"fit","flexSize":null}}} -->
+            <p class="has-text-align-left">' . $race_description . '</p>
+            <!-- /wp:paragraph --></div>
+            <!-- /wp:column -->
+
+            <!-- wp:column {"width":"33.33%","layout":{"type":"default"}} -->
+            <div class="wp-block-column" style="flex-basis:33.33%"><!-- wp:post-featured-image {"width":"","height":"","scale":"contain"} /--></div>
+            <!-- /wp:column --></div>
+            <!-- /wp:columns -->
+
+            <!-- wp:details -->
+            <details class="wp-block-details"><summary><strong>Details: </strong></summary><!-- wp:paragraph {"placeholder":"Timetable, Location, Food, Rules, etc."} -->
+            <p>08:30 Doors open <br>09:00 Training <br>10:00 Qualification <br>13:00 Lunch <br>17:00 Finals <br>18:00 End</p>
+            <!-- /wp:paragraph -->
+
+            <!-- wp:gmap/gmap-block {"address":"Martin-Luther-Straße 28, 70825 Korntal-Münchingen","zoom":11,"uniqueId":"gmap-block-gaoc5rx2","blockStyle":"\n        \n        \n    \n        @media (max-width: 1024px) and (min-width: 768px) {\n            \n         \n    \n        }\n        @media (max-width: 767px) {\n            \n         \n    \n        }\n    "} -->
+            <div class="wp-block-gmap-gmap-block gmap-block-gaoc5rx2"><iframe src="https://maps.google.com/maps?q=Martin-Luther-Stra%C3%9Fe+28%2C+70825+Korntal-M%C3%BCnchingen&amp;z=11&amp;t=roadmap&amp;output=embed" class="embd-map" title="Martin-Luther-Straße 28, 70825 Korntal-Münchingen"></iframe></div>
+            <!-- /wp:gmap/gmap-block --></details>
+            <!-- /wp:details -->
+
+            <!-- wp:shortcode {"metadata":{"name":"Gallery"}} -->
+            [rm_gallery]
+            <!-- /wp:shortcode -->
+
+            <!-- wp:shortcode {"metadata":{"name":"Registered Pilots"}} -->
+            [rm_registered]
+            <!-- /wp:shortcode -->';
         
         $race_id = wp_insert_post([
             'post_type'    => 'race',
@@ -292,9 +356,11 @@ function rm_find_or_create_race( $data ) {
         update_post_meta( $race_id, '_race_live', 1 );
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
-        // Optionally set older races inactive
-        //rm_meta_set_last_race_inactive( $race_id );
-        // TODO: another idea would be to set all races to locked which did not have an upload in the last 48 hours.
+        $date_start = strtotime('today 8:00');
+        update_post_meta( $race_id, '_race_event_start', $date_start );
+
+        $date_end = strtotime('today 19:00');
+        update_post_meta( $race_id, '_race_event_end', $date_end );
 
         return [
             'status'  => 'success',
@@ -372,6 +438,9 @@ function rm_write_files( $race_id, $encoded_json_data, $create_wp_attachment = 0
     $filename_timestamp = $upload_path . $race_id . '-timestamp.json';
     $filename_data = $upload_path . $race_id . '-data.json';
 
+    // add the notifications data to the JSON
+    $encoded_json_data = add_notifications_to_race_json( $encoded_json_data, $race_id );
+
     $file_saved = file_put_contents( $filename_timestamp, wp_json_encode(['time' => $timestamp]));
     $file_saved = file_put_contents( $filename_data, $encoded_json_data );
 
@@ -410,6 +479,35 @@ function rm_create_wp_attachment( $race_id, $filepath ) {
     wp_update_attachment_metadata( $attach_id, $attach_data );
 }
 
+/**
+ * Injects WP “race” notifications into a race JSON blob.
+ *
+ * @param string $race_json     Raw JSON string for one race.
+ * @param int    $race_id       The post ID of the race CPT.
+ * @return string               The modified JSON string, now including a "notifications" array.
+ */
+function add_notifications_to_race_json( $race_json, $race_id ) {
+    // Decode incoming JSON
+    $race_data = json_decode( $race_json, true );
+    if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $race_data ) ) {
+        // Invalid JSON — bail and return original
+        return $race_json;
+    }
+
+    // Fetch the notifications log from post meta
+    $meta_key       = '_race_notification_log';
+    $notifications  = get_post_meta( $race_id, $meta_key, true );
+    if ( ! is_array( $notifications ) ) {
+        $notifications = array();
+    }
+
+    // Inject into the data
+    $race_data['notifications'] = $notifications;
+
+    // Re-encode (you can pass JSON_PRETTY_PRINT if you want it formatted)
+    return wp_json_encode( $race_data );
+}
+
 // Callback function to fetch and return pilot registration data
 // Options: 'latest' or a specific form title
 // requires 'race_id' parameter and 'api_key' header to be set
@@ -441,7 +539,7 @@ function rm_get_registration_data( WP_REST_Request $request) {
     // Query the registrations table for entries matching the race_id
     $results = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT form_value, form_date FROM $registrations_table WHERE race_id = %d",
+            "SELECT * FROM $registrations_table WHERE race_id = %d",
             $race_id
         ),
         ARRAY_A
@@ -455,16 +553,29 @@ function rm_get_registration_data( WP_REST_Request $request) {
         //return new WP_Error('no_form_data', 'No data found for the matching form.', ['status' => 404]);
     }
 
-    // Process and format results
-    $formatted_data = [];
-    foreach ($results as $row) {
-        $formatted_data[] = [
-            'pilot_data' => maybe_unserialize($row['form_value']),
-            'submission_date' => $row['form_date'],
-        ];
+    // Process the results: unserialize the form data and add extra fields.
+    // TODO: Move this to a separate function to avoid code duplication.
+    // Define the allowed keys for display
+    global $rm_gui_columns;
+    $rows = array();
+
+    if ( $results ) {
+        foreach ( $results as $row ) {
+            $data = maybe_unserialize($row['form_value']);
+            if (!is_array($data)) {
+                $data = array();
+            }
+            // Filter the array so only allowed keys remain
+            $filtered_data = array_intersect_key($data, array_flip($rm_gui_columns));
+            // Add extra fields from the record.
+            $filtered_data['user_id']   = $row['user_id'];
+            $filtered_data['form_date'] = $row['form_date'];
+            $filtered_data['id']        = $row['id']; // required for checkboxes.
+            $rows[] = $filtered_data;
+        }
     }
 
-    return rest_ensure_response($formatted_data);
+    return rest_ensure_response($rows);
 }
 
 /**
@@ -496,19 +607,77 @@ function handle_notification_request( \WP_REST_Request $request ) {
     
     $race_id    = absint( $body['race_id'] );
     
-    if ( ! current_user_can( 'edit_posts', $race_id ) ) {
+    if ( ! current_user_can( 'edit_post', $race_id ) ) {
         return new \WP_REST_Response(
             [ 'error' => 'Unauthorized. The current user cannot access this post.' ],
             403
         );
     }
 
+    // Authenticated, let's proceed with the notification
+
+    // Build notification data for storing in post meta
+    $notification = array(
+        'msg_title'   => isset( $body['msg_title'] ) ? sanitize_text_field( $body['msg_title'] ) : '',
+        'msg_body'    => isset( $body['msg_body'] ) ? sanitize_textarea_field( $body['msg_body'] ) : '',
+        'msg_url'     => isset( $body['msg_url'] ) ? esc_url_raw( $body['msg_url'] ) : '',
+        'msg_icon'    => isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '',
+        'msg_time'    => current_time( 'mysql' ),
+    );
+
+    // Meta key.
+    $meta_key = '_race_notification_log';
+
+    // Get existing notifications
+    $existing = get_post_meta( $race_id, $meta_key, true );
+    if ( ! is_array( $existing ) ) {
+        $existing = array();
+    }
+
+    // Prepend new notification
+    array_unshift( $existing, $notification );
+
+    // Update post meta
+    update_post_meta( $race_id, $meta_key, $existing );
+
+    // load the existing json file
+    $upload_path = WP_CONTENT_DIR . '/uploads/races/';
+    //$filename_timestamp = trailingslashit( $upload_path ) . $race_id . '-timestamp.json';
+    $filename = $upload_path . $race_id . '-data.json';
+    
+    if ( file_exists( $filename ) ) {
+        // Read the existing JSON data
+        $race_json = file_get_contents( $filename );
+        //$encoded_json_data = wp_json_encode( $race_json );
+        
+        /* $race_data = json_decode( $race_json, true );
+        if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $race_data ) ) {
+            // Invalid JSON — bail and return original
+            return new \WP_REST_Response(
+                [ 'error' => 'Error writing notification to race JSON file.' ],
+                500
+            );
+        } */
+
+        // Save the updated JSON data back to the file
+        rm_write_files( $race_id, $race_json, 0 ); // TEST $race_json / $encoded_json_data
+    }
+/*  for now we ignore the file writing if the file does not exist    
+    else {
+        // File does not exist, return an error response
+        return new \WP_REST_Response(
+            [ 'error' => 'Error reading notification to race JSON file.' ],
+            500
+        );
+    } */
+
+    // Send the notification to all subscribers
     $msg_title  = sanitize_text_field( $body['msg_title'] );
     $msg_body   = sanitize_text_field( $body['msg_body'] );
 
     $manager = \RaceManager\WP_RaceManager::instance();
 
-    // Ensure the subscription handler is available.
+    // Ensure the subscription handler is available
     if ( empty( $manager->pwa_subscription_handler ) ) {
         // Maybe just bail out silently if there's no subscription system loaded
         return;

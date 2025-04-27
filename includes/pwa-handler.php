@@ -107,11 +107,11 @@ function rm_create_file_from_template($template_filename, $output_file_path) {
     $rm_wp_root_url = get_site_url();
     // TODO: allowing editing the values in the admin panel?
     $replace_pattern = array(
-        "[siteUrl]" => esc_js("https://wherever-we-are.com/wp/"), // wp start page url
-        "[livePagesUrl]" => esc_js("https://wherever-we-are.com/wp/live/"), // also used for pwa_id
-        "[pwaScope]" => esc_js("/wp/live/"),   // relative path to the live pages
-        "[pwaStartUrl]" => esc_js("https://wherever-we-are.com/wp/live/bracket/"), // when the PWA is started
-        "[pwaStartPage]" => esc_js("/wp/live/bracket/"), // '/wp/live/' relative path to the pwaScope start page
+        "[siteUrl]" => esc_js("https://domain.com/"), // wp start page url
+        "[livePagesUrl]" => esc_js("https://domain.com/live/"), // also used for pwa_id
+        "[pwaScope]" => esc_js("/live/"),   // relative path to the live pages
+        "[pwaStartUrl]" => esc_js("https://domain.com/live/bracket/"), // when the PWA is started
+        "[pwaStartPage]" => esc_js("/live/bracket/"), // '/wp/live/' relative path to the pwaScope start page
         "[iconFolderUrl]" => esc_js($rm_iconfolder),
     );
     
