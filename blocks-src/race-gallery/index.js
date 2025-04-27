@@ -1,4 +1,4 @@
-// blocks-src/race-media-gallery/index.js
+// blocks-src/race-gallery/index.js
 import { registerBlockType } from '@wordpress/blocks';
 import {
     MediaUpload,
@@ -66,7 +66,7 @@ registerBlockType( 'race/media-gallery', {
                     </PanelBody>
                 </InspectorControls>
 
-                <div className="race-media-gallery-block">
+                <div className="race-gallery-block">
                     { mediaIds.length
                         ? <p>{ mediaIds.length } media selected.</p>
                         : <p>{ __( 'No media selected.', 'race' ) }</p> }

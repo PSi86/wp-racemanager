@@ -1,0 +1,19 @@
+{
+    "name": "WP Plugin Codespace",
+    "image": "mcr.microsoft.com/devcontainers/php:8.2",      
+    "features": {
+      "ghcr.io/devcontainers/features/node:2": {
+        "version": "18"                                
+      }
+    },
+    "postCreateCommand": "npm install",                 
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "dbaeumer.vscode-eslint",
+          "esbenp.prettier-vscode"
+        ]
+      }
+    }
+  }
+  
