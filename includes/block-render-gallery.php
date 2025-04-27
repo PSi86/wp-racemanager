@@ -7,52 +7,196 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
+/**
+ * Front-end render callback for race/media-gallery block.
+ *
+ * @param array $attrs Block attributes; expects 'mediaIds' => [ attachment IDs ].
+ * @return string HTML for gallery.
+ */
 function rm_render_media_gallery( $attrs ) {
-    // Conditionally enqueue Swiper only when this block is rendered
-    wp_enqueue_style(
-        'race-swiper-css',
-        'https://unpkg.com/swiper/swiper-bundle.min.css',
-        [],
-        '8.0.0'
-    );
-    wp_enqueue_script(
-        'race-swiper-js',
-        'https://unpkg.com/swiper/swiper-bundle.min.js',
-        [],
-        '8.0.0',
-        true
-    );
-    wp_add_inline_script(
-        'race-swiper-js',
-        "document.addEventListener('DOMContentLoaded',function(){
-           new Swiper('.race-media-gallery',{});
-         });"
-    );
-
     $ids = $attrs['mediaIds'] ?? [];
     if ( empty( $ids ) ) {
         return '';
     }
 
-    $slides = '';
-    foreach ( $ids as $id ) {
-        $url  = wp_get_attachment_url( $id );
-        $mime = get_post_mime_type( $id );
-        if ( strpos( $mime, 'image/' ) === 0 ) {
-            $slides .= sprintf(
-                '<div class="swiper-slide"><img src="%s" alt=""></div>',
-                esc_url( $url )
-            );
-        } else {
-            $slides .= sprintf(
-                '<div class="swiper-slide"><video controls src="%s"></video></div>',
-                esc_url( $url )
-            );
-        }
-    }
-
-    return sprintf(
-        '<div class="race-media-gallery swiper-container"><div class="swiper-wrapper">%s</div></div>',
-        $slides
+    // 1) Enqueue Swiper assets
+    wp_enqueue_style(
+        'race-swiper-css',
+        plugin_dir_url( __DIR__ ) . 'assets/swiper-11.2.6/swiper-bundle.min.css',
+        [],
+        '11.2.6'
     );
+    wp_enqueue_script(
+        'race-swiper-js',
+        plugin_dir_url( __DIR__ ) . 'assets/swiper-11.2.6/swiper-bundle.min.js',
+        [],
+        '11.2.6',
+        true
+    );
+
+    // 2) Inject only the dynamic data (the array of IDs)
+    $json_ids = wp_json_encode( array_values( $ids ) );
+    wp_add_inline_script(
+        'race-swiper-js',
+        "var raceMediaIds = {$json_ids};",
+        'before'
+    );
+
+    // 3) Build the gallery HTML + inline <script> + <style>
+    ob_start();
+    ?>
+    <h3>Gallery</h3>
+    <div class="rm-gallery-wrapper">
+        <?php foreach ( $ids as $i => $id ) : ?>
+            <div class="rm-gallery-thumb" data-index="<?php echo esc_attr( $i ); ?>">
+                <?php echo wp_get_attachment_image( $id, 'thumbnail' ); ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
+    <div id="rm-gallery-overlay" class="rm-gallery-overlay" style="display:none;">
+        <div class="rm-gallery-overlay-content">
+            <span id="rm-gallery-close" class="rm-gallery-close">&times;</span>
+            <div id="rm-gallery-overlay-swiper" class="swiper-container rm-gallery-overlay-slider">
+                <div class="swiper-wrapper">
+                    <?php foreach ( $ids as $id ) :
+                        $url  = esc_url( wp_get_attachment_url( $id ) );
+                        $mime = get_post_mime_type( $id );
+                    ?>
+                        <div class="swiper-slide">
+                            <?php if ( strpos( $mime, 'image/' ) === 0 ) : ?>
+                                <div class="swiper-zoom-container">
+                                    <img src="<?php echo $url; ?>" alt="" style="width:100%;height:100%;object-fit:contain;">
+                                </div>
+                            <?php else : ?>
+                                <video controls style="width:100%;height:100%;object-fit:contain;">
+                                    <source src="<?php echo $url; ?>" type="<?php echo esc_attr( $mime ); ?>">
+                                    <?php esc_html_e( 'Your browser does not support the video tag.', 'race' ); ?>
+                                </video>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="swiper-button-prev"></div>
+                <div class="swiper-button-next"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ids     = raceMediaIds;
+        var overlay = document.getElementById('rm-gallery-overlay');
+        var closeBtn = document.getElementById('rm-gallery-close');
+        var swiperContainer = document.getElementById('rm-gallery-overlay-swiper');
+        var swiperInstance;
+
+        function updateHash(id) {
+            history.replaceState(null, '', '#' + id);
+        }
+        function clearHash() {
+            history.replaceState(null, '', location.pathname + location.search);
+        }
+
+        function openOverlay(index) {
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            if (!swiperInstance) {
+                swiperInstance = new Swiper(swiperContainer, {
+                    initialSlide: index,
+                    navigation: {
+                        nextEl: '.swiper-button-next',
+                        prevEl: '.swiper-button-prev'
+                    },
+                    loop: false,
+                    zoom: { toggle: true, maxRatio: 3 },
+                    keyboard: { enabled: true },
+                    mousewheel: { enabled: true }
+                });
+                swiperInstance.on('slideChange', function() {
+                    updateHash( ids[ swiperInstance.realIndex ] );
+                });
+            } else {
+                swiperInstance.slideTo(index, 0);
+            }
+            updateHash( ids[ index ] );
+        }
+
+        function closeOverlay() {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+            clearHash();
+        }
+
+        // Thumbnail clicks
+        document.querySelectorAll('.rm-gallery-thumb').forEach(function(thumb){
+            thumb.addEventListener('click', function(){
+                openOverlay( parseInt(thumb.dataset.index, 10) );
+            });
+        });
+        // Close button
+        closeBtn.addEventListener('click', closeOverlay);
+        // ESC key
+        document.addEventListener('keydown', function(e){
+            if (overlay.style.display === 'flex' && e.key === 'Escape') {
+                closeOverlay();
+            }
+        });
+
+        // On page load: open if hash matches an ID
+        var hashId = parseInt( location.hash.replace('#',''), 10 );
+        var idx = ids.indexOf( hashId );
+        if ( idx > -1 ) {
+            openOverlay( idx );
+        }
+    });
+    </script>
+
+    <style>
+    .rm-gallery-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .rm-gallery-thumb {
+        cursor: pointer;
+    }
+    .rm-gallery-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100000;
+    }
+    .rm-gallery-overlay-content {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+    }
+    .rm-gallery-close {
+        position: absolute;
+        top: 10px; right: 20px;
+        font-size: 60px;
+        color: #fff;
+        cursor: pointer;
+        z-index: 100001;
+    }
+    .rm-gallery-overlay-slider {
+        width: 100%;
+        height: 100%;
+    }
+    .swiper-slide img,
+    .swiper-slide video {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+    </style>
+    <?php
+    return ob_get_clean();
 }
