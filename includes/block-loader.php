@@ -15,6 +15,7 @@ require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-select.php
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-title.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-date.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-buttons.php';
+require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-gallery.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-archive-toggle.php';
 
 /**
@@ -43,12 +44,8 @@ function rm_register_blocks() {
     register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-archive-toggle', array(
         'render_callback' => 'rm_render_archive_toggle_block',
     ) );
-    register_block_type_from_metadata(
-        plugin_dir_path( __DIR__ ) . '/blocks/race-media-gallery',
-        [
-            // still use your render callback
-            'render_callback' => 'rm_render_media_gallery',
-        ]
-    );
+    register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-gallery', array(
+        'render_callback' => 'rm_render_media_gallery',
+    ) );
 }
 add_action( 'init', 'rm_register_blocks' );

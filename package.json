@@ -6,13 +6,13 @@
       "start": "webpack --watch --mode development"
     },
     "devDependencies": {
-      "@babel/core": "^7.22.10",
-      "@babel/preset-env": "^7.22.10",
-      "@babel/preset-react": "^7.22.5",
+      "@babel/core": "^7.26.10",
+      "@babel/preset-env": "^7.26.9",
+      "@babel/preset-react": "^7.26.3",
       "@babel/plugin-transform-class-properties": "^7.25.9",
       "babel-loader": "^9.1.3",
-      "webpack": "^5.86.0",
-      "webpack-cli": "^5.1.4"
+      "webpack": "^5.99.7",
+      "webpack-cli": "^6.0.1"
     }
   }
   
