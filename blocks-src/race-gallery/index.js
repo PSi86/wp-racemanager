@@ -14,7 +14,7 @@ import { __ } from '@wordpress/i18n';
 import { Fragment } from '@wordpress/element';
 import { useSelect, useDispatch } from '@wordpress/data';
 
-registerBlockType( 'wp-racemanager/media-gallery', {
+registerBlockType( 'wp-racemanager/race-gallery', {
     title: __( 'Race Media Gallery', 'wp-racemanager' ),
     icon: 'images-alt2',
     category: 'media',
