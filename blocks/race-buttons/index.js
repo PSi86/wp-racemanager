@@ -2,12 +2,12 @@
     const { createElement } = wp.element;
     const { __ } = wp.i18n;
 
-    wp.blocks.registerBlockType( 'wp-racemanager/race-title', {
+    wp.blocks.registerBlockType( 'wp-racemanager/race-buttons', {
         edit: function( props ) {
             return createElement(
                 'div',
                 { className: props.className },
-                __( 'Race Title', 'wp-racemanager' )
+                __( 'Race Buttons', 'wp-racemanager' )
             );
         },
         save: function() {

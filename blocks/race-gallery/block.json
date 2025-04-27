@@ -1,0 +1,17 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/media-gallery",
+    "title": "Race Media Gallery",
+    "description": "Displays a swiper media gallery. Select and upload media files in the menu.",
+    "category": "media",
+    "icon": "images-alt2",
+    "editorScript": "file:./index.js",
+    "attributes": {
+      "mediaIds": {
+        "type": "array",
+        "default": []
+      }
+    },
+    "textdomain": "wp-racemanager"
+  }
+  

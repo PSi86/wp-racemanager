@@ -2,12 +2,12 @@
     const { createElement } = wp.element;
     const { __ } = wp.i18n;
 
-    wp.blocks.registerBlockType( 'wp-racemanager/race-title', {
+    wp.blocks.registerBlockType( 'wp-racemanager/race-archive-toggle', {
         edit: function( props ) {
             return createElement(
                 'div',
                 { className: props.className },
-                __( 'Race Title', 'wp-racemanager' )
+                __( 'Display past or future events?', 'wp-racemanager' )
             );
         },
         save: function() {

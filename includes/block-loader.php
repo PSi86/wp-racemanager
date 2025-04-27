@@ -13,6 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once plugin_dir_path(__DIR__) . 'includes/block-render-nav-latest-races.php'; // block-render-submenu.php
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-select.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-title.php';
+require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-date.php';
+require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-buttons.php';
+require_once plugin_dir_path( __DIR__ ) . 'includes/block-archive-toggle.php';
 
 /**
  * Registers the custom block using the block.json in the block folder.
@@ -30,5 +33,22 @@ function rm_register_blocks() {
     register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-title', array(
         'render_callback' => 'rm_render_race_title_block',
     ) );
+    // for block-render-race-date.php
+    register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-date', array(
+        'render_callback' => 'rm_render_race_date_block',
+    ) );
+    register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-buttons', array(
+        'render_callback' => 'rm_render_race_buttons_block',
+    ) );
+    register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-archive-toggle', array(
+        'render_callback' => 'rm_render_archive_toggle_block',
+    ) );
+    register_block_type_from_metadata(
+        plugin_dir_path( __DIR__ ) . '/blocks/race-media-gallery',
+        [
+            // still use your render callback
+            'render_callback' => 'rm_render_media_gallery',
+        ]
+    );
 }
 add_action( 'init', 'rm_register_blocks' );

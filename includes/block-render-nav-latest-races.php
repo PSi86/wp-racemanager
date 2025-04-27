@@ -16,10 +16,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 function rm_render_nav_latest_races_block( $attributes, $content ) {
     // Query the five latest published race posts.
     $rm_last_races_count = get_option('rm_last_races_count', 5);
+    // Get the current date/time in a format that matches your meta field.
+    $today = current_time( 'Y-m-d H:i:s' );
+    
     $args  = array(
         'post_type'      => 'race',
         'posts_per_page' => $rm_last_races_count,
         'post_status'    => 'publish',
+        'meta_query'     => array(
+            array(
+                'key'     => '_race_event_end',
+                'value'   => $today,
+                'compare' => '>=',
+                'type'    => 'DATETIME'
+            )
+        ),
+        'meta_key'        => '_race_event_end',
+        'orderby'         => 'meta_value',
+        'meta_type'       => 'DATE',
+        'order'           => 'ASC',
     );
     $races = get_posts( $args );
 

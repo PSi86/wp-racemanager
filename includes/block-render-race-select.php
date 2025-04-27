@@ -1,4 +1,12 @@
 <?php
+/**
+ * block-render-race-select.php
+ * Renders the race selection link list with pagination (for the live pages).
+ * Usage in a query loop block:
+ * - Add a Query Loop block to your post/page.
+ * - Inside the Query Loop block, add this block.
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -13,13 +21,18 @@ function rm_render_race_select_block( $attributes, $content ) {
         'post_type'      => 'race',
         'posts_per_page' => $posts_per_page,
         'paged'          => $paged,
-        'meta_query'     => [
-            [
+        'meta_key'       => '_race_event_start',  // This tells WP which meta field to sort by.
+        'meta_type'      => 'DATE',               // Use 'DATE' if the field is stored as a date.
+        'orderby'        => 'meta_value',         // Sort by the value of the meta field.
+        'order'          => 'DESC',                // Change to 'DESC' if you want descending order.
+        'meta_query'     => array(
+            array(
                 'key'     => '_race_last_upload',
                 'compare' => 'EXISTS',
-            ],
-        ],
+            ),
+        ),
     );
+    
     $query = new WP_Query( $args );
     
     if ( ! $query->have_posts() ) {
@@ -50,7 +63,7 @@ function rm_render_race_select_block( $attributes, $content ) {
         if ( $upload_timestamp && ( $current_timestamp - $upload_timestamp ) < ( 2 * HOUR_IN_SECONDS ) ) {
             $output .= '<span style="color: red;">Live: </span>';
         }
-        $output .=  get_the_title() . '</a></li>';
+        $output .=  get_the_title() . '</a> ('. rm_render_race_date_block( null, null ) . ')</li>';
     }
     $output .= '</ul>';
     

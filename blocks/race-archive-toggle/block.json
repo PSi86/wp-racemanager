@@ -1,0 +1,10 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/race-archive-toggle",
+    "title": "Race Archive Toggle",
+    "category": "widgets",
+    "icon": "admin-settings",
+    "description": "Displays toggle control to switch between display of upcoming and past events in the archive. Intended to be used on the race archive page.",
+    "editorScript": "file:./index.js"
+  }
+  

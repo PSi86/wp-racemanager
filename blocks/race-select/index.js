@@ -43,7 +43,7 @@
                     wp.element.createElement(
                         "p",
                         null,
-                        __( 'Race Archive block will display race posts on the front-end.', 'wp-racemanager' )
+                        __( 'List of races with results.', 'wp-racemanager' )
                     )
                 )
             );

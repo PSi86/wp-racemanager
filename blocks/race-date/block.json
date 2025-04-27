@@ -1,0 +1,10 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/race-date",
+    "title": "Race Date",
+    "category": "widgets",
+    "icon": "calendar",
+    "description": "Displays the event start and end date.",
+    "editorScript": "file:./index.js"
+  }
+  

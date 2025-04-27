@@ -1,0 +1,10 @@
+{
+    "apiVersion": 2,
+    "name": "wp-racemanager/race-buttons",
+    "title": "Race Buttons",
+    "category": "widgets",
+    "icon": "button",
+    "description": "Displays Registration and Results-Button conditionally based on race meta values.",
+    "editorScript": "file:./index.js"
+  }
+  
