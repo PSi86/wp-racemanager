@@ -88,14 +88,15 @@ th:first-child, td:first-child {
 button.no-style {
 	border: none;
 	padding: 3px;
-	color: white;
+	color: black;
 	font-size: inherit;
 	min-height: 0;
 	display: block;
-	background: black;
+	background: #cdcdcd; /* #b5b5b5 #d1d3d4; */
 	text-align: inherit;
 	font-weight: 500;
 	width: 100%;
+	border-radius: 3px;
 }
 
 .panel {
