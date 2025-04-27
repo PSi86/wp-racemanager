@@ -62,7 +62,7 @@ function rm_gallery_shortcode($atts) {
     <div class="rm-gallery-wrapper">
         <?php if ( ! empty( $videos ) ) : ?>
             <div class="rm-gallery-section rm-gallery-videos">
-                <h2>Videos</h2>
+                <h3>Videos</h3>
                 <div class="rm-gallery-thumbnails" id="rm-gallery-thumbs-videos">
                     <?php 
                     $i = 0;
@@ -79,7 +79,7 @@ function rm_gallery_shortcode($atts) {
 
         <?php if ( ! empty( $images ) ) : ?>
             <div class="rm-gallery-section rm-gallery-images">
-                <h2>Pictures</h2>
+                <h3>Pictures</h3>
                 <div class="rm-gallery-thumbnails" id="rm-gallery-thumbs-images">
                     <?php 
                     $i = 0;
@@ -209,6 +209,8 @@ function rm_gallery_shortcode($atts) {
         function openOverlay(category, index) {
             currentCategory = category;
             overlay.style.display = 'flex';
+            // Prevent background scroll when overlay is active.
+            document.body.style.overflow = 'hidden';
             if (category === 'videos') {
                 overlayVideos.style.display = 'block';
                 overlayImages.style.display = 'none';
@@ -221,9 +223,10 @@ function rm_gallery_shortcode($atts) {
             updateURLHash(category, index);
         }
 
-        // Close the overlay and remove the hash.
+        // Close the overlay, restore scrolling and remove the hash.
         function closeOverlay() {
             overlay.style.display = 'none';
+            document.body.style.overflow = '';
             removeURLHash();
         }
 
@@ -240,13 +243,6 @@ function rm_gallery_shortcode($atts) {
         // Close overlay on close button click.
         closeBtn.addEventListener('click', function(){
             closeOverlay();
-        });
-
-        // Close overlay when clicking outside the content area.
-        overlay.addEventListener('click', function(e) {
-            if (e.target === overlay) {
-                closeOverlay();
-            }
         });
 
         // Keyboard navigation: left/right arrows for navigation, ESC for closing.
@@ -291,13 +287,7 @@ function rm_gallery_shortcode($atts) {
     }
     .rm-gallery-thumb {
         cursor: pointer;
-        /* width: calc(20% - 10px); */
     }
-    /* .rm-gallery-thumb img {
-        width: 100%;
-        height: auto;
-        display: block;
-    } */
     /* Overlay styles */
     .rm-gallery-overlay {
         position: fixed;
@@ -306,7 +296,7 @@ function rm_gallery_shortcode($atts) {
         width: 100%;
         height: 100%;
         background: rgba(0,0,0,0.8);
-        z-index: 9999;
+        z-index: 1000000; /* Increased z-index to appear above WP admin bar */
         display: none;
         align-items: center;
         justify-content: center;
@@ -316,6 +306,7 @@ function rm_gallery_shortcode($atts) {
         position: relative;
         width: 100vw;
         height: 100vh;
+        touch-action: none; /* Prevent touch events from propagating to the background */
     }
     .rm-gallery-close {
         position: absolute;
@@ -324,11 +315,12 @@ function rm_gallery_shortcode($atts) {
         font-size: 60px; /* Larger close button */
         color: #fff;
         cursor: pointer;
-        z-index: 10000;
+        z-index: 1000001; /* Ensures the close button appears above the overlay and admin bar */
     }
     .swiper-container {
         width: 100%;
         height: 100%;
+        /* touch-action: none; */
     }
     .swiper-slide img,
     .swiper-slide video {
@@ -338,10 +330,6 @@ function rm_gallery_shortcode($atts) {
         object-fit: contain;
     }
     @media (hover: none) and (pointer: coarse) {
-        /* .swiper-button-prev,
-        .swiper-button-next {
-            display: none;
-        } */
         .swiper-button-prev::after,
         .swiper-button-next::after {
             font-size: 12px !important;
@@ -357,3 +345,4 @@ function rm_enqueue_swiper_assets() {
     wp_enqueue_style('swiper-css', plugin_dir_url( __DIR__ ) . 'assets/swiper-11.2.6/swiper-bundle.min.css');
     wp_enqueue_script('swiper-js', plugin_dir_url( __DIR__ ) . 'assets/swiper-11.2.6/swiper-bundle.min.js', array(), null, true);
 }
+?>

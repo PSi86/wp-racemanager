@@ -25,19 +25,28 @@ function rm_sc_registered_handler($atts) {
         return '<p>No form ID found for current page.</p>';
     } */
 
+    $output = '<h3>Registered Pilots</h3>';
+
     // Retrieve the pilot callsigns.
     $callsigns = rm_get_registered_callsigns( $race_id );
-    
-    if ( empty( $callsigns ) ) {
-        return 'No pilots registered yet.';
+
+    if ( is_string( $callsigns )) {
+        // If the result is a string, return it directly.
+        $output .= '<p>' . esc_html( $callsigns ) . '</p>';
     }
-    
-    // Build the output. Customize this as needed.
-    $output = '<ul>';
-    foreach ( $callsigns as $nickname ) {
-        $output .= '<li>' . esc_html( $nickname ) . '</li>';
+    elseif ( is_array( $callsigns ) && !empty( $callsigns ) ) {
+        // If the result is an empty array, return a message.
+        // Build the output.
+        $output .= '<ul>';
+        foreach ( $callsigns as $nickname ) {
+            $output .= '<li>' . esc_html( $nickname ) . '</li>';
+        }
+        $output .= '</ul>';
     }
-    $output .= '</ul>';
-    
+    else {
+        // If the result is not an array, return an error message.
+        $output .= '<p>Error retrieving registered pilots.</p>';
+    }
+
     return $output;
 }

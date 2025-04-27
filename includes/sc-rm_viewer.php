@@ -162,9 +162,9 @@ function rm_viewer_event($query) {
         wp_localize_script('rm-bracketview', 'wp_vars', [
             'mode' => 'live', // Environment (wordpress or rotorhazard) - not used currently
             //'timestampUrl' => rest_url('rh/v1/latest-timestamp'), // Timestamp REST endpoint
-            'timestampUrl' => '/wp/wp-content/'.$results[0]->id.'-timestamp.json', // Timestamp REST endpoint
+            'timestampUrl' => '/wp-content/'.$results[0]->id.'-timestamp.json', // Timestamp REST endpoint
             //'dataUrl' => rest_url('rh/v1/latest-data'), // Data REST endpoint
-            'dataUrl' => '/wp/wp-content/'.$results[0]->id.'-data.json', // Data REST endpoint '/wp/wp-content/latest-data.json';
+            'dataUrl' => '/wp-content/'.$results[0]->id.'-data.json', // Data REST endpoint '/wp/wp-content/latest-data.json';
             'refreshInterval' => 10000, // Polling interval in milliseconds (5 seconds)
         ]);
 
