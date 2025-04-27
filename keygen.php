@@ -14,5 +14,5 @@ use Minishlink\WebPush\VAPID;
 // Generate the VAPID keys using the built-in function
 $vapidKeys = VAPID::createVapidKeys();
 
-echo "Public VAPID Key: " . $vapidKeys['publicKey'] . "\n";
-echo "Private VAPID Key: " . $vapidKeys['privateKey'] . "\n";
+echo "Public VAPID Key: " . $vapidKeys['publicKey'] . "<br>";
+echo "Private VAPID Key: " . $vapidKeys['privateKey'];

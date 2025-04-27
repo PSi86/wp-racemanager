@@ -7,6 +7,19 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+// Global configuration which fields to display in the UI and which to exclude in CSV processing.
+global $rm_gui_columns;
+// Define the allowed keys for display
+$rm_gui_columns = array(
+    'pilot_name_1', 
+    'pilot_nickname_1', 
+    'pilot_phone_1', 
+    'pilot_mail_1', 
+    'acceptance-communication',
+    'user_id', 
+    'form_date'
+);
+
 function rm_create_registration_table() {
     global $wpdb;
     $registrations_table = $wpdb->prefix . 'rm_registrations';
@@ -26,6 +39,25 @@ function rm_create_registration_table() {
 }
 //register_activation_hook(__FILE__, 'rm_create_registration_table');
 
+/**
+ * Retrieve a user ID from the WordPress users database by email.
+ *
+ * @param string $email The email address to look up.
+ * @return int The user ID if found, or 0 if no user matches.
+ */
+function rm_get_user_id_by_email( $email ) {
+    // If the email is empty, return 0.
+    if ( empty( $email ) ) {
+        return 0;
+    }
+
+    // Attempt to retrieve the user by email.
+    $user = get_user_by( 'email', $email );
+
+    // Return the user ID if a valid user is found, otherwise return 0.
+    return ( $user ) ? $user->ID : 0;
+}
+
 add_action('wpcf7_before_send_mail', 'rm_save_submission');
 function rm_save_submission($cf7) {
     $submission = WPCF7_Submission::get_instance();
@@ -41,18 +73,8 @@ function rm_save_submission($cf7) {
         }
 
         // Retrieve the user_login from the submitted data.
-        $user_login = isset( $data['user_login'] ) ? sanitize_text_field( $data['user_login'] ) : '';
-
-        // Initialize user ID to 0 (not logged in).
-        $user_id = 0;
-
-        // If user_login is present, look up the user object.
-        if ( ! empty( $user_login ) ) {
-            $user = get_user_by( 'login', $user_login );
-            if ( $user ) {
-                $user_id = $user->ID;
-            }
-        }
+        $user_mail = isset( $data['pilot_mail_1'] ) ? sanitize_email( $data['pilot_mail_1'] ) : '';
+        $user_id = rm_get_user_id_by_email($user_mail);
 
         // Serialize the entire submitted data.
         $form_value = maybe_serialize($data);
@@ -98,52 +120,102 @@ function rm_render_race_registrations() {
         wp_die(__('You are not allowed to view this registration data.', 'wp-racemanager'));
     } */
     
-    // Handle CSV download
+    global $wpdb;
+    $registrations_table = $wpdb->prefix . 'rm_registrations';
+
+    // Process new registration submission.
+    if ( isset($_POST['new_registration']) ) {
+        // (Optional: add nonce check here for security.)
+        // Sanitize input fields from the new registration form.
+        $pilot_name_1      = isset($_POST['pilot_name_1'])      ? sanitize_text_field($_POST['pilot_name_1'])      : '';
+        $pilot_nickname_1  = isset($_POST['pilot_nickname_1'])  ? sanitize_text_field($_POST['pilot_nickname_1'])  : '';
+        $pilot_phone_1     = isset($_POST['pilot_phone_1'])     ? sanitize_text_field($_POST['pilot_phone_1'])     : '';
+        $pilot_mail_1      = isset($_POST['pilot_mail_1'])      ? sanitize_email($_POST['pilot_mail_1'])           : '';
+        $user_id           = rm_get_user_id_by_email($pilot_mail_1);
+        $form_date         = current_time('mysql');
+        
+        // Build the array for form_value using only the whitelisted fields.
+        $form_fields = array(
+            'race_id'          => strval($race_id),
+            'pilot_name_1'     => $pilot_name_1,
+            'pilot_nickname_1' => $pilot_nickname_1,
+            'pilot_phone_1'    => $pilot_phone_1,
+            'pilot_mail_1'     => $pilot_mail_1,
+        );
+        
+        // Insert the new registration.
+        $inserted = $wpdb->insert(
+            $registrations_table,
+            array(
+                'user_id'    => $user_id,
+                'race_id'    => $race_id,
+                'form_value' => maybe_serialize($form_fields),
+                'form_date'  => $form_date,
+            ),
+            array(
+                '%d',
+                '%d',
+                '%s',
+                '%s',
+            )
+        );
+        
+        if ( $inserted ) {
+            echo '<div class="updated"><p>' . __('New registration added successfully.', 'wp-racemanager') . '</p></div>';
+        } else {
+            echo '<div class="error"><p>' . __('Error adding new registration.', 'wp-racemanager') . '</p></div>';
+        }
+    }
+    
+    // Handle CSV download.
     if ( isset($_GET['action']) && $_GET['action'] === 'download_csv' ) {
         rm_download_csv($race_id);
         exit;
     }
     
-    // Handle bulk deletion
+    // Handle bulk deletion.
     if ( isset($_POST['bulk_delete']) && !empty($_POST['registration_ids']) ) {
-        global $wpdb;
-        $registrations_table = $wpdb->prefix . 'rm_registrations';
         $ids = array_map('absint', $_POST['registration_ids']);
         $ids_placeholder = implode(',', $ids);
         $wpdb->query("DELETE FROM $registrations_table WHERE id IN ($ids_placeholder)");
         echo '<div class="updated"><p>' . __('Registrations deleted.', 'wp-racemanager') . '</p></div>';
     }
     
-    // Query the custom table for registrations for this race.
-    global $wpdb;
-    $registrations_table = $wpdb->prefix . 'rm_registrations';
+    // Query the registrations for this race.
     $results = $wpdb->get_results( $wpdb->prepare(
         "SELECT * FROM $registrations_table WHERE race_id = %d", 
         $race_id
     ), ARRAY_A );
     
-    // Define the whitelist of columns that should be visible in the UI.
-    
-    $allowed_columns = array('pilot_name_1', 'pilot_nickname_1', 'pilot_phone_1', 'pilot_mail_1', 'user_id', 'form_date');
-    
-    // Process the results: unserialize the form data and prepare the table rows.
+    // Process the results: unserialize the form data and add extra fields.
+    // TODO: Move this to a separate function to avoid code duplication.
+    // Define the allowed keys for display
+    global $rm_gui_columns;
     $rows = array();
+
     if ( $results ) {
         foreach ( $results as $row ) {
             $data = maybe_unserialize($row['form_value']);
-            // Add additional info from the custom table record.
-            $data['user_id'] = $row['user_id'];
-            $data['form_date'] = $row['form_date'];
-            $data['id'] = $row['id']; // needed for checkboxes
-            $rows[] = $data;
+            if (!is_array($data)) {
+                $data = array();
+            }
+            // Filter the array so only allowed keys remain
+            $filtered_data = array_intersect_key($data, array_flip($rm_gui_columns));
+            // Add extra fields from the record.
+            $filtered_data['user_id']   = $row['user_id'];
+            $filtered_data['form_date'] = $row['form_date'];
+            $filtered_data['id']        = $row['id']; // required for checkboxes.
+            $rows[] = $filtered_data;
         }
     }
     
-    // Use the whitelist as our headers so that only these columns will be shown.
-    $headers = $allowed_columns;
+    // Use the whitelist as headers so that only these columns are shown.
+    //$headers = $allowed_columns;
+    $headers = $rm_gui_columns;
     ?>
     <div class="wrap">
-        <h1><?php echo sprintf( __('Registrations for Race: %s', 'wp-racemanager'), esc_html( get_the_title( $race_id ) ) ); ?></h1>
+        <h1><?php echo sprintf( __('Registrations for Race: %s', 'wp-racemanager'), esc_html( get_the_title( $race_id ) ) ); ?></h1>        
+        <!-- Registrations Table -->
         <form method="post">
             <table class="wp-list-table widefat fixed striped">
                 <thead>
@@ -188,6 +260,32 @@ function rm_render_race_registrations() {
                 <input type="submit" name="download_csv" class="button-secondary" value="<?php _e('Download CSV', 'wp-racemanager'); ?>">
             </p>
         </form>
+        <!-- Registration Form -->
+        <h2><?php _e('Add New Registration', 'wp-racemanager'); ?></h2>
+        <form method="post">
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><label for="pilot_name_1"><?php _e('Pilot Name', 'wp-racemanager'); ?></label></th>
+                    <td><input name="pilot_name_1" type="text" id="pilot_name_1" value="" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="pilot_nickname_1"><?php _e('Pilot Nickname', 'wp-racemanager'); ?></label></th>
+                    <td><input name="pilot_nickname_1" type="text" id="pilot_nickname_1" value="" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="pilot_phone_1"><?php _e('Pilot Phone', 'wp-racemanager'); ?></label></th>
+                    <td><input name="pilot_phone_1" type="text" id="pilot_phone_1" value="" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="pilot_mail_1"><?php _e('Pilot Mail', 'wp-racemanager'); ?></label></th>
+                    <td><input name="pilot_mail_1" type="email" id="pilot_mail_1" value="" class="regular-text"></td>
+                </tr>
+            </table>
+            <?php // Optional: add wp_nonce_field('new_registration') for security ?>
+            <p>
+                <input type="submit" name="new_registration" class="button-primary" value="<?php _e('Add Registration', 'wp-racemanager'); ?>">
+            </p>
+        </form>
     </div>
     <script>
     // "Select All" checkbox behavior.
@@ -227,36 +325,34 @@ function rm_download_csv($race_id, $selected_ids = array()) {
         $results = $wpdb->get_results( $wpdb->prepare("SELECT * FROM $registrations_table WHERE race_id = %d", $race_id), ARRAY_A );
     }
     
-    $csv_rows = array();
-    if ($results) {
-        foreach ($results as $row) {
-            $data = ! empty($row['form_value']) ? maybe_unserialize($row['form_value']) : array();
-            if ( ! is_array($data) ) {
+    // Process the results: unserialize the form data and add extra fields.
+    // TODO: Move this to a separate function to avoid code duplication.
+    // Define the allowed keys for display
+    global $rm_gui_columns;
+    $rows = array();
+    if ( $results ) {
+        foreach ( $results as $row ) {
+            $data = maybe_unserialize($row['form_value']);
+            if (!is_array($data)) {
                 $data = array();
             }
-            $data['user_id'] = $row['user_id'];
-            $data['id'] = $row['id'];
-            $data['form_date'] = $row['form_date'];
-            // Flatten any array values and replace nulls with an empty string
-            foreach ($data as $key => $value) {
-                if ( is_array($value) ) {
-                    $data[$key] = implode(', ', $value);
-                }
-                if ( is_null($data[$key]) ) {
-                    $data[$key] = '';
-                }
-            }
-            $csv_rows[] = $data;
+            // Filter the array so only allowed keys remain
+            $filtered_data = array_intersect_key($data, array_flip($rm_gui_columns));
+            // Add extra fields from the record.
+            $filtered_data['user_id']   = $row['user_id'];
+            $filtered_data['form_date'] = $row['form_date'];
+            $filtered_data['id']        = $row['id']; // required for checkboxes.
+            $rows[] = $filtered_data;
         }
     }
     
-    if ( empty($csv_rows) ) {
+    if ( empty($rows) ) {
         wp_die( __('No registrations to download.', 'wp-racemanager') );
     }
     
     // Build CSV headers from the first row.
-    $headers = array_keys( $csv_rows[0] );
-    
+    $headers = array_keys( $rows[0] );
+
     // Clear the output buffer to prevent header issues.
     if (ob_get_length()) {
         ob_clean();
@@ -267,12 +363,110 @@ function rm_download_csv($race_id, $selected_ids = array()) {
     
     $output = fopen('php://output', 'w');
     fputcsv($output, $headers);
-    foreach ($csv_rows as $row) {
+    foreach ($rows as $row) {
         fputcsv($output, $row);
     }
     fclose($output);
     exit;
 }
 
+// Create the Contact Form 7 form for event registration
+// This function should be called only once, e.g., on plugin activation.
+function create_event_registration_cf7_form() {
+/*     // Check if a form with the title "Event Registration" already exists.
+    $args = array(
+        'post_type'      => 'wpcf7_contact_form',
+        'post_status'    => 'any',
+        's'              => 'Event Registration',
+        'posts_per_page' => 5,
+    );
+    $query = new WP_Query( $args );
+    $existing_form = null;
+    if ( $query->have_posts() ) {
+        foreach ( $query->posts as $post ) {
+            if ( $post->post_title === 'Event Registration' ) {
+                $existing_form = $post;
+                break;
+            }
+        }
+        // Rename the existing form to avoid conflicts.
+        if ( $existing_form ) {
+            $existing_form->post_title = 'Event Registration Backup';
+            wp_update_post( $existing_form );
+        }
+    }
+    wp_reset_postdata(); */
+
+    // Define the form content.
+    $form_content = '<h4>Select Event</h4>
+[race race_id]
+
+<h4>Pilot Details </h4>
+Name: [text* pilot_name_1 autocomplete:name default:user_last_name placeholder "Vorname Nachname"]
+
+Callsign: [text* pilot_nickname_1 autocomplete:callsign default:user_nickname placeholder "Dein Nickname"]
+
+Mobile: [tel* pilot_phone_1 autocomplete:phone placeholder "Deine Mobile Nummer"]
+
+Mail: [email* pilot_mail_1 autocomplete:email default:user_email placeholder "Email Adresse"]
+
+<h4>Consent</h4>
+
+[acceptance acceptance-pay]
+Ich akzeptiere hiermit die Vollständigkeit der Angaben und bezahle den ausstehenden Betrag am Veranstaltungstag.
+[/acceptance]
+[acceptance acceptance-media]
+Ich bin mit der Veröffentlichung von Name, Alter und Bild im Rahmen des Wettkampfs einverstanden.
+[/acceptance]
+[acceptance acceptance-communication optional]
+Fügt mich zur Whatsapp-Gruppe / Discord-Server hinzu.
+[/acceptance]
+
+[cf7-simple-turnstile]
+
+[submit "Senden"]';
+
+    // Define the mail content.
+    $mail_content = 'Hallo,
+
+Wir von Rotormaniacs freuen uns, dass du dich angemeldet hast und auf deine Teilnahme am Rennen.
+
+Deine angegeben Daten / Your specified data :
+
+Name: [pilot_name_1]
+Nickname: [pilot_nickname_1]
+Mobile: [pilot_phone_1]
+Email: [pilot_mail_1]
+Rennen: [race_id]
 
 
+Mit freundlichen Grüssen / Best regards
+
+TSV Korntal - FPV racing
+
+-- 
+Diese E-Mail ist eine Bestätigung für das Absenden deines Kontaktformulars auf unserer Website ([_site_title] [_site_url]), in der deine E-Mail-Adresse verwendet wurde. Wenn du das nicht warst, ignoriere bitte diese Nachricht.
+';
+
+    // Create a new contact form using CF7 API.
+    $contact_form = WPCF7_ContactForm::get_template();
+    $contact_form->set_title( 'Event Registration Example' );
+    $contact_form->set_properties( array(
+        'form' => $form_content,
+        'mail' => array(
+            'active'    => true,
+            'sender'    => '[_site_title] <registration@copterrace.com>',
+            'recipient' => '[pilot_mail_1]',
+            'subject'   => '[_site_title]: Race Registration Confirmation',
+            'body'      => $mail_content,
+            'additional_headers' => 
+                "Reply-To: registration@copterrace.com\r\n" .
+                "Bcc: registration@copterrace.com",
+        ),
+        'additional_settings' => 'skip_mail: off',
+        // additional properties (like messages, mail_2, etc.)
+    ) );
+    $contact_form->save();
+}
+
+// register_activation_hook( __FILE__, 'create_event_registration_cf7_form' );

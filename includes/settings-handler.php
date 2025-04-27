@@ -34,7 +34,7 @@ function rm_settings_page() {
 }
 
 add_action('admin_init', function () {
-    register_setting('rm_options_group', 'rm_api_key');         // a string
+    //register_setting('rm_options_group', 'rm_api_key');         // a string
     register_setting('rm_options_group', 'rm_live_page_id', 'rm_settings_sanitize_live_page'); // an integer
     register_setting('rm_options_group', 'rm_last_races_count'); // an integer
     register_setting('rm_options_group', 'rm_callsign_field');    // a string
@@ -42,11 +42,11 @@ add_action('admin_init', function () {
     //register_setting('rm_options_group', 'rm_parent_item_id');   // not needed for gutenberg block implementation (was needed for classic menu)
 
     // Add a settings section (no title or description here)
-    add_settings_section('rm_interface_section', 'RotorHazard Interface Settings', null, 'rm');
+    //add_settings_section('rm_interface_section', 'RotorHazard Interface Settings', null, 'rm');
     add_settings_section('rm_wp_section', 'Wordpress Environment Settings', null, 'rm');
 
     // API Key field
-    add_settings_field(
+    /* add_settings_field(
         'api_key',
         'API Key',
         function () {
@@ -56,7 +56,7 @@ add_action('admin_init', function () {
         },
         'rm',
         'rm_interface_section'
-    );
+    ); */
     // Live Pages Path field
     add_settings_field(
         'live_page_id_field',
@@ -138,10 +138,30 @@ function rm_settings_live_page_input() {
 // Sanitize callback: convert the input title to a page ID.
 function rm_settings_sanitize_live_page( $input ) {
     // Attempt to find the page by title.
-    $page = get_page_by_title( $input, OBJECT, 'page' );
+    $query = new WP_Query(
+        array(
+            'post_type'              => 'page',
+            'title'                  => $input,
+            'post_status'            => 'published',
+            'posts_per_page'         => 1,
+            'no_found_rows'          => true,
+            'ignore_sticky_posts'    => false,
+            'update_post_term_cache' => false,
+            'update_post_meta_cache' => false,
+            'orderby'                => 'post_date ID',
+            'order'                  => 'ASC',
+        )
+    );
+     
+    if ( ! empty( $query->post ) ) {
+        return $query->post->ID;
+    }
+    
+    /*  $page = get_page_by_title( $input, OBJECT, 'page' );
     if ( $page ) {
         return $page->ID;
-    }
+    } */
+
     // If no page is found, add an error and return the previous value.
     add_settings_error(
         'rm_live_page_id',

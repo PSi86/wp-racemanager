@@ -10,6 +10,12 @@
 
             // Set the value of the dropdown in the Quick Edit form
             $('select[name="rm_quick_edit_live_status"]').val(liveStatus);
+
+            // Get the registration status value from #inline_{postId}
+            var regStatus = $('#custom_inline_' + postId).find('.rm_reg_closed').text();
+
+            // Set the value of the dropdown in the Quick Edit form
+            $('select[name="rm_quick_edit_reg_closed"]').val(regStatus);
         });
     });
 })(jQuery);
