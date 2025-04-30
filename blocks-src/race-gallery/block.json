@@ -7,9 +7,9 @@
     "icon": "images-alt2",
     "editorScript": "file:./index.js",
     "attributes": {
-      "mediaIds": {
-        "type": "array",
-        "default": []
+      "mediaItems": { 
+        "type": "array", 
+        "default": [] 
       }
     },
     "textdomain": "wp-racemanager"

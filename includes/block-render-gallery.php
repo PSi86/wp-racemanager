@@ -10,12 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Front-end render callback for race/media-gallery block.
  *
- * @param array $attrs Block attributes; expects 'mediaIds' => [ attachment IDs ].
+ * @param array $attrs Block attributes; expects 'mediaItems' => [ media item arrays ].
  * @return string HTML for gallery.
  */
 function rm_render_media_gallery( $attrs ) {
-    $ids = $attrs['mediaIds'] ?? [];
-    if ( empty( $ids ) ) {
+    $media_items = $attrs['mediaItems'] ?? [];
+    if ( empty( $media_items ) ) {
         return '';
     }
 
@@ -35,6 +35,7 @@ function rm_render_media_gallery( $attrs ) {
     );
 
     // 2) Inject only the dynamic data (the array of IDs)
+    $ids      = wp_list_pluck( $media_items, 'id' );
     $json_ids = wp_json_encode( array_values( $ids ) );
     wp_add_inline_script(
         'race-swiper-js',
@@ -45,11 +46,11 @@ function rm_render_media_gallery( $attrs ) {
     // 3) Build the gallery HTML + inline <script> + <style>
     ob_start();
     ?>
-    <h3>Gallery</h3>
+    <h2>Gallery</h2>
     <div class="rm-gallery-wrapper">
-        <?php foreach ( $ids as $i => $id ) : ?>
+        <?php foreach ( $media_items as $i => $item ) : ?>
             <div class="rm-gallery-thumb" data-index="<?php echo esc_attr( $i ); ?>">
-                <?php echo wp_get_attachment_image( $id, 'thumbnail' ); ?>
+                <?php echo wp_get_attachment_image( $item['id'], array(150,150), false, array( 'alt' => $item['alt'] ?? '' ) ); ?>
             </div>
         <?php endforeach; ?>
     </div>
@@ -59,14 +60,14 @@ function rm_render_media_gallery( $attrs ) {
             <span id="rm-gallery-close" class="rm-gallery-close">&times;</span>
             <div id="rm-gallery-overlay-swiper" class="swiper-container rm-gallery-overlay-slider">
                 <div class="swiper-wrapper">
-                    <?php foreach ( $ids as $id ) :
-                        $url  = esc_url( wp_get_attachment_url( $id ) );
-                        $mime = get_post_mime_type( $id );
+                    <?php foreach ( $media_items as $item ) :
+                        $url  = esc_url( $item['url'] );
+                        $mime = get_post_mime_type( $item['id'] );
                     ?>
                         <div class="swiper-slide">
                             <?php if ( strpos( $mime, 'image/' ) === 0 ) : ?>
                                 <div class="swiper-zoom-container">
-                                    <img src="<?php echo $url; ?>" alt="" style="width:100%;height:100%;object-fit:contain;">
+                                    <img src="<?php echo $url; ?>" alt="<?php echo esc_attr( $item['alt'] ?? '' ); ?>" style="width:100%;height:100%;object-fit:contain;">
                                 </div>
                             <?php else : ?>
                                 <video controls style="width:100%;height:100%;object-fit:contain;">
@@ -82,12 +83,11 @@ function rm_render_media_gallery( $attrs ) {
             </div>
         </div>
     </div>
-
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        var ids     = raceMediaIds;
-        var overlay = document.getElementById('rm-gallery-overlay');
-        var closeBtn = document.getElementById('rm-gallery-close');
+        var ids             = raceMediaIds;
+        var overlay         = document.getElementById('rm-gallery-overlay');
+        var closeBtn        = document.getElementById('rm-gallery-close');
         var swiperContainer = document.getElementById('rm-gallery-overlay-swiper');
         var swiperInstance;
 
@@ -99,17 +99,21 @@ function rm_render_media_gallery( $attrs ) {
         }
 
         function openOverlay(index) {
-            overlay.style.display = 'flex';
+            overlay.style.display        = 'flex';
             document.body.style.overflow = 'hidden';
-            if (!swiperInstance) {
+            if ( ! swiperInstance ) {
                 swiperInstance = new Swiper(swiperContainer, {
                     initialSlide: index,
                     navigation: {
-                        nextEl: '.swiper-button-next',
-                        prevEl: '.swiper-button-prev'
+                        hideOnClick: true,
+                        nextEl:      '.swiper-button-next',
+                        prevEl:      '.swiper-button-prev'
                     },
                     loop: false,
-                    zoom: { toggle: true, maxRatio: 3 },
+                    zoom: { 
+                        toggle:   true, 
+                        maxRatio: 3 
+                    },
                     keyboard: { enabled: true },
                     mousewheel: { enabled: true }
                 });
@@ -123,7 +127,7 @@ function rm_render_media_gallery( $attrs ) {
         }
 
         function closeOverlay() {
-            overlay.style.display = 'none';
+            overlay.style.display        = 'none';
             document.body.style.overflow = '';
             clearHash();
         }
@@ -131,21 +135,21 @@ function rm_render_media_gallery( $attrs ) {
         // Thumbnail clicks
         document.querySelectorAll('.rm-gallery-thumb').forEach(function(thumb){
             thumb.addEventListener('click', function(){
-                openOverlay( parseInt(thumb.dataset.index, 10) );
+                openOverlay( parseInt( thumb.dataset.index, 10 ) );
             });
         });
         // Close button
         closeBtn.addEventListener('click', closeOverlay);
         // ESC key
         document.addEventListener('keydown', function(e){
-            if (overlay.style.display === 'flex' && e.key === 'Escape') {
+            if ( overlay.style.display === 'flex' && e.key === 'Escape' ) {
                 closeOverlay();
             }
         });
 
         // On page load: open if hash matches an ID
         var hashId = parseInt( location.hash.replace('#',''), 10 );
-        var idx = ids.indexOf( hashId );
+        var idx    = ids.indexOf( hashId );
         if ( idx > -1 ) {
             openOverlay( idx );
         }
@@ -156,20 +160,25 @@ function rm_render_media_gallery( $attrs ) {
     .rm-gallery-wrapper {
         display: flex;
         flex-wrap: wrap;
+        max-width: 100%;
         gap: 10px;
     }
-    .rm-gallery-thumb {
+    .rm-gallery-thumb img {
         cursor: pointer;
+        border-radius: 3px;
     }
     .rm-gallery-overlay {
         position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
+        top: 0; 
+        left: 0;
+        width: 100%; 
+        height: 100%;
         background: rgba(0,0,0,0.8);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 100000;
+        margin-block-start: 0;
     }
     .rm-gallery-overlay-content {
         position: relative;
@@ -179,7 +188,8 @@ function rm_render_media_gallery( $attrs ) {
     }
     .rm-gallery-close {
         position: absolute;
-        top: 10px; right: 20px;
+        top: 10px; 
+        right: 10px;
         font-size: 60px;
         color: #fff;
         cursor: pointer;
@@ -195,6 +205,12 @@ function rm_render_media_gallery( $attrs ) {
         width: 100%;
         height: 100%;
         object-fit: contain;
+    }
+    @media (hover: none) and (pointer: coarse) {
+        .swiper-button-prev::after,
+        .swiper-button-next::after {
+            font-size: 14px !important;
+        }
     }
     </style>
     <?php

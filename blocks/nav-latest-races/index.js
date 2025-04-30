@@ -1,17 +1,22 @@
 ( function( wp ) {
     const { createElement } = wp.element;
     const { __ } = wp.i18n;
+    const { registerBlockType } = wp.blocks;
+    const { useBlockProps } = wp.blockEditor;
 
-    wp.blocks.registerBlockType( 'wp-racemanager/nav-latest-races', {
+    registerBlockType( 'wp-racemanager/nav-latest-races', {
         edit: function( props ) {
+            // Grab the block props (including event handlers, className, etc.)
+            const blockProps = useBlockProps();
+
             return createElement(
                 'div',
-                { className: props.className },
+                blockProps,
                 __( 'RaceManager: Latest Races', 'wp-racemanager' )
             );
         },
         save: function() {
-            // This is a dynamic block so the save function returns null.
+            // Dynamic block: front-end is rendered via PHP
             return null;
         }
     } );
