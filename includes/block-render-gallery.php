@@ -82,6 +82,7 @@ function rm_render_media_gallery( $attrs ) {
                                 <div class="swiper-zoom-container">
                                     <img
                                         src="<?php echo esc_url( $full_url ); ?>"
+                                        loading="lazy"
                                         alt="<?php echo esc_attr( $alt ); ?>"
                                         style="width:100%;height:100%;object-fit:contain;"
                                     >
@@ -121,6 +122,7 @@ function rm_render_media_gallery( $attrs ) {
             document.body.style.overflow = 'hidden';
             if ( ! swiperInstance ) {
                 swiperInstance = new Swiper(swiperContainer, {
+                    lazy: true,
                     initialSlide: index,
                     navigation: {
                         hideOnClick: true,
