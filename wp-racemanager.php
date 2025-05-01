@@ -114,6 +114,7 @@ final class WP_RaceManager {
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/ajax-subscription-handler.php'; // Handles all subscription-related AJAX requests for the RaceManager plugin.
         // active on every page
+        require_once plugin_dir_path(__FILE__) . 'includes/seo-handler.php'; // SEO functions
         require_once plugin_dir_path(__FILE__) . 'includes/main-navigation-handler.php'; // filter function for main navigation to indicate live race in progress
         require_once plugin_dir_path(__FILE__) . 'includes/block-loader.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; //

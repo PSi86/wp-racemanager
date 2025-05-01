@@ -8,10 +8,10 @@
 add_action('admin_menu', function () {
     add_options_page(
         'RaceManager Settings',            // Page title in the browser tab
-        'RaceManager',  // Menu title in the "Settings" menu
-        'manage_options',         // Capability required to see this page
-        'rm',                     // Unique menu slug
-        'rm_settings_page'        // Callback function that outputs the settings page content
+        'RaceManager',                      // Menu title in the "Settings" menu
+        'manage_options',                   // Capability required to see this page
+        'rm',                               // Unique menu slug
+        'rm_settings_page'                  // Callback function that outputs the settings page content
     );    
 });
 
@@ -23,7 +23,7 @@ function rm_settings_page() {
             <?php
             // Output the hidden fields, nonce, etc. for our "rm_options_group"
             settings_fields('rm_options_group');
-            // Output all registered sections (in this case, 'rm_main_section')
+            // Output all registered sections (WP Environment, SEO)
             do_settings_sections('rm');
             // Standard WP submit button
             submit_button();
@@ -34,30 +34,27 @@ function rm_settings_page() {
 }
 
 add_action('admin_init', function () {
-    //register_setting('rm_options_group', 'rm_api_key');         // a string
-    register_setting('rm_options_group', 'rm_live_page_id', 'rm_settings_sanitize_live_page'); // an integer
-    register_setting('rm_options_group', 'rm_last_races_count'); // an integer
-    register_setting('rm_options_group', 'rm_callsign_field');    // a string
-    //register_setting('rm_options_group', 'rm_main_menu_id');     // not needed for gutenberg block implementation (was needed for classic menu)
-    //register_setting('rm_options_group', 'rm_parent_item_id');   // not needed for gutenberg block implementation (was needed for classic menu)
+    // Register existing settings
+    register_setting('rm_options_group', 'rm_live_page_id', 'rm_settings_sanitize_live_page'); // integer via sanitize callback
+    register_setting('rm_options_group', 'rm_last_races_count', ['type' => 'integer', 'sanitize_callback' => 'absint', 'default' => 5]);
+    register_setting('rm_options_group', 'rm_callsign_field', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'pilot_callsign']);
 
-    // Add a settings section (no title or description here)
-    //add_settings_section('rm_interface_section', 'RotorHazard Interface Settings', null, 'rm');
-    add_settings_section('rm_wp_section', 'Wordpress Environment Settings', null, 'rm');
+    // Register SEO settings as a single array
+    register_setting(
+        'rm_options_group',
+        'rm_seo',
+        [
+            'type'              => 'array',
+            'default'           => [],
+            'sanitize_callback' => 'rm_settings_sanitize_seo',
+        ]
+    );
 
-    // API Key field
-    /* add_settings_field(
-        'api_key',
-        'API Key',
-        function () {
-            $value = get_option('rm_api_key', '');
-            echo "<input type='text' name='rm_api_key' value='" . esc_attr($value) . "' class='regular-text'>";
-            echo "<p class='description'>Used to authenticate REST-API calls: get-pilots, upload</p>";
-        },
-        'rm',
-        'rm_interface_section'
-    ); */
-    // Live Pages Path field
+    // Settings sections
+    add_settings_section('rm_wp_section', 'WordPress Environment Settings', null, 'rm');
+    add_settings_section('rm_seo_section', 'SEO Settings', 'rm_settings_seo_section_cb', 'rm');
+
+    // WP Environment section fields
     add_settings_field(
         'live_page_id_field',
         'Live Pages Main Page',
@@ -65,12 +62,10 @@ add_action('admin_init', function () {
         'rm',
         'rm_wp_section'
     );
-    // Field #1: Number of last races shown in menu
     add_settings_field(
         'last_races_count_field',
         'Number of Last Races in Menu',
         function () {
-            // Default to 5 if not set
             $value = get_option('rm_last_races_count', 5);
             echo "<input type='number' min='1' name='rm_last_races_count' value='" . esc_attr($value) . "' class='small-text'>";
             echo "<p class='description'>How many recent races should appear in the submenu?</p>";
@@ -78,8 +73,6 @@ add_action('admin_init', function () {
         'rm',
         'rm_wp_section'
     );
-
-    // Field #2: Main Menu ID
     add_settings_field(
         'callsign_field',
         'Pilot Nickname / Callsign Field Name',
@@ -92,36 +85,55 @@ add_action('admin_init', function () {
         'rm_wp_section'
     );
 
-/*  // Field #2: Main Menu ID
+    // SEO Settings section fields
     add_settings_field(
-        'main_menu_id_field',
-        'Main Menu ID',
-        function () {
-            $value = get_option('rm_main_menu_id', '');
-            echo "<input type='number' min='0' name='rm_main_menu_id' value='" . esc_attr($value) . "' class='small-text'>";
-            echo "<p class='description'>ID of the main WordPress menu to update (e.g., 2). If empty, the primary menu will be used.</p>";
-        },
+        'seo_default_title_field',
+        'Default Meta Title',
+        'rm_seo_field_cb',
         'rm',
-        'rm_wp_section'
+        'rm_seo_section',
+        [
+            'label_for'   => 'seo_default_title',
+            'type'        => 'text',
+            'option_key'  => 'default_title',
+            'placeholder' => get_bloginfo('name'),
+        ]
     );
-
-    // Field #3: Parent Menu Item ID
     add_settings_field(
-        'parent_item_id_field',
-        'Submenu Parent Item ID',
-        function () {
-            $value = get_option('rm_parent_item_id', '');
-            echo "<input type='number' min='0' name='rm_parent_item_id' value='" . esc_attr($value) . "' class='small-text'>";
-            echo "<p class='description'>ID of the parent menu item under which races should appear. If empty, the element called \"Races\" will be used (case-insensitive).</p>";
-        },
+        'seo_default_description_field',
+        'Default Meta Description',
+        'rm_seo_field_cb',
         'rm',
-        'rm_wp_section'
-    ); */
+        'rm_seo_section',
+        [
+            'label_for'   => 'seo_default_description',
+            'type'        => 'textarea',
+            'option_key'  => 'default_description',
+            'placeholder' => get_bloginfo('description'),
+        ]
+    );
+    add_settings_field(
+        'seo_default_keywords_field',
+        'Default Meta Keywords',
+        'rm_seo_field_cb',
+        'rm',
+        'rm_seo_section',
+        [
+            'label_for'   => 'seo_default_keywords',
+            'type'        => 'text',
+            'option_key'  => 'default_keywords',
+            'placeholder' => 'keyword1, keyword2, keyword3',
+        ]
+    );
 });
 
-// Display the Live Page Title input field.
+// Section description callback for SEO
+function rm_settings_seo_section_cb() {
+    echo '<p>Global defaults for your site’s meta tags. These values will be used when no per-post override is provided.</p>';
+}
+
+// Live Page Title input field callback
 function rm_settings_live_page_input() {
-    // Retrieve the stored page ID.
     $stored_page_id = get_option('rm_live_page_id');
     $page_title = '';
     if ( $stored_page_id ) {
@@ -130,44 +142,65 @@ function rm_settings_live_page_input() {
             $page_title = $page->post_title;
         }
     }
-    //echo '<input type="text" id="live_races_page_field" name="live_races_page_id" value="' . esc_attr($page_title) . '" size="50" />';
     echo "<input type='text' name='rm_live_page_id' value='" . esc_attr($page_title) . "' class='regular-text' size='50'>";
     echo "<p class='description'>Entry Page Title to the Live Pages. On page and its child-pages the PWA installation and notification subscriptions are supported. Default: Live Races</p>";
 }
 
 // Sanitize callback: convert the input title to a page ID.
 function rm_settings_sanitize_live_page( $input ) {
-    // Attempt to find the page by title.
-    $query = new WP_Query(
-        array(
-            'post_type'              => 'page',
-            'title'                  => $input,
-            'post_status'            => 'published',
-            'posts_per_page'         => 1,
-            'no_found_rows'          => true,
-            'ignore_sticky_posts'    => false,
-            'update_post_term_cache' => false,
-            'update_post_meta_cache' => false,
-            'orderby'                => 'post_date ID',
-            'order'                  => 'ASC',
-        )
-    );
-     
+    $query = new WP_Query([
+        'post_type'              => 'page',
+        'title'                  => $input,
+        'post_status'            => 'publish',
+        'posts_per_page'         => 1,
+        'no_found_rows'          => true,
+        'ignore_sticky_posts'    => false,
+        'update_post_term_cache' => false,
+        'update_post_meta_cache' => false,
+        'orderby'                => 'post_date ID',
+        'order'                  => 'ASC',
+    ]);
     if ( ! empty( $query->post ) ) {
         return $query->post->ID;
     }
-    
-    /*  $page = get_page_by_title( $input, OBJECT, 'page' );
-    if ( $page ) {
-        return $page->ID;
-    } */
-
-    // If no page is found, add an error and return the previous value.
     add_settings_error(
         'rm_live_page_id',
         'rm_live_page_id_error',
-        'Page with the title "' . esc_html( $input ) . '" not found. Please enter a valid page title.',
+        'Page with the title "' . esc_html($input) . '" not found. Please enter a valid page title.',
         'error'
     );
     return get_option('rm_live_page_id');
+}
+
+// Generic field renderer for SEO settings
+function rm_seo_field_cb( array $args ) {
+    $opts = get_option('rm_seo', []);
+    $key  = $args['option_key'];
+    $val  = isset($opts[$key]) ? $opts[$key] : '';
+    if ( $args['type'] === 'textarea' ) {
+        printf(
+            '<textarea id="%1$s" name="rm_seo[%2$s]" rows="3" cols="50" placeholder="%4$s">%3$s</textarea>',
+            esc_attr($args['label_for']),
+            esc_attr($key),
+            esc_textarea($val),
+            esc_attr($args['placeholder'])
+        );
+    } else {
+        printf(
+            '<input type="text" id="%1$s" name="rm_seo[%2$s]" value="%3$s" placeholder="%4$s" class="regular-text"/>',
+            esc_attr($args['label_for']),
+            esc_attr($key),
+            esc_attr($val),
+            esc_attr($args['placeholder'])
+        );
+    }
+}
+
+// Sanitize callback for SEO settings
+function rm_settings_sanitize_seo( array $input ) {
+    return [
+        'default_title'       => sanitize_text_field( $input['default_title'] ?? '' ),
+        'default_description' => sanitize_textarea_field( $input['default_description'] ?? '' ),
+        'default_keywords'    => sanitize_text_field( $input['default_keywords'] ?? '' ),
+    ];
 }
