@@ -10,16 +10,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Front-end render callback for race/media-gallery block.
  *
- * @param array $attrs Block attributes; expects 'mediaItems' => [ media item arrays ].
+ * @param array $attrs Block attributes; expects 'mediaItems' => [ int, int, … ].
  * @return string HTML for gallery.
  */
 function rm_render_media_gallery( $attrs ) {
-    $media_items = $attrs['mediaItems'] ?? [];
-    if ( empty( $media_items ) ) {
+    // 1) Grab the IDs
+    $ids = isset( $attrs['mediaItems'] ) && is_array( $attrs['mediaItems'] )
+        ? array_values( $attrs['mediaItems'] )
+        : [];
+
+    if ( empty( $ids ) ) {
         return '';
     }
 
-    // 1) Enqueue Swiper assets
+    // 2) Enqueue Swiper assets
     wp_enqueue_style(
         'race-swiper-css',
         plugin_dir_url( __DIR__ ) . 'assets/swiper-11.2.6/swiper-bundle.min.css',
@@ -34,23 +38,31 @@ function rm_render_media_gallery( $attrs ) {
         true
     );
 
-    // 2) Inject only the dynamic data (the array of IDs)
-    $ids      = wp_list_pluck( $media_items, 'id' );
-    $json_ids = wp_json_encode( array_values( $ids ) );
+    // 3) Expose the IDs to JS (in the same order)
+    $json_ids = wp_json_encode( $ids );
     wp_add_inline_script(
         'race-swiper-js',
         "var raceMediaIds = {$json_ids};",
         'before'
     );
 
-    // 3) Build the gallery HTML + inline <script> + <style>
+    // 4) Build the gallery HTML + overlay
     ob_start();
     ?>
     <h2>Gallery</h2>
     <div class="rm-gallery-wrapper">
-        <?php foreach ( $media_items as $i => $item ) : ?>
-            <div class="rm-gallery-thumb" data-index="<?php echo esc_attr( $i ); ?>">
-                <?php echo wp_get_attachment_image( $item['id'], array(150,150), false, array( 'alt' => $item['alt'] ?? '' ) ); ?>
+        <?php foreach ( $ids as $index => $attachment_id ) : 
+            // Get 150×150 thumbnail
+            $alt = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
+            $thumb_img = wp_get_attachment_image(
+                $attachment_id,
+                [ 150, 150 ],
+                false,
+                [ 'alt' => $alt ]
+            );
+        ?>
+            <div class="rm-gallery-thumb" data-index="<?php echo esc_attr( $index ); ?>">
+                <?php echo $thumb_img; ?>
             </div>
         <?php endforeach; ?>
     </div>
@@ -60,18 +72,23 @@ function rm_render_media_gallery( $attrs ) {
             <span id="rm-gallery-close" class="rm-gallery-close">&times;</span>
             <div id="rm-gallery-overlay-swiper" class="swiper-container rm-gallery-overlay-slider">
                 <div class="swiper-wrapper">
-                    <?php foreach ( $media_items as $item ) :
-                        $url  = esc_url( $item['url'] );
-                        $mime = get_post_mime_type( $item['id'] );
+                    <?php foreach ( $ids as $attachment_id ) :
+                        $full_url = wp_get_attachment_url( $attachment_id );
+                        $mime     = get_post_mime_type( $attachment_id );
+                        $alt      = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
                     ?>
                         <div class="swiper-slide">
-                            <?php if ( strpos( $mime, 'image/' ) === 0 ) : ?>
+                            <?php if ( 0 === strpos( $mime, 'image/' ) ) : ?>
                                 <div class="swiper-zoom-container">
-                                    <img src="<?php echo $url; ?>" alt="<?php echo esc_attr( $item['alt'] ?? '' ); ?>" style="width:100%;height:100%;object-fit:contain;">
+                                    <img
+                                        src="<?php echo esc_url( $full_url ); ?>"
+                                        alt="<?php echo esc_attr( $alt ); ?>"
+                                        style="width:100%;height:100%;object-fit:contain;"
+                                    >
                                 </div>
                             <?php else : ?>
                                 <video controls style="width:100%;height:100%;object-fit:contain;">
-                                    <source src="<?php echo $url; ?>" type="<?php echo esc_attr( $mime ); ?>">
+                                    <source src="<?php echo esc_url( $full_url ); ?>" type="<?php echo esc_attr( $mime ); ?>">
                                     <?php esc_html_e( 'Your browser does not support the video tag.', 'race' ); ?>
                                 </video>
                             <?php endif; ?>
@@ -83,6 +100,7 @@ function rm_render_media_gallery( $attrs ) {
             </div>
         </div>
     </div>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var ids             = raceMediaIds;

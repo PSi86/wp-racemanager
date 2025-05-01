@@ -1,17 +1,26 @@
 {
-    "apiVersion": 2,
-    "name": "wp-racemanager/race-gallery",
-    "title": "Race Media Gallery",
-    "description": "Displays a swiper media gallery. Select and upload media files in the menu.",
-    "category": "media",
-    "icon": "images-alt2",
-    "editorScript": "file:./index.js",
-    "attributes": {
-      "mediaItems": { 
-        "type": "array", 
-        "default": [] 
-      }
-    },
-    "textdomain": "wp-racemanager"
-  }
-  
+  "apiVersion": 2,
+  "name": "wp-racemanager/race-gallery",
+  "title": "Race Media Gallery",
+  "description": "Displays a swiper media gallery. Select and upload media files in the menu.",
+  "category": "media",
+  "icon": "images-alt2",
+  "editorScript": "file:./index.js",
+  "editorScriptDependencies": [
+    "wp-blocks",
+    "wp-block-editor",
+    "wp-components",
+    "wp-element",
+    "wp-i18n",
+    "wp-data",
+    "wp-core-data",
+    "media-editor"
+  ],
+  "attributes": {
+    "mediaItems": {
+      "type": "array",
+      "default": []
+    }
+  },
+  "textdomain": "wp-racemanager"
+}

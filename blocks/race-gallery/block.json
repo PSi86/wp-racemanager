@@ -6,10 +6,20 @@
   "category": "media",
   "icon": "images-alt2",
   "editorScript": "file:./index.js",
+  "editorScriptDependencies": [
+    "wp-blocks",
+    "wp-block-editor",
+    "wp-components",
+    "wp-element",
+    "wp-i18n",
+    "wp-data",
+    "wp-core-data",
+    "media-editor"
+  ],
   "attributes": {
-    "mediaItems": { 
-      "type": "array", 
-      "default": [] 
+    "mediaItems": {
+      "type": "array",
+      "default": []
     }
   },
   "textdomain": "wp-racemanager"

@@ -1,115 +1,138 @@
+/**
+ * blocks-src/race-gallery/index.js
+ */
+
 import { registerBlockType } from '@wordpress/blocks';
 import { MediaPlaceholder, useBlockProps } from '@wordpress/block-editor';
-import { Button } from '@wordpress/components';
+import { Button, Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { Fragment } from '@wordpress/element';
+import { useEntityRecords } from '@wordpress/core-data';
 
-registerBlockType('wp-racemanager/race-gallery', {
-  title: __('Race Media Gallery', 'wp-racemanager'),
-  icon: 'images-alt2',
-  category: 'media',
+registerBlockType( 'wp-racemanager/race-gallery', {
+  title:      __( 'Race Media Gallery', 'wp-racemanager' ),
+  icon:       'images-alt2',
+  category:   'media',
   attributes: {
     mediaItems: { type: 'array', default: [] },
   },
 
-  edit({ attributes, setAttributes }) {
+  edit( { attributes, setAttributes } ) {
     const { mediaItems } = attributes;
-    const hasMedia = mediaItems.length > 0;
-    const blockProps = useBlockProps();
+    const hasMedia       = mediaItems.length > 0;
+    const blockProps     = useBlockProps();
 
-    const onConfirm = (selection) => {
-      const models = Array.isArray(selection) ? selection : selection.toJSON();
+    // Only store IDs
+    const onConfirm = ( selection ) => {
+      const models = Array.isArray( selection ) ? selection : selection.toJSON();
       setAttributes({
-        mediaItems: models.map((m) => ({
-          id:   m.id,
-          url:  m.url,
-          thumb: m.sizes?.medium?.url || m.sizes?.thumbnail?.url || m.url,
-          alt:  m.alt,
-        })),
+        mediaItems: models.map( ( m ) => m.id ),
       });
     };
 
-    /**
-     * Build a wp.media.model.Selection preloaded with your existing IDs
-     * (powered by wp.media.gallery.attachments + one fetch under the hood)
-     */
+    // Build the default WP gallery-edit frame selection
     const loadSelection = () => {
-      const ids = mediaItems.map((item) => item.id);
-      if (! ids.length) {
+      if ( ! hasMedia ) {
         return false;
       }
-
-      // Create a fake [gallery ids="1,2,3"] shortcode object
-      const sc = new wp.shortcode({
+      const shortcode   = new wp.shortcode({
         tag:   'gallery',
-        attrs: { ids: ids.join(',') },
+        attrs: { ids: mediaItems.join( ',' ) },
         type:  'single',
       });
-
-      // Let core build an attachments collection with the right "include" props
-      const attachments = wp.media.gallery.attachments(sc);
-
-      // Build a Selection from those attachments:
-      const selection = new wp.media.model.Selection(
+      const attachments = wp.media.gallery.attachments( shortcode );
+      const selection   = new wp.media.model.Selection(
         attachments.models,
         {
           props:    attachments.props.toJSON(),
           multiple: true,
         }
       );
-
-      // Keep the gallery metadata handy:
       selection.gallery = attachments.gallery;
-
-      // Trigger one fetch for *all* IDs at once, then break mirroring/sorting ties:
-      selection.more().done(() => {
-        selection.props.set({ query: false });
+      selection.more().done( () => {
+        selection.props.set( { query: false } );
         selection.unmirror();
-        selection.props.unset('orderby');
-      });
-
+        selection.props.unset( 'orderby' );
+      } );
       return selection;
     };
 
+    // Open the media frame
     const openGalleryFrame = () => {
-      const selection = loadSelection();
-      const frameOptions = {
-        frame:    'post',
-        state:    selection ? 'gallery-edit' : 'gallery',
-        multiple: true,
-        editing:  true,
-        library:  { type: ['image', 'video'] },
-        title:    hasMedia
-          ? __('Edit Gallery or Add Media', 'wp-racemanager')
-          : __('Select or Upload Media',    'wp-racemanager'),
-        button: { text: __('Confirm', 'wp-racemanager') },
-      };
-
-      if (selection) {
-        frameOptions.selection = selection;
-      }
-
-      const frame = wp.media(frameOptions);
-      frame.on('update', onConfirm);
+      const frame = wp.media({
+        frame:     'post',
+        state:     hasMedia ? 'gallery-edit' : 'gallery',
+        multiple:  true,
+        editing:   true,
+        library:   { type: [ 'image', 'video' ] },
+        title:     hasMedia
+          ? __( 'Edit Gallery or Add Media', 'wp-racemanager' )
+          : __( 'Select or Upload Media',     'wp-racemanager' ),
+        button:    { text: __( 'Confirm', 'wp-racemanager' ) },
+        selection: loadSelection(),
+      } );
+      frame.on( 'update', onConfirm );
       frame.open();
     };
 
+    // ——————————————————————————————————————————————
+    // Fetch attachments (records + loading state)
+    // ——————————————————————————————————————————————
+    const mediaQuery = useEntityRecords(
+      'postType',
+      'attachment',
+      {
+        include:   mediaItems,
+        per_page:  mediaItems.length,
+        context:   'edit',
+      }
+    ) || {};
+
+    const mediaRecords = mediaQuery.records;
+    const isResolving  = mediaQuery.isResolving;
+
+    // ————————————————————————————————
+    // While loading, show spinner
+    // ————————————————————————————————
+    if ( hasMedia && isResolving ) {
+      return (
+        <div { ...blockProps }>
+          <Spinner />
+        </div>
+      );
+    }
+
+    // ————————————————————————————————
+    // Sort into the original ID order
+    // ————————————————————————————————
+    const ordered = Array.isArray( mediaRecords )
+      ? mediaRecords.slice().sort( ( a, b ) =>
+          mediaItems.indexOf( a.id ) - mediaItems.indexOf( b.id )
+        )
+      : [];
+
+    // ————————————————————————————————
+    // Render placeholder or thumbnails
+    // ————————————————————————————————
     return (
       <Fragment>
-        <div {...blockProps}>
+        <div { ...blockProps }>
           <h2 className="rm-gallery-headline">
-            {__('Gallery', 'wp-racemanager')}
+            { __( 'Gallery', 'wp-racemanager' ) }
           </h2>
 
-          {!hasMedia ? (
+          { ! hasMedia ? (
             <MediaPlaceholder
               icon="images-alt2"
-              labels={{
-                title:        __('Gallery', 'wp-racemanager'),
-                instructions: __('Drag and drop images, upload, or choose from your library.', 'wp-racemanager'),
-              }}
-              onSelect={onConfirm}
-              allowedTypes={['image', 'video']}
+              labels={ {
+                title:        __( 'Gallery', 'wp-racemanager' ),
+                instructions: __(
+                  'Drag and drop images, upload, or choose from your library.',
+                  'wp-racemanager'
+                ),
+              } }
+              onSelect={ onConfirm }
+              allowedTypes={ [ 'image', 'video' ] }
               accept="image/*,video/*"
               multiple="add"
               gallery
@@ -117,21 +140,30 @@ registerBlockType('wp-racemanager/race-gallery', {
           ) : (
             <>
               <div className="rm-gallery-wrapper">
-                {mediaItems.map((media) => (
-                  <div key={media.id} className="rm-gallery-thumb">
-                    <img src={media.thumb} alt={media.alt || ''} />
-                  </div>
-                ))}
+                { ordered.map( ( media ) => {
+                  const thumb =
+                    media.media_details?.sizes?.medium?.source_url ||
+                    media.media_details?.sizes?.thumbnail?.source_url ||
+                    media.source_url;
+                  return (
+                    <div key={ media.id } className="rm-gallery-thumb">
+                      <img
+                        src={ thumb }
+                        alt={ media.alt_text || '' }
+                      />
+                    </div>
+                  );
+                } ) }
               </div>
-              <div style={{ marginTop: 16 }}>
-                <Button isPrimary onClick={openGalleryFrame}>
-                  {__('Edit Gallery / Add Media', 'wp-racemanager')}
+              <div style={ { marginTop: 16 } }>
+                <Button isPrimary onClick={ openGalleryFrame }>
+                  { __( 'Edit Gallery / Add Media', 'wp-racemanager' ) }
                 </Button>
               </div>
             </>
-          )}
+          ) }
 
-          <style>{`
+          <style>{ `
             .rm-gallery-wrapper {
               display: flex;
               flex-wrap: wrap;
@@ -143,7 +175,7 @@ registerBlockType('wp-racemanager/race-gallery', {
               object-fit: cover;
               border-radius: 3px;
             }
-          `}</style>
+          ` }</style>
         </div>
       </Fragment>
     );
@@ -152,4 +184,4 @@ registerBlockType('wp-racemanager/race-gallery', {
   save() {
     return null;
   },
-});
+} );
