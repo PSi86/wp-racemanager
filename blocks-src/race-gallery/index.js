@@ -78,14 +78,15 @@ registerBlockType( 'wp-racemanager/race-gallery', {
     // ——————————————————————————————————————————————
     // Fetch attachments (records + loading state)
     // ——————————————————————————————————————————————
+    const query = { context: 'edit' };
+    if ( hasMedia ) {
+      query.include  = mediaItems;
+      query.per_page = mediaItems.length;
+    }
     const mediaQuery = useEntityRecords(
       'postType',
       'attachment',
-      {
-        include:   mediaItems,
-        per_page:  mediaItems.length,
-        context:   'edit',
-      }
+      query
     ) || {};
 
     const mediaRecords = mediaQuery.records;
@@ -156,7 +157,7 @@ registerBlockType( 'wp-racemanager/race-gallery', {
                 } ) }
               </div>
               <div style={ { marginTop: 16 } }>
-                <Button isPrimary onClick={ openGalleryFrame }>
+                <Button variant="primary" onClick={ openGalleryFrame }>
                   { __( 'Edit Gallery / Add Media', 'wp-racemanager' ) }
                 </Button>
               </div>
