@@ -68,8 +68,9 @@ class PilotSelector {
             const option = document.createElement('option');
             option.value = pilot.id;
             option.textContent = pilot.callsign;
-            option.setAttribute('data-pilot-id', pilot.id); // a bit redundant
-            option.setAttribute('data-race-id', this.raceId); // a bit redundant
+            option.setAttribute('data-pilot-id', pilot.id);
+            option.setAttribute('data-pilot-callsign', pilot.callsign);
+            option.setAttribute('data-race-id', this.raceId);
             this.pilotSelector.appendChild(option);
         });
 

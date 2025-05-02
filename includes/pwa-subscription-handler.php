@@ -37,7 +37,9 @@ class PWA_Subscription_Handler {
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         race_id bigint(20) unsigned NOT NULL,
         pilot_id int(20) unsigned NOT NULL,
+        pilot_callsign varchar(40) DEFAULT '' NOT NULL,
         heat_id int(20) unsigned NOT NULL DEFAULT 0,
+        heat_displayname varchar(60) DEFAULT '' NOT NULL,
         slot_id int(20) unsigned NOT NULL DEFAULT 0,
         endpoint text NOT NULL,
         p256dh_key text DEFAULT '' NOT NULL,
@@ -80,7 +82,7 @@ class PWA_Subscription_Handler {
             ]);
             $payload = json_encode([
                 'title' => $title,
-                'body'  => $message,
+                'body'  => 'Hi '. $sub['pilot_callsign'] . ', ' . $message,
             ]);
             //$webPush->sendOneNotification($subscription, $payload);
             $webPush->queueNotification($subscription, $payload);
@@ -103,6 +105,48 @@ class PWA_Subscription_Handler {
         }
 
         return true; // Indicate success
+    }
+
+    /**
+     * Send a push notification to a single subscriber.
+     *
+     * @param string $endpoint The subscription endpoint URL.
+     * @param string $p256dh   The user's public key.
+     * @param string $auth     The user's auth token.
+     * @param string $title    Notification title.
+     * @param string $message  Notification body.
+     * @return bool            True on success, false on failure.
+     */
+    public function send_notification_to_subscriber( $endpoint, $p256dh, $auth, $title = 'Subscription', $message = 'Subscription updated.' ) {
+        if ( empty( $endpoint ) || empty( $p256dh ) || empty( $auth ) ) {
+            return false;
+        }
+
+        $webPush = new WebPush( [ 'VAPID' => $this->vapid ] );
+        $subscription = Subscription::create( [
+            'endpoint'  => $endpoint,
+            'publicKey' => $p256dh,
+            'authToken' => $auth,
+        ] );
+
+        $payload = json_encode( [
+            'title' => $title,
+            'body'  => $message,
+        ] );
+
+        $webPush->queueNotification( $subscription, $payload );
+        $report = $webPush->flush();
+
+        // Clean up expired subscriptions
+        foreach ( $report as $result ) {
+            $url = $result->getRequest()->getUri()->__toString();
+            if ( ! $result->isSuccess() && strpos( $result->getReason(), '410' ) !== false ) {
+                rm_delete_subscription( $url );
+                WP_RaceManager::write_log( 'Removed expired subscription: ' . $url );
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -133,10 +177,10 @@ class PWA_Subscription_Handler {
         // Build a mapping of upcoming pilots keyed by pilot_id.
         // If a pilot appears more than once, use the entry with the highest heat_id.
         $upcomingMapping = array();
-        foreach ($upcomingPilots as $entry) {
-            $pilotId = $entry['pilot_id'];
-            if (!isset($upcomingMapping[$pilotId]) || $entry['heat_id'] > $upcomingMapping[$pilotId]['heat_id']) {
-                $upcomingMapping[$pilotId] = $entry;
+        foreach ($upcomingPilots as $upcomingPilot) {
+            $pilotId = $upcomingPilot['pilot_id'];
+            if (!isset($upcomingMapping[$pilotId]) || $upcomingPilot['heat_id'] > $upcomingMapping[$pilotId]['heat_id']) {
+                $upcomingMapping[$pilotId] = $upcomingPilot;
             }
         }
 
@@ -154,7 +198,9 @@ class PWA_Subscription_Handler {
 
         foreach ($subscribers as $subscriber) {
             $pilotId    = $subscriber['pilot_id'];
+            $pilotCallsign  = $subscriber['pilot_callsign'];
             $storedHeat = isset($subscriber['heat_id']) ? (int)$subscriber['heat_id'] : 0;
+            $storedHeatDisplayname = isset($subscriber['heat_displayname']) ? $subscriber['heat_displayname'] : '';
             $storedSlot = isset($subscriber['slot_id']) ? (int)$subscriber['slot_id'] : 0;
 
             if (isset($upcomingMapping[$pilotId])) {
@@ -168,16 +214,16 @@ class PWA_Subscription_Handler {
 
                 if ($storedHeat === 0 && $storedSlot === 0) {
                     // New schedule.
-                    $message = "{$callsign}: Your next race is {$heatDisplay}. Your channel is {$channel}";
+                    $message = "{$pilotCallsign}: Your next race is {$heatDisplay}. Your channel is {$channel}";
                 } elseif ($storedHeat === $newHeat && $storedSlot !== $newSlot) {
                     // Slot changed.
-                    $message = "{$callsign}: Your channel in race {$heatDisplay} has changed to {$channel}";
+                    $message = "{$pilotCallsign}: Your channel in race {$heatDisplay} has changed to {$channel}";
                 } elseif ($storedHeat !== $newHeat && $storedSlot === $newSlot) {
                     // Heat changed.
-                    $message = "{$callsign}: You have been reassigned to {$heatDisplay} your channel remains {$channel}";
+                    $message = "{$pilotCallsign}: You have been reassigned to {$heatDisplay} your channel remains {$channel}";
                 } elseif ($storedHeat !== $newHeat && $storedSlot !== $newSlot) {
                     // Heat and slot changed.
-                    $message = "{$callsign}: You have been reassigned to {$heatDisplay} your new channel is {$channel}";
+                    $message = "{$pilotCallsign}: You have been reassigned to {$heatDisplay} your new channel is {$channel}";
                 } else {
                     // No change; no notification needed.
                     continue;
@@ -204,26 +250,27 @@ class PWA_Subscription_Handler {
                 // Update the subscriber record with the new heat and slot.
                 $wpdb->update(
                     $table_name,
-                    array(
+                    array( // set
                         'heat_id' => $newHeat,
-                        'slot_id' => $newSlot
+                        'slot_id' => $newSlot,
+                        'heat_displayname' => $heatDisplay,
                     ),
-                    array('id' => $subscriber['id']),
-                    array('%d', '%d'),
-                    array('%d')
+                    array('id' => $subscriber['id']), // where
+                    array('%d', '%d', '%s'), // set format
+                    array('%d') // where format
                 );
             } else {
                 // Pilot no longer appears in the upcoming list.
                 // Check if his previously scheduled heat still exists in upcomingPilots.
                 $heatStillExists = false;
-                foreach ($upcomingPilots as $entry) {
-                    if ((int)$entry['heat_id'] === $storedHeat) {
+                foreach ($upcomingPilots as $upcomingPilot) {
+                    if ((int)$upcomingPilot['heat_id'] === $storedHeat) {
                         $heatStillExists = true;
                         break;
                     }
                 }
                 if ($heatStillExists && $storedHeat != 0) {
-                    $message = "You have been removed from your scheduled heat.";
+                    $message = "{$pilotCallsign}: You have been removed from your scheduled heat {$storedHeatDisplayname}.";
                     
                     $subscription = Subscription::create([
                         'endpoint' => $subscriber['endpoint'],
@@ -247,13 +294,14 @@ class PWA_Subscription_Handler {
                     // Clear out the stored heat and slot.
                     $wpdb->update(
                         $table_name,
-                        array(
+                        array( // set
                             'heat_id' => 0,
-                            'slot_id' => 0
+                            'slot_id' => 0,
+                            'heat_displayname' => '',
                         ),
-                        array('id' => $subscriber['id']),
-                        array('%d', '%d'),
-                        array('%d')
+                        array('id' => $subscriber['id']), // where
+                        array('%d', '%d', '%s'), // set format
+                        array('%d') // where format
                     );
                 }
             }

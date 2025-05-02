@@ -40,13 +40,17 @@ function ajax_get_subscription() {
         wp_send_json_success( [
             'subscribed' => true,
             'race_id'    => $subscription->race_id,
-            'race_title' => get_the_title( $subscription->race_id )
+            'race_title' => get_the_title( $subscription->race_id ),
+            'pilot_id'   => $subscription->pilot_id,
+            'pilot_callsign' => $subscription->pilot_callsign,
         ], 200 );
     } else {
         wp_send_json_success( [ 
             'subscribed' => false,
             'race_id'    => 0,
-            'race_title' => ''
+            'race_title' => '',
+            'pilot_id'   => 0,
+            'pilot_callsign' => '',
         ], 200 );
     }
 
@@ -65,14 +69,16 @@ function ajax_update_subscription() {
         wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
     }
 
-    if ( empty( $_POST['pilot_id'] ) ) {
-        wp_send_json_error( [ 'error' => 'Missing required field: pilot_id.' ], 400 );
+    if ( empty( $_POST['pilot_id'] ) || empty( $_POST['pilot_callsign'] ) ) {
+        wp_send_json_error( [ 'error' => 'Missing required field: pilot_id or pilot_callsign.' ], 400 );
         wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
     }
 
     $race_id   = absint( wp_unslash( $_POST['race_id'] ) );
     $endpoint  = sanitize_text_field( wp_unslash( $_POST['endpoint'] ) );
     $pilot_id  = sanitize_text_field( wp_unslash( $_POST['pilot_id'] ) );
+    $pilot_callsign = sanitize_text_field( wp_unslash( $_POST['pilot_callsign'] ) );
+    $race_title = get_the_title( $race_id );
 
     // Optional keys.
     $keys    = isset( $_POST['keys'] ) && is_array( $_POST['keys'] ) ? wp_unslash( $_POST['keys'] ) : [];
@@ -85,7 +91,7 @@ function ajax_update_subscription() {
     }
 
     // Insert or update subscription in the DB.
-    $result = rm_upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth );
+    $result = rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint, $p256dh, $auth );
     if ( false === $result ) {
         wp_send_json_error( [ 'success' => false, 'message' => 'Failed to insert/update subscription.' ], 500 );
         wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
@@ -105,13 +111,16 @@ function ajax_update_subscription() {
     $pwa = $manager->pwa_subscription_handler;
 
     // Optional: send a notification for debugging.
-    $pwa->send_notification_to_all_in_race( $race_id, 'Race Update', 'Welcome to Rotormaniacs RaceManager!' );
+    //$pwa->send_notification_to_all_in_race( $race_id, 'Subscription', 'Welcome to Rotormaniacs RaceManager!' );
+    $pwa->send_notification_to_subscriber( $endpoint, $p256dh, $auth, 'Subscription', 'You have successfully subscribed to: ' . $race_title );
 
     //wp_send_json_success( [ 'message' => 'Subscription inserted/updated successfully.' ], 200 );
     wp_send_json_success( [
         'subscribed' => true,
         'race_id'    => $race_id,
-        'race_title' => get_the_title( $race_id )
+        'race_title' => $race_title,
+        'pilot_id'   => $pilot_id,
+        'pilot_callsign' => $pilot_callsign,
     ], 200 );
 
     wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
@@ -140,7 +149,9 @@ function ajax_unsubscribe() {
     wp_send_json_success( [
         'subscribed' => false,
         'race_id'    => 0,
-        'race_title' => '' 
+        'race_title' => '',
+        'pilot_id'   => 0,
+        'pilot_callsign' => '',
     ], 200 );
     
     wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.

@@ -39,6 +39,7 @@ export class PushSubscription {
     initialize() {
         // Disable the subscribe button until the service worker is ready.
         this.subscribeButton.disabled = true;
+        this.pilotSelect.addEventListener('change', this.checkSubscriptionState.bind(this));
 
         // Check for necessary APIs: service workers and push notifications.
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -145,11 +146,10 @@ export class PushSubscription {
         const pilotOption = this.pilotSelect.selectedOptions[0];
         const currentRaceId = pilotOption ? pilotOption.getAttribute('data-race-id') : null;
         if (statusData.subscribed) {
-            if (statusData.race_id == currentRaceId) {
-                this.setSubscriptionStatus(`Subscribed to: ${statusData.race_title}`);
+            this.setSubscriptionStatus(`Subscribed to: ${statusData.race_title} -> ${statusData.pilot_callsign}`);
+            if (statusData.race_id == currentRaceId && statusData.pilot_id == pilotOption.getAttribute('data-pilot-id')) {
                 this.subscribeButton.value = 'Unsubscribe';
             } else {
-                this.setSubscriptionStatus(`Subscribed to: ${statusData.race_title}`);
                 //this.setSubscriptionStatus(`Subscribed to race: ${statusData.race_id} (Current race: ${statusData.race_title})`);
                 this.subscribeButton.value = 'Update Subscription';
             }
@@ -273,6 +273,7 @@ export class PushSubscription {
         // Get race and pilot info from the pilot selector.
         const pilotOption = this.pilotSelect.selectedOptions[0];
         const pilotId = pilotOption.getAttribute('data-pilot-id');
+        const pilotCallsign = pilotOption.getAttribute('data-pilot-callsign');
         const raceId = pilotOption.getAttribute('data-race-id');
 
         if (!raceId || !pilotId) {
@@ -288,6 +289,7 @@ export class PushSubscription {
             formData.append('endpoint', endpoint);
             formData.append('race_id', raceId);
             formData.append('pilot_id', pilotId);
+            formData.append('pilot_callsign', pilotCallsign);
             formData.append('keys[p256dh]', p256dh);
             formData.append('keys[auth]', auth);
             //formData.append('keys', JSON.stringify({ p256dh, auth }));
@@ -301,7 +303,7 @@ export class PushSubscription {
             }
             const json = await response.json();
             if (json.data.race_title) {
-                this.setSubscriptionStatus('Server subscription success: ' + json.data.race_title);
+                this.setSubscriptionStatus('Server subscription success: ' + json.data.race_title + ' -> ' + json.data.pilot_callsign);
             }
             else {
                 this.setSubscriptionStatus('Server subscription success.');

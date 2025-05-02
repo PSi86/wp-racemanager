@@ -78,7 +78,7 @@ function rm_get_subscription_by_endpoint( $endpoint ) {
     );
 }
 
-function rm_upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth ) {
+function rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint, $p256dh, $auth ) {
     global $wpdb;
     $table = $wpdb->prefix . 'rm_subscriptions';
 
@@ -93,6 +93,7 @@ function rm_upsert_subscription( $race_id, $pilot_id, $endpoint, $p256dh, $auth 
     $data = [
         'race_id'        => $race_id,
         'pilot_id'       => $pilot_id,
+        'pilot_callsign' => $pilot_callsign,
         'endpoint'       => $endpoint,
         'p256dh_key'     => $p256dh,
         'auth_key'       => $auth,
