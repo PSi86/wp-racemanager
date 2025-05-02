@@ -104,6 +104,7 @@ function rm_render_media_gallery( $attrs ) {
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        var isTouchDevice   = window.matchMedia('(pointer: coarse)').matches;
         var ids             = raceMediaIds;
         var overlay         = document.getElementById('rm-gallery-overlay');
         var closeBtn        = document.getElementById('rm-gallery-close');
@@ -118,9 +119,12 @@ function rm_render_media_gallery( $attrs ) {
         }
 
         function openOverlay(index) {
-            overlay.style.display        = 'flex';
-            document.body.style.overflow = 'hidden';
-            if ( ! swiperInstance ) {
+            overlay.style.display = 'flex';
+            // only lock scroll on non-touch devices
+            if (!isTouchDevice) {
+                document.body.style.overflow = 'hidden';
+            }
+            if (!swiperInstance) {
                 swiperInstance = new Swiper(swiperContainer, {
                     lazy: true,
                     initialSlide: index,
@@ -130,49 +134,46 @@ function rm_render_media_gallery( $attrs ) {
                         prevEl:      '.swiper-button-prev'
                     },
                     loop: false,
-                    zoom: { 
-                        toggle:   true, 
-                        maxRatio: 3 
-                    },
+                    zoom: { toggle: true, maxRatio: 3 },
                     keyboard: { enabled: true },
                     mousewheel: { enabled: true }
                 });
                 swiperInstance.on('slideChange', function() {
-                    updateHash( ids[ swiperInstance.realIndex ] );
+                    updateHash(ids[swiperInstance.realIndex]);
                 });
             } else {
                 swiperInstance.slideTo(index, 0);
             }
-            updateHash( ids[ index ] );
+            updateHash(ids[index]);
         }
 
         function closeOverlay() {
-            overlay.style.display        = 'none';
-            document.body.style.overflow = '';
+            // hide overlay first
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';  // always restore scroll
             clearHash();
         }
 
-        // Thumbnail clicks
-        document.querySelectorAll('.rm-gallery-thumb').forEach(function(thumb){
-            thumb.addEventListener('click', function(){
-                openOverlay( parseInt( thumb.dataset.index, 10 ) );
+        // thumbnail clicks
+        document.querySelectorAll('.rm-gallery-thumb').forEach(function(thumb) {
+            thumb.addEventListener('click', function() {
+                openOverlay(parseInt(thumb.dataset.index, 10));
             });
         });
-        // Close button
+        // close button
         closeBtn.addEventListener('click', closeOverlay);
-        // ESC key
-        document.addEventListener('keydown', function(e){
-            if ( overlay.style.display === 'flex' && e.key === 'Escape' ) {
+        // ESC key fallback
+        document.addEventListener('keydown', function(e) {
+            if (overlay.style.display === 'flex' && e.key === 'Escape') {
                 closeOverlay();
             }
         });
+        // open on hash
+        var hashId = parseInt(location.hash.replace('#',''), 10),
+            idx    = ids.indexOf(hashId);
+        if (idx > -1) openOverlay(idx);
 
-        // On page load: open if hash matches an ID
-        var hashId = parseInt( location.hash.replace('#',''), 10 );
-        var idx    = ids.indexOf( hashId );
-        if ( idx > -1 ) {
-            openOverlay( idx );
-        }
+
     });
     </script>
 
@@ -192,26 +193,31 @@ function rm_render_media_gallery( $attrs ) {
         top: 0; 
         left: 0;
         width: 100%; 
-        height: 100%;
+        height: 100dvh;
         background: rgba(0,0,0,0.8);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 100000;
         margin-block-start: 0;
+        overflow-y: hidden;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
     }
     .rm-gallery-overlay-content {
         position: relative;
-        width: 100vw;
-        height: 100vh;
-        touch-action: none;
+        /* touch-action: none; */
+        touch-action: auto;
+        width: 100%;
+        height: 100%;
     }
     .rm-gallery-close {
         position: absolute;
-        top: 10px; 
+        top: 0px; 
         right: 10px;
         font-size: 60px;
         color: #fff;
+        line-height: 1;
         cursor: pointer;
         z-index: 100001;
     }
@@ -226,10 +232,11 @@ function rm_render_media_gallery( $attrs ) {
         height: 100%;
         object-fit: contain;
     }
-    @media (hover: none) and (pointer: coarse) {
+    /*     @media (hover: none) and (pointer: coarse) { */
+    @media (pointer: coarse) {
         .swiper-button-prev::after,
         .swiper-button-next::after {
-            font-size: 14px !important;
+            font-size: 25px !important;
         }
     }
     </style>
