@@ -339,13 +339,16 @@ function rm_nextup_shortcode( $atts ) {
         'pushSubscription' => [
             'ajaxUrl'              => admin_url( 'admin-ajax.php' ),
             'nonce'                => $nonce,
-            'publicVapid'          => '',
+            'publicVapid'          => '', // Insert public VAPID key here
             'formId'               => 'pilot-push-form',
             'subscribeButtonId'    => 'subscribe-button',
             'subscriptionStatusId' => 'subscription-status',
         ],
         'displayHeats' => [
             'filterCheckboxId'   => 'none', // no filter checkbox here
+        ],
+        'displayLog' => [
+            'containerId'     => 'log-container', // ID of the container for the log display
         ],
     );
         
@@ -368,6 +371,9 @@ function rm_nextup_shortcode( $atts ) {
       </form>
       <div id="subscription-status"></div>
     </div>
+    <!-- Race Log Container -->
+    <h2>Race Log</h2>
+    <div id="log-container"></div>
     <?php
     return ob_get_clean();
 }
