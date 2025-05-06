@@ -183,6 +183,13 @@ function rm_render_media_gallery( $attrs ) {
         flex-wrap: wrap;
         max-width: 100%;
         gap: 10px;
+        justify-content: center;
+    }
+    @media (min-width: 600px) {
+        /* align to the left on larger screens */
+        .rm-gallery-wrapper {
+            justify-content: flex-start;
+        }
     }
     .rm-gallery-thumb img {
         cursor: pointer;
