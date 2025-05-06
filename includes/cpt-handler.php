@@ -136,7 +136,7 @@ function rm_register_cpt() {
                 array(
                     'core/column',
                     array(
-                        'width'  => '33.33%',
+                        'width'  => '',
                         'layout' => array( 'type' => 'default' ),
                     ),
                     array(
@@ -182,11 +182,8 @@ function rm_register_cpt() {
         ),
         // Shortcode block for Gallery
         array(
-            'core/shortcode',
-            array(
-                'metadata' => array( 'name' => 'Gallery' ),
-                'text'  => '[rm_gallery]'
-            ),
+            'wp-racemanager/race-gallery',
+            array(),
             array()
         ),
         // Shortcode block for Registered Pilots

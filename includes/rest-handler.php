@@ -99,7 +99,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
         ], $maybe_error->get_error_data() ?: 401);
     } */
 
-    // 2. Validate request size & decode JSON
+    // Validate request size & decode JSON
     $data = rm_validate_and_decode_json( $request );
     if ( is_wp_error( $data ) ) {
         return new WP_REST_Response([
@@ -108,7 +108,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
         ], $data->get_error_data() ?: 400);
     }
 
-    // 3. Validate required fields (race_name, heat_data)
+    // Validate required fields (race_name, heat_data)
     $maybe_error = rm_validate_required_fields( $data );
     if ( is_wp_error( $maybe_error ) ) {
         return new WP_REST_Response([
@@ -117,7 +117,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
         ], 400);
     }
 
-    // 4. Process the race (either update existing or create new)
+    // Process the race (either update existing or create new)
     //  User rights are checked within rm_find_or_create_race()
     $race_result = rm_find_or_create_race( $data );
     if ( is_wp_error( $race_result ) ) {
@@ -128,12 +128,12 @@ function rm_handle_upload( WP_REST_Request $request ) {
         ], 400);
     }
 
-    // 5. If we get here, $race_result is an array with:
-    //    ['status' => 'success'|'updated', 'id' => (race_id), 'message' => ...]
+    // If we get here, $race_result is an array with:
+    //  ['status' => 'success'|'updated', 'id' => (race_id), 'message' => ...]
     $race_id   = $race_result['id'];
     $is_update = ( 'updated' === $race_result['status'] );
 
-    // 6. Notify subscribers about the new or updated race
+    // Notify subscribers about the new or updated race
     //    (Only do this if it’s actually published/live, etc.)
     // TODO TEST New Notification logic
     // Call the function to get the upcoming race pilots (in race-data-functions.php) and feed the output to send_next_up_notifications(race_id, upcomingPilots)
@@ -148,7 +148,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
     $notified = rm_notify_nextup($race_id, $upcomingPilots);
     //rm_notify_nextup_bak( $race_id, $is_update );
 
-    // 7. Return final success response
+    // Return final success response
     return new WP_REST_Response([
         'status'  => 'success',
         'message' => $race_result['message'],
@@ -245,8 +245,6 @@ function rm_find_or_create_race( $data ) {
     ];
     $existing_query = new WP_Query( $args );
 
-    // Encode the data for writing to file
-    $encoded_json_data = wp_json_encode( $data );
     $timestamp         = current_time( 'mysql' );
 
     if ( $existing_query->have_posts() ) {
@@ -273,7 +271,7 @@ function rm_find_or_create_race( $data ) {
             );
         }
         
-        rm_write_files( $race_id, $encoded_json_data );
+        rm_write_files( $race_id, $data );
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
         return [
@@ -301,7 +299,7 @@ function rm_find_or_create_race( $data ) {
 
             <!-- wp:social-links {"iconColor":"base","iconColorValue":"#ffffff","iconBackgroundColor":"contrast","iconBackgroundColorValue":"#000000","openInNewTab":true,"metadata":{"name":"Social Links"},"className":"is-style-default","layout":{"type":"flex","justifyContent":"right","orientation":"horizontal"}} -->
             <ul class="wp-block-social-links has-icon-color has-icon-background-color is-style-default">
-            <!-- wp:social-link {"url":"https://www.youtube.com/channel/00000","service":"youtube"} /-->
+<!-- wp:social-link {"url":"https://www.youtube.com/channel/00000","service":"youtube"} /-->
             <!-- wp:social-link {"url":"https://www.instagram.com/00000/","service":"instagram"} /-->
             <!-- wp:social-link {"url":"https://discord.gg/00000","service":"discord"} /--></ul>
             <!-- /wp:social-links --></div>
@@ -314,8 +312,8 @@ function rm_find_or_create_race( $data ) {
             <!-- /wp:paragraph --></div>
             <!-- /wp:column -->
 
-            <!-- wp:column {"width":"33.33%","layout":{"type":"default"}} -->
-            <div class="wp-block-column" style="flex-basis:33.33%"><!-- wp:post-featured-image {"width":"","height":"","scale":"contain"} /--></div>
+            <!-- wp:column {"width":"","layout":{"type":"default"}} -->
+            <div class="wp-block-column"><!-- wp:post-featured-image {"width":"","height":"","scale":"contain"} /--></div>
             <!-- /wp:column --></div>
             <!-- /wp:columns -->
 
@@ -329,9 +327,7 @@ function rm_find_or_create_race( $data ) {
             <!-- /wp:gmap/gmap-block --></details>
             <!-- /wp:details -->
 
-            <!-- wp:shortcode {"metadata":{"name":"Gallery"}} -->
-            [rm_gallery]
-            <!-- /wp:shortcode -->
+            <!-- wp:wp-racemanager/race-gallery /-->
 
             <!-- wp:shortcode {"metadata":{"name":"Registered Pilots"}} -->
             [rm_registered]
@@ -352,9 +348,11 @@ function rm_find_or_create_race( $data ) {
             );
         }
 
-        rm_write_files( $race_id, $encoded_json_data, 1 );
+        rm_write_files( $race_id, $data, 1 );
+
         update_post_meta( $race_id, '_race_live', 1 );
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
+        update_post_meta( $race_id, '_race_reg_closed', true );
 
         $date_start = strtotime('today 8:00');
         update_post_meta( $race_id, '_race_event_start', $date_start );
@@ -401,32 +399,8 @@ function rm_notify_nextup( $race_id, $upcomingPilots ) {
 
     return $notified;
 }
-function rm_notify_nextup_bak( $race_id, $is_update = false ) {
-    // If you have direct access to $this->pwa_subscription_handler in scope, use it.
-    // Otherwise, retrieve from your plugin instance:
-    $manager = \RaceManager\WP_RaceManager::instance();
 
-    // Ensure the subscription handler is available.
-    if ( empty( $manager->pwa_subscription_handler ) ) {
-        // Maybe just bail out silently if there's no subscription system loaded
-        return;
-    }
-    $pwa = $manager->pwa_subscription_handler;
-
-    // Example title/message
-    $title   = $is_update ? 'Race Data Updated' : 'New Race Created';
-    $race    = get_post( $race_id );
-    $message = ( $race ) 
-        ? sprintf( 'The race "%s" has been %s.', $race->post_title, $is_update ? 'updated' : 'created' )
-        : ( $is_update ? 'A race was updated.' : 'A new race was created.' );
-
-    // Now call the method (public in pwa-subscription-handler.php).
-    // If your PWA_Subscription_Handler uses the CPT post ID as `race_id`,
-    // pass $race_id as the "race_id" parameter:
-    $pwa->send_notification_to_all( $race_id, $title, $message );
-}
-
-function rm_write_files( $race_id, $encoded_json_data, $create_wp_attachment = 0 ) {
+function rm_write_files( $race_id, $json_data, $create_wp_attachment = 0 ) {
     // Write the timestamp and data to a file
     $timestamp = current_time('mysql');
 
@@ -439,17 +413,28 @@ function rm_write_files( $race_id, $encoded_json_data, $create_wp_attachment = 0
     $filename_data = $upload_path . $race_id . '-data.json';
 
     // add the notifications data to the JSON
-    $encoded_json_data = add_notifications_to_race_json( $encoded_json_data, $race_id );
+    $json_data = add_notifications_to_race_json( $json_data, $race_id );
 
     $file_saved = file_put_contents( $filename_timestamp, wp_json_encode(['time' => $timestamp]));
-    $file_saved = file_put_contents( $filename_data, $encoded_json_data );
-
     if ( $file_saved === false ) {
         // Cleanup if needed
         //wp_delete_post( $race_id, true );
         return new WP_Error(
             'file_write_error',
             'Failed to write JSON file to uploads:'.$filename_timestamp,
+            array('status' => 500)
+        );
+    }
+
+    // Encode the race json data for writing to file
+    $encoded_json_data = wp_json_encode( $json_data );
+    $file_saved = file_put_contents( $filename_data, $encoded_json_data );
+    if ( $file_saved === false ) {
+        // Cleanup if needed
+        //wp_delete_post( $race_id, true );
+        return new WP_Error(
+            'file_write_error',
+            'Failed to write JSON file to uploads:'.$filename_data,
             array('status' => 500)
         );
     }
@@ -482,45 +467,30 @@ function rm_create_wp_attachment( $race_id, $filepath ) {
 /**
  * Injects WP “race” notifications into a race JSON blob.
  *
- * @param string $race_json     Raw JSON string for one race.
+ * @param string $race_json     Decoded JSON string for one race.
  * @param int    $race_id       The post ID of the race CPT.
- * @return string               The modified JSON string, now including a "notifications" array.
+ * @return string               The modified JSON, now including a "notifications" array.
  */
-function add_notifications_to_race_json( $race_json, $race_id ) {
-    // Decode incoming JSON
-    $race_data = json_decode( $race_json, true );
-    if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $race_data ) ) {
-        // Invalid JSON — bail and return original
-        return $race_json;
-    }
-
+function add_notifications_to_race_json( $race_data, $race_id ) {
     // Fetch the notifications log from post meta
     $meta_key       = '_race_notification_log';
     $notifications  = get_post_meta( $race_id, $meta_key, true );
+    
     if ( ! is_array( $notifications ) ) {
+        // If not an array, initialize it as empty array
         $notifications = array();
     }
 
-    // Inject into the data
+    // Inject into the race data
     $race_data['notifications'] = $notifications;
 
-    // Re-encode (you can pass JSON_PRETTY_PRINT if you want it formatted)
-    return wp_json_encode( $race_data );
+    return $race_data; // Return the modified array
 }
 
 // Callback function to fetch and return pilot registration data
 // Options: 'latest' or a specific form title
 // requires 'race_id' parameter and 'api_key' header to be set
 function rm_get_registration_data( WP_REST_Request $request) {
-
-    // 1. Validate API Key
-    /* $maybe_error = rm_validate_api_key( $request );
-    if ( is_wp_error( $maybe_error ) ) {
-        return new WP_REST_Response([
-            'status'  => 'error',
-            'message' => $maybe_error->get_error_message(),
-        ], $maybe_error->get_error_data() ?: 401);
-    } */
 
     global $wpdb;
 
@@ -533,7 +503,6 @@ function rm_get_registration_data( WP_REST_Request $request) {
             'status' => 'error',
             'message' => 'Invalid race_id parameter.',
         ], 404);
-        //return new WP_Error('invalid_race_id', 'Invalid race_id parameter.', ['status' => 404]);
     }
 
     // Query the registrations table for entries matching the race_id
@@ -587,15 +556,6 @@ function rm_get_registration_data( WP_REST_Request $request) {
  * }
  */
 function handle_notification_request( \WP_REST_Request $request ) {
-    /* // 1. Validate API Key
-    $maybe_error = rm_validate_api_key( $request );
-    if ( is_wp_error( $maybe_error ) ) {
-        return new \WP_REST_Response([
-            'status'  => 'error',
-            'message' => $maybe_error->get_error_message(),
-        ], $maybe_error->get_error_data() ?: 401);
-    } */
-    
     $body = json_decode( $request->get_body(), true );
 
     if ( empty( $body['race_id'] ) || empty( $body['msg_title'] ) || empty( $body['msg_body'] ) ) {
@@ -629,40 +589,38 @@ function handle_notification_request( \WP_REST_Request $request ) {
     $meta_key = '_race_notification_log';
 
     // Get existing notifications
-    $existing = get_post_meta( $race_id, $meta_key, true );
-    if ( ! is_array( $existing ) ) {
-        $existing = array();
+    $race_log = get_post_meta( $race_id, $meta_key, true );
+    if ( ! is_array( $race_log ) ) {
+        $race_log = array();
     }
 
     // Prepend new notification
-    array_unshift( $existing, $notification );
+    array_unshift( $race_log, $notification );
 
     // Update post meta
-    update_post_meta( $race_id, $meta_key, $existing );
+    update_post_meta( $race_id, $meta_key, $race_log );
 
     // load the existing json file
     $upload_path = WP_CONTENT_DIR . '/uploads/races/';
     //$filename_timestamp = trailingslashit( $upload_path ) . $race_id . '-timestamp.json';
     $filename = $upload_path . $race_id . '-data.json';
-    
+
     if ( file_exists( $filename ) ) {
         // Read the existing JSON data
         $race_json = file_get_contents( $filename );
-        //$encoded_json_data = wp_json_encode( $race_json );
-        
-        /* $race_data = json_decode( $race_json, true );
+        $race_data = json_decode( $race_json, true );
+
         if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $race_data ) ) {
-            // Invalid JSON — bail and return original
             return new \WP_REST_Response(
                 [ 'error' => 'Error writing notification to race JSON file.' ],
                 500
             );
-        } */
+        }
 
-        // Save the updated JSON data back to the file
-        rm_write_files( $race_id, $race_json, 0 ); // TEST $race_json / $encoded_json_data
+        // automatically adds the notifications to the JSON and updates the timestamp file, too
+        rm_write_files( $race_id, $race_data, 0 );
     }
-/*  for now we ignore the file writing if the file does not exist    
+    /*  for now we ignore the file writing if the file does not exist    
     else {
         // File does not exist, return an error response
         return new \WP_REST_Response(
