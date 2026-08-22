@@ -117,6 +117,7 @@ final class WP_RaceManager {
 
         // active on all pages
         require_once plugin_dir_path(__FILE__) . 'includes/vapid-handler.php'; // VAPID keys for Web Push (frontend needs the public key)
+        require_once plugin_dir_path(__FILE__) . 'includes/race-data-functions.php'; // helpers for the per-race JSON files (path/URL), used by REST and the viewers
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/ajax-subscription-handler.php'; // Handles all subscription-related AJAX requests for the RaceManager plugin.
         // active on every page

@@ -125,7 +125,7 @@ function rm_render_race_registrations() {
 
     // Process new registration submission.
     if ( isset($_POST['new_registration']) ) {
-        // (Optional: add nonce check here for security.)
+        check_admin_referer( 'rm_new_registration_' . $race_id );
         // Sanitize input fields from the new registration form.
         $pilot_name_1      = isset($_POST['pilot_name_1'])      ? sanitize_text_field($_POST['pilot_name_1'])      : '';
         $pilot_nickname_1  = isset($_POST['pilot_nickname_1'])  ? sanitize_text_field($_POST['pilot_nickname_1'])  : '';
@@ -169,16 +169,35 @@ function rm_render_race_registrations() {
     
     // Handle CSV download.
     if ( isset($_GET['action']) && $_GET['action'] === 'download_csv' ) {
+        check_admin_referer( 'rm_registrations_bulk_' . $race_id );
         rm_download_csv($race_id);
         exit;
     }
-    
+
     // Handle bulk deletion.
     if ( isset($_POST['bulk_delete']) && !empty($_POST['registration_ids']) ) {
-        $ids = array_map('absint', $_POST['registration_ids']);
-        $ids_placeholder = implode(',', $ids);
-        $wpdb->query("DELETE FROM $registrations_table WHERE id IN ($ids_placeholder)");
-        echo '<div class="updated"><p>' . __('Registrations deleted.', 'wp-racemanager') . '</p></div>';
+        check_admin_referer( 'rm_registrations_bulk_' . $race_id );
+
+        $ids = array_filter( array_map('absint', (array) $_POST['registration_ids']) );
+        if ( $ids ) {
+            // Scope the delete to this race. The capability check above only covers
+            // $race_id, so ids belonging to another race must not be deletable here.
+            $placeholders = implode( ',', array_fill( 0, count($ids), '%d' ) );
+            $deleted = $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM $registrations_table WHERE race_id = %d AND id IN ($placeholders)",
+                    array_merge( array($race_id), $ids )
+                )
+            );
+            printf(
+                '<div class="updated"><p>%s</p></div>',
+                esc_html( sprintf(
+                    /* translators: %d: number of deleted registrations */
+                    _n( '%d registration deleted.', '%d registrations deleted.', (int) $deleted, 'wp-racemanager' ),
+                    (int) $deleted
+                ) )
+            );
+        }
     }
     
     // Query the registrations for this race.
@@ -217,6 +236,7 @@ function rm_render_race_registrations() {
         <h1><?php echo sprintf( __('Registrations for Race: %s', 'wp-racemanager'), esc_html( get_the_title( $race_id ) ) ); ?></h1>        
         <!-- Registrations Table -->
         <form method="post">
+            <?php wp_nonce_field( 'rm_registrations_bulk_' . $race_id ); ?>
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
@@ -281,7 +301,7 @@ function rm_render_race_registrations() {
                     <td><input name="pilot_mail_1" type="email" id="pilot_mail_1" value="" class="regular-text"></td>
                 </tr>
             </table>
-            <?php // Optional: add wp_nonce_field('new_registration') for security ?>
+            <?php wp_nonce_field( 'rm_new_registration_' . $race_id ); ?>
             <p>
                 <input type="submit" name="new_registration" class="button-primary" value="<?php _e('Add Registration', 'wp-racemanager'); ?>">
             </p>
@@ -306,7 +326,8 @@ function rm_handle_csv_download() {
         if ( !$race_id || ! current_user_can('edit_post', $race_id) ) {
             wp_die(__('You are not allowed to access this page.', 'wp-racemanager'));
         }
-        $selected_ids = ( isset($_POST['registration_ids']) && is_array($_POST['registration_ids']) ) ? array_map('absint', $_POST['registration_ids']) : array();
+        check_admin_referer( 'rm_registrations_bulk_' . $race_id );
+        $selected_ids = ( isset($_POST['registration_ids']) && is_array($_POST['registration_ids']) ) ? array_filter( array_map('absint', $_POST['registration_ids']) ) : array();
         rm_download_csv($race_id, $selected_ids);
         exit;
     }
@@ -318,9 +339,14 @@ function rm_download_csv($race_id, $selected_ids = array()) {
     
     // If there are selected IDs, filter by those. Otherwise, get all rows for the race.
     if ( ! empty($selected_ids) ) {
-        $ids_placeholder = implode(',', $selected_ids);
-        $query = "SELECT * FROM $registrations_table WHERE id IN ($ids_placeholder) AND race_id = %d";
-        $results = $wpdb->get_results( $wpdb->prepare( $query, $race_id ), ARRAY_A );
+        $placeholders = implode( ',', array_fill( 0, count($selected_ids), '%d' ) );
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM $registrations_table WHERE race_id = %d AND id IN ($placeholders)",
+                array_merge( array($race_id), $selected_ids )
+            ),
+            ARRAY_A
+        );
     } else {
         $results = $wpdb->get_results( $wpdb->prepare("SELECT * FROM $registrations_table WHERE race_id = %d", $race_id), ARRAY_A );
     }

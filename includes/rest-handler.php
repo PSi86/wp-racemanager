@@ -271,7 +271,10 @@ function rm_find_or_create_race( $data ) {
             );
         }
         
-        rm_write_files( $race_id, $data );
+        $written = rm_write_files( $race_id, $data );
+        if ( is_wp_error( $written ) ) {
+            return $written;
+        }
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
 
         return [
@@ -283,7 +286,7 @@ function rm_find_or_create_race( $data ) {
     else {
         // Create new race post
         // Check if the current user is allowed to publish posts.
-        if ( ! current_user_can( 'publish_posts', $race_id ) ) {
+        if ( ! current_user_can( 'publish_posts' ) ) {
             return new WP_Error( 
                 'forbidden',
                 __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ), 
@@ -348,7 +351,13 @@ function rm_find_or_create_race( $data ) {
             );
         }
 
-        rm_write_files( $race_id, $data, 1 );
+        $written = rm_write_files( $race_id, $data, 1 );
+        if ( is_wp_error( $written ) ) {
+            // The post exists but carries no data, so it would show up empty in every
+            // listing. Remove it again and report the failure.
+            wp_delete_post( $race_id, true );
+            return $written;
+        }
 
         update_post_meta( $race_id, '_race_live', 1 );
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
@@ -404,11 +413,12 @@ function rm_write_files( $race_id, $json_data, $create_wp_attachment = 0 ) {
     // Write the timestamp and data to a file
     $timestamp = current_time('mysql');
 
-    //$upload_dir  = wp_upload_dir(); 
-    //$upload_path = $upload_dir['path']; // e.g. wp-content/uploads/2025/01
-    //$upload_path = $upload_dir['basedir'] . '/races'; // e.g. /var/www/html/wp-content/uploads/races
-    $upload_path = WP_CONTENT_DIR . '/uploads/races/';
-    //$filename_timestamp = trailingslashit( $upload_path ) . $race_id . '-timestamp.json';
+    // Resolves through wp_upload_dir() and creates the directory if it is missing.
+    $upload_path = rm_get_race_data_dir();
+    if ( is_wp_error( $upload_path ) ) {
+        return $upload_path;
+    }
+
     $filename_timestamp = $upload_path . $race_id . '-timestamp.json';
     $filename_data = $upload_path . $race_id . '-data.json';
 
@@ -601,8 +611,10 @@ function handle_notification_request( \WP_REST_Request $request ) {
     update_post_meta( $race_id, $meta_key, $race_log );
 
     // load the existing json file
-    $upload_path = WP_CONTENT_DIR . '/uploads/races/';
-    //$filename_timestamp = trailingslashit( $upload_path ) . $race_id . '-timestamp.json';
+    $upload_path = rm_get_race_data_dir( false );
+    if ( is_wp_error( $upload_path ) ) {
+        return new \WP_REST_Response( [ 'error' => $upload_path->get_error_message() ], 500 );
+    }
     $filename = $upload_path . $race_id . '-data.json';
 
     if ( file_exists( $filename ) ) {

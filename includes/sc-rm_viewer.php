@@ -55,10 +55,14 @@ function rm_shortcode_handler($atts) {
     $race_live = get_post_meta( $race_id, '_race_live', true );
 
     // For now it is ok to build the file names of data and timestamp purely from the post ID
-    $upload_path_local = WP_CONTENT_DIR . '/uploads/races/';
+    // Same helpers the REST upload writes through, so reader and writer cannot disagree
+    // about where the files live.
+    $upload_path_local = rm_get_race_data_dir( false );
+    if ( is_wp_error( $upload_path_local ) ) {
+        return '<p>No JSON files found for this Race.</p>';
+    }
 
-    $upload_dir = wp_upload_dir();
-    $upload_path_url = trailingslashit( $upload_dir['baseurl'] ) . 'races/';
+    $upload_path_url = rm_get_race_data_url();
 
     $filename_timestamp = $race_id . '-timestamp.json';
     $filename_data = $race_id . '-data.json';
