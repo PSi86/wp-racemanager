@@ -33,9 +33,14 @@ function rm_activate() {
             array( 'back_link' => true )
         );
     }
-    // Create the database table for PWA subscriptions    
+    // Create the database table for PWA subscriptions
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
     \RaceManager\PWA_Subscription_Handler::create_db_table();
+
+    // Generate the VAPID key pair for Web Push, unless keys are already configured
+    // or subscriptions exist that new keys would invalidate.
+    require_once plugin_dir_path(__FILE__) . 'includes/vapid-handler.php';
+    rm_maybe_bootstrap_vapid_keys();
 
     // Create Registration Table
     require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php';
@@ -111,6 +116,7 @@ final class WP_RaceManager {
         include_once plugin_dir_path(__FILE__) . 'includes/settings-handler.php';
 
         // active on all pages
+        require_once plugin_dir_path(__FILE__) . 'includes/vapid-handler.php'; // VAPID keys for Web Push (frontend needs the public key)
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/ajax-subscription-handler.php'; // Handles all subscription-related AJAX requests for the RaceManager plugin.
         // active on every page

@@ -37,6 +37,20 @@ export class PushSubscription {
     }
 
     initialize() {
+        // The subscribe UI is optional. Bail out quietly when it is not on the page,
+        // otherwise this module throws and takes the whole nextup page's JS with it.
+        if (!this.subscribeButton || !this.pilotSelect) {
+            return;
+        }
+
+        // Without a public VAPID key the browser cannot subscribe at all, so say so
+        // instead of offering a button that is guaranteed to fail.
+        if (!this.publicVapid) {
+            this.subscribeButton.disabled = true;
+            this.setSubscriptionStatus('Push notifications are not configured on this site.');
+            return;
+        }
+
         // Disable the subscribe button until the service worker is ready.
         this.subscribeButton.disabled = true;
         this.pilotSelect.addEventListener('change', this.checkSubscriptionState.bind(this));

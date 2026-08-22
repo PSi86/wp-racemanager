@@ -335,7 +335,7 @@ function rm_nextup_shortcode( $atts ) {
         'pushSubscription' => [
             'ajaxUrl'              => admin_url( 'admin-ajax.php' ),
             'nonce'                => $nonce,
-            'publicVapid'          => '', // Insert public VAPID key here
+            'publicVapid'          => rm_get_vapid()['publicKey'], // From wp-config.php constants or the 'rm_vapid' option
             'formId'               => 'pilot-push-form',
             'subscribeButtonId'    => 'subscribe-button',
             'subscriptionStatusId' => 'subscription-status',
