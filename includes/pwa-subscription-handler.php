@@ -1,26 +1,41 @@
 <?php
 namespace RaceManager;
-require_once __DIR__ . '/../../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
-//require_once dirname(ABSPATH) . '/../vendor/autoload.php';
-//require_once '/var/www/vhosts/wherever-we-are.com/httpdocs/vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
+
+defined( 'ABSPATH' ) || exit;
+
+// The Composer autoloader is located and required by rm_push_library_available(),
+// which probes several known vendor locations instead of assuming a fixed relative
+// path. Loading it here unconditionally used to fatal whenever the installation
+// layout differed.
+require_once __DIR__ . '/vapid-handler.php';
+rm_push_library_available();
 
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
-defined( 'ABSPATH' ) || exit;
-
 class PWA_Subscription_Handler {
-
-    // VAPID authentication details – replace these with your own keys and contact
-    private $vapid = [
-        'subject' => 'mailto:',  // Can be a mailto: or your website address
-        'publicKey' => '',  // Replace with your public key
-        'privateKey' => '' // Replace with your private key
-    ];
 
     public function __construct() {
         //add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
         //$this->register_ajax_handlers();
+    }
+
+    /**
+     * VAPID credentials for the WebPush client.
+     *
+     * Read at call time from the constants or the 'rm_vapid' option, so rotating the
+     * key pair never requires a code change. See includes/vapid-handler.php.
+     *
+     * @return array{subject: string, publicKey: string, privateKey: string}
+     */
+    private function get_vapid() {
+        $vapid = rm_get_vapid();
+
+        return [
+            'subject'    => $vapid['subject'],
+            'publicKey'  => $vapid['publicKey'],
+            'privateKey' => $vapid['privateKey'],
+        ];
     }
 
     /**
@@ -71,8 +86,13 @@ class PWA_Subscription_Handler {
             return false;
         }
 
+        if ( ! rm_push_available() ) {
+            WP_RaceManager::write_log( 'Push notification skipped: no VAPID keys or web-push library missing.' );
+            return false;
+        }
+
         // Holy shit! This cost a whole day. was: $webPush = new WebPush($vapid);
-        $webPush = new WebPush(['VAPID' => $this->vapid]); // $auth is your server/VAPID keys
+        $webPush = new WebPush( [ 'VAPID' => $this->get_vapid() ] );
 
         foreach ( $subscriptions as $sub ) {
             $subscription = Subscription::create([
@@ -122,7 +142,12 @@ class PWA_Subscription_Handler {
             return false;
         }
 
-        $webPush = new WebPush( [ 'VAPID' => $this->vapid ] );
+        if ( ! rm_push_available() ) {
+            WP_RaceManager::write_log( 'Push notification skipped: no VAPID keys or web-push library missing.' );
+            return false;
+        }
+
+        $webPush = new WebPush( [ 'VAPID' => $this->get_vapid() ] );
         $subscription = Subscription::create( [
             'endpoint'  => $endpoint,
             'publicKey' => $p256dh,
@@ -192,7 +217,12 @@ class PWA_Subscription_Handler {
             return false; // return true? TODO: test this
         }
 
-        $webPush = new WebPush(['VAPID' => $this->vapid]); // $auth is your server/VAPID keys
+        if ( ! rm_push_available() ) {
+            WP_RaceManager::write_log( 'Push notification skipped: no VAPID keys or web-push library missing.' );
+            return false;
+        }
+
+        $webPush = new WebPush( [ 'VAPID' => $this->get_vapid() ] );
 
         $notifiedPilotIds = array();
 
