@@ -1,8 +1,10 @@
 <?php
 // includes/livepage-handler.php
-// Live Microsite Session & URL Rewrite
-// Uses PHP sessions to persist a selected race post ID and rewrites all /live/ page URLs to include the race_id parameter.
-// Starts a session (only for /live pages) and appends the race_id from the session to all links in the /live hierarchy.
+// Shortcodes for the live micro-site and the JS module configuration they need.
+//
+// The selected race comes from the URL, resolved by includes/live-routing.php. There is no
+// server-side session: rm_get_current_race_id() reads the race segment of the path (or a
+// legacy ?race_id parameter, which is redirected to the canonical URL).
 //
 // JS Documentation:
 // - All JS Modules are named with the 'rm-m-' prefix, e.g. 'rm-m-pilotSelector'.
@@ -41,78 +43,6 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 $rm_js_config = null; // Global variable to store the JS configuration object
 
 /**
- * Start a PHP session if one isn't already active.
- */
-function rm_start_session() {
-    if ( !session_id() ) {
-        session_start();
-    }
-}
-
-//add_action( 'template_redirect', 'rm_start_session', 1 ); // Load a bit later, so the "rm_is_live_page" function can be used
-
-/**
- * Helper function to retrieve the current race post ID.
- * It checks the URL first and then the session.
- *
- * @return int|false The race ID, or false if not set.
- */
-function rm_get_current_race_id() {
-    // TODO: make more universal by also checking current post type to be a cpt "race", then the post ID is the race_id
-    // TODO: add a check for shortcode attributes to override the race_id
-    if ( ! empty( $_GET['race_id'] ) ) {
-        $race_id = absint( $_GET['race_id'] );
-        $_SESSION['live_race_id'] = $race_id; // Store in session for future requests
-        return absint( $race_id );
-    } elseif ( ! empty( $_SESSION['live_race_id'] ) ) {
-        return absint( $_SESSION['live_race_id'] );
-    }
-    return false;
-}
-
-/**
- * Rewrite all page accesses inside the /live/ hierarchy by appending the race_id parameter.
- * This ensures that the URL is shareable and always includes the race selection.
- */
-function rm_rewrite_live_urls() {
-    // Only run on the frontend.
-    if ( is_admin() ) {
-        return;
-    }
-
-    // Check if the current URL is part of the /live/ hierarchy.
-    $request_uri = $_SERVER['REQUEST_URI'];
-    $rm_live_page_id = get_option('rm_live_page_id'); // id of the live site landing page
-
-    // If the race_id parameter is missing...
-    $race_id = rm_get_current_race_id();
-    if ( $race_id ) {
-        // Build the current full URL with the race_id parameter appended.
-        $redirect_url = add_query_arg( 'race_id', $race_id, $request_uri );
-        // Avoid potential redirect loops.
-        if ( $request_uri !== $redirect_url ) {
-            wp_redirect( $redirect_url );
-            exit;
-        }
-    }
-    elseif ( $rm_live_page_id && ! is_page( $rm_live_page_id ) ) {
-        // no race_id found in the session and no race_id in the URL and not already on the landing page
-        $redirect_url = home_url( '/live/' );
-        // Avoid potential redirect loops.
-        if ( $request_uri !== $redirect_url ) {
-            // Redirect to the landing page
-            wp_redirect( $redirect_url );
-            exit;
-        }
-        // Redirect to the landing page
-        //wp_redirect( home_url( '/live/' ) );
-        //exit;
-    }
-    
-}
-//add_action( 'template_redirect', 'rm_rewrite_live_urls', 2 );
-
-/**
  * Shortcode to display pilots data.
  * Usage: [rm_pilots]
  */
@@ -120,7 +50,7 @@ function rm_pilots_shortcode( $atts ) {
     $race_id = rm_get_current_race_id();
 
     if ( ! $race_id ) {
-        return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
+        return '<p>No race selected. Please go back to the <a href="' . esc_url( rm_live_selection_url() ) . '">Race Selection</a> page.</p>';
     }
 
     wp_enqueue_style(
@@ -181,7 +111,7 @@ function rm_bracket_shortcode( $atts ) {
     $race_id = rm_get_current_race_id();
 
     if ( ! $race_id ) {
-        return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
+        return '<p>No race selected. Please go back to the <a href="' . esc_url( rm_live_selection_url() ) . '">Race Selection</a> page.</p>';
     }
 
     // Enqueue custom CSS and JS
@@ -248,7 +178,7 @@ function rm_stats_shortcode( $atts ) {
     $race_id = rm_get_current_race_id();
 
     if ( ! $race_id ) {
-        return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
+        return '<p>No race selected. Please go back to the <a href="' . esc_url( rm_live_selection_url() ) . '">Race Selection</a> page.</p>';
     }
 
     wp_enqueue_style(
@@ -300,7 +230,7 @@ function rm_nextup_shortcode( $atts ) {
     $race_id = rm_get_current_race_id();
 
     if ( ! $race_id ) {
-        return '<p>No race selected. Please go back to the <a href="' . esc_url( home_url( '/live/' ) ) . '">Race Selection</a> page.</p>';
+        return '<p>No race selected. Please go back to the <a href="' . esc_url( rm_live_selection_url() ) . '">Race Selection</a> page.</p>';
     }
 
     // TODO: centralize the meta queries for live pages and make them available as global variables

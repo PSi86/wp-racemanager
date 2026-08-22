@@ -53,8 +53,11 @@ function rm_render_race_select_block( $attributes, $content ) {
         // Convert the MySQL timestamp to a Unix timestamp
         $upload_timestamp = strtotime( $last_upload );
         
-        // Build a custom URL with a "race_id" parameter. Adjust the target page as needed.
-        $custom_link = site_url( '/live/bracket/?race_id=' . $race_id );
+        // Canonical live URL for this race, e.g. /live/spring-cup-2026/bracket/
+        $custom_link = rm_live_url( get_post( $race_id ) );
+        if ( ! $custom_link ) {
+            continue; // No live page configured, so there is nothing to link to.
+        }
         $output .= '<li><a href="' . esc_url( $custom_link ) . '">';
         
         // TODO: use css stylesheet instead of inline style

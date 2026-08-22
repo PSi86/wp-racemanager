@@ -23,9 +23,9 @@ function rm_render_race_date_block( $attributes, $content ) {
     if ( get_post_type( get_the_ID() ) === 'race' ) {
         $race_id = get_the_ID();
     }
-    // Otherwise, check if a race_id is provided in the URL.
-    elseif ( isset( $_GET['race_id'] ) && ! empty( $_GET['race_id'] ) ) {
-        $race_id = absint( $_GET['race_id'] );
+    // Otherwise take the race the current live URL points at.
+    else {
+        $race_id = rm_get_current_race_id();
     }
 
     // If no valid race_id is found, return empty.

@@ -23,9 +23,9 @@ function rm_shortcode_handler($atts) {
     if ( ! empty( $atts['race_id'] ) ) {
         // Use the race_id provided in the shortcode
         $race_id = $atts['race_id'];
-    } elseif ( isset( $_GET['race_id'] ) && ! empty( $_GET['race_id'] ) ) {
-        // Use the race_id from the URL parameter, sanitizing the input for security
-        $race_id = sanitize_text_field( $_GET['race_id'] );
+    } elseif ( rm_get_current_race_id() ) {
+        // Race from the live URL path, or from a legacy ?race_id parameter
+        $race_id = rm_get_current_race_id();
     } else {
         // Fallback to the current post ID
         //global $post;
