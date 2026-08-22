@@ -135,9 +135,8 @@ function rm_pilots_shortcode( $atts ) {
     wp_register_script_module(
         'rm-pilot-stats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayPilotStats.js',
-        ['jquery'], // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
-        '1.0.3',
-        true
+        array(), // no dependency needed here, as dynamic imports are handled in the module itself
+        '1.0.3'
     );
 
     // Load dataLoader, pilotSelector, pushSubscription
@@ -202,9 +201,8 @@ function rm_bracket_shortcode( $atts ) {
     wp_register_script_module(
         'rm-displayHeats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayHeats.js',
-        array(), // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
-        '1.0.3',
-        true
+        array(), // no dependency needed here, as dynamic imports are handled in the module itself
+        '1.0.3'
     );
 
     global $rm_js_config;
@@ -260,9 +258,8 @@ function rm_stats_shortcode( $atts ) {
     wp_register_script_module(
         'rm-stats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayStats.js',
-        ['jquery'], // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
-        '1.0.3',
-        true
+        array(), // no dependency needed here, as dynamic imports are handled in the module itself
+        '1.0.3'
     );
 
     // Load dataLoader, pilotSelector, pushSubscription
@@ -321,9 +318,8 @@ function rm_nextup_shortcode( $atts ) {
     wp_register_script_module(
         'rm-nextUp',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayNextUp.js',
-        array(), // ['jquery'] // no dependency needed here, as dynamic imports are handled in main.js
-        '1.0.3',
-        true
+        array(), // no dependency needed here, as dynamic imports are handled in the module itself
+        '1.0.3'
     );
 
     // Generate a nonce using the wp_rest action (the default for REST API endpoints)
