@@ -157,13 +157,25 @@ add_filter( 'query_vars', 'rm_live_query_vars' );
  * @return void
  */
 function rm_live_rewrite_rules() {
-    $path = rm_live_path();
-    if ( '' === $path ) {
+    $path  = rm_live_path();
+    $views = rm_get_live_view_slugs();
+
+    if ( '' === $path || ! $views ) {
         return;
     }
 
+    /*
+     * The second segment is an alternation of the actual view slugs rather than a generic
+     * [^/]+. A generic pattern also swallows URLs that have nothing to do with a race:
+     * /live/page/2/ (the selection page's own pagination) would resolve to
+     * pagename=live/2&rm_race=page and 404, and /live/{race}/feed/ would break feeds.
+     */
+    $view_pattern = implode( '|', array_map( static function ( $view ) {
+        return preg_quote( $view, '#' );
+    }, $views ) );
+
     add_rewrite_rule(
-        preg_quote( $path, '#' ) . '/([^/]+)/([^/]+)/?$',
+        preg_quote( $path, '#' ) . '/([^/]+)/(' . $view_pattern . ')/?$',
         'index.php?pagename=' . $path . '/$matches[2]&rm_race=$matches[1]',
         'top'
     );
@@ -485,10 +497,11 @@ function rm_live_canonical_redirect() {
 
     // 3. A numeric race segment, e.g. /live/182/bracket/ -- redirect to the slug form.
     $slug = get_query_var( 'rm_race' );
-    if ( '' !== $slug && is_numeric( $slug ) ) {
+    $view = rm_current_view_slug();
+    if ( '' !== $slug && '' !== $view && is_numeric( $slug ) ) {
         $race = rm_resolve_race( $slug );
         if ( $race ) {
-            $target = rm_live_url( $race, rm_current_view_slug() );
+            $target = rm_live_url( $race, $view );
             if ( $target ) {
                 wp_safe_redirect( $target, 301 );
                 exit;
@@ -561,11 +574,29 @@ function rm_rewrite_live_links( $block_content ) {
         $href = $processor->get_attribute( 'href' );
         $view = rm_match_live_view( $href );
 
-        if ( null === $view || '' === $view ) {
-            continue; // Not a view link, or the landing page, which must stay race-free.
+        if ( null === $view ) {
+            continue; // Not a link into the live area.
         }
 
-        $target = rm_live_url( $race, $view );
+        if ( '' === $view ) {
+            /**
+             * Filters whether links back to the race selection carry the current race.
+             *
+             * The selection page uses it to mark the active race. Note this deliberately uses
+             * rm_race and not race_id: the latter would trigger the legacy redirect and bounce
+             * the visitor straight back out of the selection page.
+             *
+             * @param bool    $carry Whether to append the race. Default true.
+             * @param WP_Post $race  The current race.
+             */
+            if ( ! apply_filters( 'rm_selection_link_carries_race', true, $race ) ) {
+                continue;
+            }
+            $target = add_query_arg( 'rm_race', $race->post_name, rm_live_selection_url() );
+        } else {
+            $target = rm_live_url( $race, $view );
+        }
+
         if ( $target && $target !== $href ) {
             $processor->set_attribute( 'href', $target );
             $changed = true;
@@ -575,6 +606,8 @@ function rm_rewrite_live_links( $block_content ) {
     return $changed ? $processor->get_updated_html() : $block_content;
 }
 add_filter( 'render_block', 'rm_rewrite_live_links' );
+// Classic menus never pass through render_block, so cover wp_nav_menu() as well.
+add_filter( 'wp_nav_menu', 'rm_rewrite_live_links' );
 
 /**
  * Remember the current race client-side and honour the PWA's ?resume=1 start URL.

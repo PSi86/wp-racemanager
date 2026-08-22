@@ -58,7 +58,12 @@ function rm_render_race_select_block( $attributes, $content ) {
         if ( ! $custom_link ) {
             continue; // No live page configured, so there is nothing to link to.
         }
-        $output .= '<li><a href="' . esc_url( $custom_link ) . '">';
+
+        // Links back to this page carry the race the visitor came from, so it can be marked.
+        $is_current = ( $race_id === rm_get_current_race_id() );
+
+        $output .= '<li class="race-select-item' . ( $is_current ? ' is-current' : '' ) . '">';
+        $output .= '<a href="' . esc_url( $custom_link ) . '"' . ( $is_current ? ' aria-current="true"' : '' ) . '>';
         
         // TODO: use css stylesheet instead of inline style
         //$output .=  $race_live ? '<span style="color: red;">Live: </span>' : '';
