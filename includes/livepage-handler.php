@@ -382,8 +382,7 @@ function rm_print_js_module_config() {
     }
 
     $race_id = rm_get_current_race_id();
-    $upload_dir = wp_upload_dir();
-    $upload_path_url = trailingslashit( $upload_dir['baseurl'] ) . 'races/';
+    $upload_path_url = rm_get_race_data_url();
 
     $filename_timestamp = $race_id . '-timestamp.json';
     $filename_data = $race_id . '-data.json';

@@ -6,6 +6,50 @@
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 /**
+ * Absolute path of the directory holding the per-race JSON files.
+ *
+ * Derived from wp_upload_dir() rather than WP_CONTENT_DIR so that a custom UPLOADS
+ * constant or a filtered upload path is honoured, and created on demand: nothing
+ * else ever created it, so the very first upload on a fresh install failed.
+ *
+ * @param bool $create Whether to create the directory if it is missing.
+ * @return string|WP_Error Trailing-slashed path, or WP_Error if it cannot be created.
+ */
+function rm_get_race_data_dir( $create = true ) {
+    $upload_dir = wp_upload_dir();
+
+    if ( ! empty( $upload_dir['error'] ) ) {
+        return new WP_Error(
+            'upload_dir_unavailable',
+            sprintf( 'Uploads directory is not available: %s', $upload_dir['error'] ),
+            array( 'status' => 500 )
+        );
+    }
+
+    $path = trailingslashit( $upload_dir['basedir'] ) . 'races/';
+
+    if ( $create && ! is_dir( $path ) && ! wp_mkdir_p( $path ) ) {
+        return new WP_Error(
+            'upload_dir_not_writable',
+            sprintf( 'Could not create the race data directory: %s', $path ),
+            array( 'status' => 500 )
+        );
+    }
+
+    return $path;
+}
+
+/**
+ * Public URL of the directory holding the per-race JSON files.
+ *
+ * @return string Trailing-slashed URL.
+ */
+function rm_get_race_data_url() {
+    $upload_dir = wp_upload_dir();
+    return trailingslashit( $upload_dir['baseurl'] ) . 'races/';
+}
+
+/**
  * Returns an array of pilots scheduled to race in the next three heats.
  * Each entry is an associative array with keys:
  *   - heat_id
