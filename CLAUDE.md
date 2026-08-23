@@ -15,7 +15,7 @@ js/                       Frontend. rm-m-*.js are ES modules for the live pages
 css/, img/, assets/       Styles, PWA icons, bundled Swiper
 templates/                Templates for the generated manifest.json and pwa-sw.js
 tests/                    Plain-PHP test suites — see tests/README.md
-bin/                      build-plugin-zip.sh — the deployable artifact
+bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.sh (local site check)
 ```
 
 `.gitattributes` decides what ships: everything development-only is `export-ignore`d, so

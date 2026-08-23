@@ -149,13 +149,18 @@ dates, archived races, long heat lists) only exist in real data.
 ddev import-db --file=~/Downloads/prod.sql.gz
 ddev import-files --source=~/Downloads/uploads
 
+# Ask the imported database what production calls itself rather than guessing
+# between https://copterrace.com and https://www.copterrace.com
+PROD_URL="$(ddev wp option get siteurl)"
+LOCAL_URL="$(ddev exec printenv DDEV_PRIMARY_URL)"
+
 # Rewrites URLs inside serialized data too - never do this with a plain SQL find/replace
-ddev wp search-replace 'https://www.your-production-domain.tld' "$(ddev exec printenv DDEV_PRIMARY_URL)" --all-tables --precise
+ddev wp search-replace "$PROD_URL" "$LOCAL_URL" --all-tables --precise
 ddev wp cache flush
 ddev wp rewrite flush
 ```
 
-Three things to do immediately after an import, in this order:
+Four things to do immediately after an import, in this order:
 
 1. **Neutralise push.** The import brings the production `rm_vapid` option *and* the live
    subscriptions from `{prefix}rm_subscriptions` with it. A test notification sent from your
@@ -165,17 +170,107 @@ Three things to do immediately after an import, in this order:
 2. **Re-save permalinks**, because the imported `rm_live_routing` option was built for the
    production page IDs.
 3. **Check Settings → RaceManager**, in particular that the Live page is still the right one.
+4. **Run `bin/dev-doctor.sh`** — section 6 — which reports everything the import cannot bring with
+   it: a missing theme, plugins that are active in the database but absent from disk, a PHP version
+   that is older than production's.
 
 Going the other way — pushing local data up — is not part of any workflow here. Production data
 flows down only.
 
 ---
 
-## 6 · The daily loop
+## 6 · Making the copy behave like production
+
+A database import brings the pages, the races, the options and the Contact Form 7 forms. What it
+does **not** bring is the code around them — the theme, the other plugins, the PHP version. Those
+are what decide whether a bug reproduces locally.
+
+### The table prefix has to match — before the import
+
+DDEV creates the site with the prefix `wp_`. If production uses a different one, the imported
+tables are simply invisible to WordPress and you get a fresh install screen. Read the prefix out of
+the dump before importing:
+
+```bash
+grep -m1 -o 'CREATE TABLE `[a-z0-9_]*options`' prod.sql
+ddev wp config set table_prefix 'thatprefix_' --type=variable
+```
+
+### Same theme, same plugins
+
+After importing, the database says what production runs; the filesystem may not have it:
+
+```bash
+ddev wp option get template          # parent theme folder
+ddev wp option get stylesheet        # active (child) theme folder
+ddev wp option get active_plugins --format=json
+```
+
+`bin/dev-doctor.sh` does that comparison for you, together with the checks below:
+
+```bash
+bin/dev-doctor.sh              # report only
+bin/dev-doctor.sh --install    # also pull missing themes/plugins from wordpress.org
+```
+
+Anything it cannot fetch from wordpress.org — premium plugins, a custom child theme — has to be
+copied out of `wp-content/plugins/` and `wp-content/themes/` on production via SFTP. That is a
+one-time copy; afterwards `git pull` on this plugin is all that changes.
+
+### The theme must be a block theme
+
+Not a preference — a dependency. `rm_print_js_module_config()` is hooked to `wp_head` from *inside*
+the live shortcodes, which only works because a block theme renders the template before `wp_head()`
+runs (finding **B3** in [`wordpress-update-audit.md`](wordpress-update-audit.md)). Under a classic
+theme the live pages lose their JavaScript configuration and fail in a way production never shows.
+Use production's own theme if you can get it, otherwise any block theme, e.g. Twenty Twenty-Five.
+
+### HTTPS is part of the test
+
+DDEV serves `https://<project>.ddev.site` with a locally trusted certificate. Keep it: service
+workers, the PWA install prompt and `PushManager.subscribe()` all require a secure context, so on
+plain HTTP you cannot test the half of this plugin that matters most.
+
+### Match the PHP version
+
+Read production's from **Tools → Site Health → Info → Server**, then set the same in
+`.ddev/config.yaml` (`php_version: "8.3"`) and `ddev restart`. A plugin that works on 8.3 locally
+and dies on the host's 8.1 is exactly the class of bug this environment exists to catch.
+
+### What should deliberately *not* match
+
+- **The VAPID keys.** Generate a separate pair locally. Sharing production's means a local mistake
+  can reach real subscribers' devices.
+- **The push subscriptions.** They come with the database import and point at real phones. Clear
+  `{prefix}rm_subscriptions` before testing notifications — `dev-doctor.sh` warns when the table is
+  not empty.
+- **Outgoing mail.** DDEV captures everything in Mailpit (`ddev launch -m`), so the CF7
+  confirmation mails stay local.
+
+### Reading production's structure without a database dump
+
+Everything the live area's routing depends on is public, so you can check the local copy against it
+from a browser:
+
+| URL (production is `https://copterrace.com`) | What it tells you |
+|---|---|
+| `/manifest.json` | The PWA `scope` and `start_url` — i.e. the live page's real path. |
+| `/pwa-sw.js` | The generated service worker, with the same values. |
+| `/wp-json/wp/v2/pages?per_page=100&_fields=id,parent,slug,link,menu_order` | The full page tree. The children of the live page **are** the view slugs, in the order the rewrite rule uses. |
+| `/wp-json/` | The registered REST namespaces — `rm/v1` plus whatever other plugins expose. |
+| `/wp-sitemap.xml` | Every public URL, useful for spotting what else lives under `/live/`. |
+| page source, `/wp-content/themes/<slug>/` in the asset URLs | The theme folder name. |
+
+Recreate the same slugs locally and the URLs under test are identical to production's, which is
+what makes a redirect or a navigation bug reproducible at all.
+
+## 7 · The daily loop
 
 ```bash
 ddev start                 # boots the site
 ddev launch                # opens it in a browser
+
+bin/dev-doctor.sh          # is the local site still shaped like production?
 
 php tests/run.php          # the whole suite, no Docker needed
 php tests/run.php live     # only the live-routing / live-links / live-shortcodes suites
@@ -207,7 +302,7 @@ Useful DDEV commands for this plugin specifically:
 
 ---
 
-## 7 · VS Code and Claude Code
+## 8 · VS Code and Claude Code
 
 Open **the plugin folder** (`wp-content/plugins/wp-racemanager`) as the workspace root, not the
 WordPress root. `CLAUDE.md`, `docs/` and `tests/` sit there, and Claude Code picks up `CLAUDE.md`
@@ -227,7 +322,7 @@ the Dev Containers extension against `.ddev/`.
 
 ---
 
-## 8 · Testing what a real timer would send
+## 9 · Testing what a real timer would send
 
 RotorHazard talks to three REST endpoints, all of which require an authenticated WordPress user:
 
@@ -252,7 +347,7 @@ timer sent.
 
 ---
 
-## 9 · Alternatives to DDEV
+## 10 · Alternatives to DDEV
 
 | | Verdict |
 |---|---|
