@@ -196,6 +196,18 @@ Do these four in order, then work through
    - the VAPID public key matches the one you wrote down in section 3. If the site lost its keys,
      paste the saved pair into the *Import existing keys* field — do **not** generate new ones
      while subscriptions exist.
+
+   On production the better home for the pair is `wp-config.php`, which keeps the private key out
+   of the database and out of every database export:
+
+   ```php
+   define( 'RM_VAPID_PUBLIC_KEY',  '…' );
+   define( 'RM_VAPID_PRIVATE_KEY', '…' );
+   define( 'RM_VAPID_SUBJECT',     'mailto:you@example.com' );
+   ```
+
+   The constants take precedence over the stored option, and the settings page then shows the keys
+   as read-only.
 3. **Event dates.** Run the dry run on the settings page and read the numbers before migrating.
    It reports what it would rewrite and lists anything it cannot parse. Take a database snapshot
    first if the host makes that cheap.

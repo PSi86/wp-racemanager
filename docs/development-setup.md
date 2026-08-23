@@ -14,7 +14,7 @@ Everything here is done once. Afterwards the daily loop is `ddev start`, edit, `
 | | Why |
 |---|---|
 | **Docker** — Docker Desktop, OrbStack or Colima | DDEV runs the site in containers. Nothing is installed into your system PHP. |
-| **DDEV** ≥ 1.24 | `brew install ddev/ddev/ddev` (macOS), `winget install DDEV.DDEV` (Windows, inside WSL2), or see the [DDEV install docs](https://ddev.readthedocs.io/en/stable/users/install/ddev-installation/). |
+| **DDEV**, a current release | `brew install ddev/ddev/ddev` (macOS), `winget install DDEV.DDEV` (Windows, with WSL2), or see the [installation docs](https://docs.ddev.com/en/stable/users/install/ddev-installation/). |
 | **Git** | You already have it. |
 | **Node 20+ and npm** | Only for `npm run build` (the `race-gallery` block). Runs on the host, not in the container. |
 | **VS Code** with the Claude Code extension | The editor side. |
@@ -126,8 +126,10 @@ Worth knowing while testing:
 Finally, open **Settings → RaceManager**:
 
 - confirm the Live page is selected,
-- generate a VAPID key pair (the button appears once the Composer dependencies are installed).
-  On a fresh install with no subscriptions this already happened during activation.
+- check that the push status does not say *"the minishlink/web-push library could not be found"* — if it
+  does, the `composer install` above did not reach the plugin folder,
+- check that a VAPID key pair exists. On a fresh install with no subscriptions the activation hook has
+  already generated one; otherwise use the *Generate key pair* button below the form.
 
 ---
 
@@ -158,8 +160,8 @@ Three things to do immediately after an import, in this order:
 1. **Neutralise push.** The import brings the production `rm_vapid` option *and* the live
    subscriptions from `{prefix}rm_subscriptions` with it. A test notification sent from your
    laptop would land on real pilots' phones. Either empty the table
-   (`ddev wp db query "TRUNCATE TABLE wp_rm_subscriptions;"`) or subscribe only from your own
-   browser after clearing it.
+   (`ddev wp db query "TRUNCATE TABLE $(ddev wp config get table_prefix)rm_subscriptions;"`) or
+   subscribe only from your own browser after clearing it.
 2. **Re-save permalinks**, because the imported `rm_live_routing` option was built for the
    production page IDs.
 3. **Check Settings → RaceManager**, in particular that the Live page is still the right one.
@@ -184,7 +186,8 @@ npm run build              # blocks-src/ -> blocks/
 npm run start              # watch mode while working on the race-gallery block
 ```
 
-If PHP on the host is older than 8.1, run the tests in the container instead:
+No PHP on the host, or an older one than the container runs? Run the suites inside DDEV instead —
+the `vapid` suite exercises the real push library and therefore needs PHP 8.2 like the plugin does:
 
 ```bash
 ddev exec -d /var/www/html/wp-content/plugins/wp-racemanager php tests/run.php
