@@ -1,0 +1,121 @@
+# WP RaceManager
+
+WordPress plugin that connects a [RotorHazard](https://github.com/RotorHazard/RotorHazard) FPV
+race timer to a WordPress site. RotorHazard uploads race data over REST; the plugin stores it,
+renders live results, and pushes notifications to pilots. The live area is installable as a PWA.
+
+## Layout
+
+```
+wp-racemanager.php        Plugin bootstrap, singleton, activation hook
+includes/                 All PHP. One concern per file, loaded from the bootstrap
+blocks/                   Built Gutenberg blocks (block.json + index.js per block)
+blocks-src/               Source for the blocks built with wp-scripts (only race-gallery so far)
+js/                       Frontend. rm-m-*.js are ES modules for the live pages
+css/, img/, assets/       Styles, PWA icons, bundled Swiper
+templates/                Templates for the generated manifest.json and pwa-sw.js
+tests/                    Plain-PHP test suites — see tests/README.md
+```
+
+### The pieces that matter most
+
+| File | What it owns |
+|---|---|
+| `includes/live-routing.php` | The live micro-site's URLs. Resolves the selected race from the path, builds canonical URLs, rewrites navigation links, handles legacy redirects. Start here for anything about `/live/`. |
+| `includes/livepage-handler.php` | The four live-page shortcodes and the JS module configuration they emit. |
+| `includes/rest-handler.php` | The REST endpoints RotorHazard talks to. |
+| `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
+| `includes/cpt-handler.php` | The `race` custom post type and its meta. |
+| `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. |
+
+## How the live area works
+
+The selected race lives **in the URL path**, never in server state:
+
+```
+/live/                        race selection
+/live/{race-slug}/{view}/     a race in one of the views
+/live/{race-slug}/            301 to the default view
+/live/{view}/                 valid; renders "no race selected"
+```
+
+`{view}` is the slug of any child page of the configured live page, so the view pages stay
+ordinary editable WordPress pages. One rewrite rule maps the two-segment form onto the view
+page plus an `rm_race` query var.
+
+Consequences worth keeping in mind when changing this:
+
+- **The rewrite rule's second segment is an alternation of the actual view slugs**, not a
+  generic `[^/]+`. A generic pattern also swallows `/live/page/2/` and `/live/{race}/feed/`.
+- **Navigation links are rewritten at render time** (`rm_rewrite_live_links`, on both
+  `render_block` and `wp_nav_menu`) so every item carries the current race. The link back to
+  the selection page carries `?rm_race={slug}` as a marker — never `race_id`, which would
+  trigger the legacy redirect and bounce the visitor straight out again.
+- **Nothing is stored server-side**, so every live URL is cacheable and tabs are independent.
+  "Continue where I was" is client-side in `js/rm-live-resume.js`.
+- Rewrite rules are cached in the `rm_live_routing` option and flushed when the live page or
+  one of its children changes. After changing the rule itself, re-save Permalinks.
+
+## Conventions
+
+- No namespace in `includes/*.php` except `pwa-subscription-handler.php`; functions are
+  prefixed `rm_`. The main plugin file uses the `RaceManager` namespace.
+- Frontend ES modules are named `rm-m-<thing>.js` and are loaded with
+  `wp_enqueue_script_module()`. They read their configuration from `window.RmJsConfig`, which
+  `rm_print_js_module_config()` prints on `wp_head`.
+- `wp_register_script_module()` takes **five** parameters since WordPress 6.9, the fifth being
+  `array $args`. Passing anything else there is an uncaught `TypeError`.
+- Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
+  hand-built path — reader and writer must not disagree about where the files live.
+
+## Tests
+
+```bash
+php tests/run.php
+```
+
+Plain PHP, no framework, no WordPress needed. Two suites need optional dependencies and skip
+themselves cleanly — see `tests/README.md`. Add a suite by dropping a file in `tests/suites/`.
+
+**When changing the live routing, run `php tests/run.php live` and make sure `live-links` does
+not skip** — that suite needs a WordPress checkout, and it is the one that would catch a
+navigation regression.
+
+## Building the blocks
+
+```bash
+npm install
+npm run build      # wp-scripts, blocks-src/ -> blocks/
+```
+
+Only `race-gallery` is built from source; the other blocks are hand-written `index.js` files
+in `blocks/`.
+
+## Environment
+
+- Requires Contact Form 7 (checked on activation).
+- Push needs `minishlink/web-push` via Composer. The autoloader is looked for in several
+  locations; historically it lived outside the plugin.
+- Registration data lives in a custom table `{prefix}rm_registrations`, push subscriptions in
+  `{prefix}rm_subscriptions`.
+
+## Known open items
+
+Tracked in the audit from the WordPress 6.9–7.1 catch-up. Still open, roughly by priority:
+
+- **C1** `_race_event_start` / `_race_event_end` hold two different formats — a Unix integer
+  when RotorHazard creates a race, a `datetime-local` string when it is edited in the admin.
+  Queries cast to `DATE`/`DATETIME`, so the integer variant casts to NULL and those races drop
+  out of the navigation submenu, the archive filter and the CF7 dropdown. Needs one canonical
+  format plus a migration.
+- **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
+  out of iframe mode for any post containing one.
+- **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
+  Only bites during a live race on a long-open page. Note the two fixes belong together:
+  rebuilding the list alone makes the selection go blank when a pilot leaves the field,
+  because today the stale option is what keeps it selected.
+- **E4** `dbDelta()` is called with `CREATE TABLE IF NOT EXISTS`, so core parses the table name
+  as "IF" and schema upgrades never apply.
+- **E6** The REST upload endpoint is guarded only by `is_user_logged_in()`; the API key check
+  is dead code.
+- **F1** npm and Composer dependencies are one to two majors behind.
