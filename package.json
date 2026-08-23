@@ -2,6 +2,7 @@
     "name": "wp-racemanager",
     "version": "1.0.1",
     "scripts": {
+      "test": "php tests/run.php",
       "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
       "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
       "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"

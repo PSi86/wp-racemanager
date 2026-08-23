@@ -1,3 +1,7 @@
 /node_modules
+/vendor
+composer.lock
+tests/.wordpress
+tests/.fake-wp
 .DS_Store
 *.log
