@@ -30,8 +30,9 @@ function rm_settings_page() {
             ?>
         </form>
         <?php
-        // Rendered as a sibling form, not nested inside the options.php form above.
+        // Rendered as sibling forms, not nested inside the options.php form above.
         rm_settings_render_vapid_generator();
+        rm_settings_render_event_date_migration();
         ?>
     </div>
     <?php
@@ -83,6 +84,87 @@ function rm_settings_render_vapid_generator() {
             <?php endif; ?>
             <?php submit_button( __( 'Generate new key pair', 'wp-racemanager' ), 'delete', 'submit', false ); ?>
         <?php endif; ?>
+    </form>
+    <?php
+}
+
+/**
+ * Report what the event dates currently look like, and offer to normalise them.
+ *
+ * The report is the dry run: it always shows the current state, so the decision to write is
+ * made with the numbers in hand rather than on trust.
+ */
+function rm_settings_render_event_date_migration() {
+    $report = rm_scan_event_dates();
+    $counts = $report['counts'];
+    ?>
+    <hr>
+    <h2><?php esc_html_e( 'Event dates', 'wp-racemanager' ); ?></h2>
+    <p>
+        <?php esc_html_e( 'Event start and end are stored in two different formats: a Unix integer when RotorHazard creates a race, a datetime-local string when it is edited here. The date queries cast to DATETIME, and the integer variant casts to NULL -- those races silently drop out of the navigation submenu, the archive filter and the registration dropdown.', 'wp-racemanager' ); ?>
+    </p>
+
+    <table class="widefat striped" style="max-width:38rem;margin-bottom:1em;">
+        <tbody>
+            <tr><td><?php esc_html_e( 'Already canonical', 'wp-racemanager' ); ?></td><td><strong><?php echo (int) $counts['canonical']; ?></strong></td></tr>
+            <tr><td><?php esc_html_e( 'Unix timestamps (cast to NULL today)', 'wp-racemanager' ); ?></td><td><strong><?php echo (int) $counts['timestamp']; ?></strong></td></tr>
+            <tr><td><?php esc_html_e( 'datetime-local strings', 'wp-racemanager' ); ?></td><td><strong><?php echo (int) $counts['iso-t']; ?></strong></td></tr>
+            <tr><td><?php esc_html_e( 'Date without a time', 'wp-racemanager' ); ?></td><td><strong><?php echo (int) $counts['date-only']; ?></strong></td></tr>
+            <tr><td><?php esc_html_e( 'Empty', 'wp-racemanager' ); ?></td><td><strong><?php echo (int) $counts['empty']; ?></strong></td></tr>
+            <tr><td><?php esc_html_e( 'Not understood (left untouched)', 'wp-racemanager' ); ?></td><td><strong><?php echo (int) $counts['unreadable']; ?></strong></td></tr>
+        </tbody>
+    </table>
+
+    <?php if ( $report['samples'] ) : ?>
+        <p><strong><?php esc_html_e( 'What would change:', 'wp-racemanager' ); ?></strong></p>
+        <table class="widefat striped" style="max-width:48rem;margin-bottom:1em;">
+            <thead><tr>
+                <th><?php esc_html_e( 'Race', 'wp-racemanager' ); ?></th>
+                <th><?php esc_html_e( 'Field', 'wp-racemanager' ); ?></th>
+                <th><?php esc_html_e( 'Now', 'wp-racemanager' ); ?></th>
+                <th><?php esc_html_e( 'After', 'wp-racemanager' ); ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ( $report['samples'] as $sample ) : ?>
+                <tr>
+                    <td><?php echo esc_html( $sample['title'] ); ?></td>
+                    <td><code><?php echo esc_html( str_replace( '_race_event_', '', $sample['key'] ) ); ?></code></td>
+                    <td><code><?php echo esc_html( $sample['from'] ); ?></code></td>
+                    <td><code><?php echo esc_html( $sample['to'] ); ?></code></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php if ( $report['would_change'] > count( $report['samples'] ) ) : ?>
+            <p class="description">
+                <?php printf(
+                    /* translators: %d: number of further values */
+                    esc_html__( 'and %d more.', 'wp-racemanager' ),
+                    (int) $report['would_change'] - count( $report['samples'] )
+                ); ?>
+            </p>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ( ! $report['would_change'] ) : ?>
+        <p><strong><?php esc_html_e( 'Nothing to migrate -- every value is already canonical.', 'wp-racemanager' ); ?></strong></p>
+        <?php return; ?>
+    <?php endif; ?>
+
+    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+        <input type="hidden" name="action" value="rm_migrate_event_dates">
+        <?php wp_nonce_field( 'rm_migrate_event_dates' ); ?>
+        <p>
+            <label>
+                <input type="checkbox" name="rm_dates_confirm" value="1" required>
+                <?php printf(
+                    /* translators: %d: number of values that would be rewritten */
+                    esc_html__( 'Rewrite these %d values. Take a database backup first.', 'wp-racemanager' ),
+                    (int) $report['would_change']
+                ); ?>
+            </label>
+        </p>
+        <?php submit_button( __( 'Migrate event dates', 'wp-racemanager' ), 'secondary', 'submit', false ); ?>
     </form>
     <?php
 }

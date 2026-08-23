@@ -261,7 +261,7 @@ function rm_render_meta_box( $post ) {
         <input type="datetime-local" 
                id="rm_event_start" 
                name="rm_event_start" 
-               value="<?php echo esc_attr( $event_start ); ?>" 
+               value="<?php echo esc_attr( rm_event_datetime_for_input( $event_start ) ); ?>" 
                 />
     </p>
     <p>
@@ -269,7 +269,7 @@ function rm_render_meta_box( $post ) {
         <input type="datetime-local" 
                id="rm_event_end" 
                name="rm_event_end" 
-               value="<?php echo esc_attr( $event_end ); ?>" 
+               value="<?php echo esc_attr( rm_event_datetime_for_input( $event_end ) ); ?>" 
                 />
     </p>
     <p>
@@ -291,7 +291,7 @@ function rm_render_meta_box( $post ) {
         <input type="datetime-local" 
                id="rm_last_upload" 
                name="rm_last_upload" 
-               value="<?php echo esc_attr( $last_upload ); ?>" 
+               value="<?php echo esc_attr( rm_event_datetime_for_input( $last_upload ) ); ?>" 
                readonly />
     </p>
     <?php
@@ -333,11 +333,11 @@ function rm_save_meta_box_data( $post_id ) {
     }
 
     if( isset( $_POST['rm_event_start'] ) ) {
-        update_post_meta( $post_id, '_race_event_start', sanitize_text_field( $_POST['rm_event_start'] ) );
+        update_post_meta( $post_id, '_race_event_start', rm_normalize_event_datetime( sanitize_text_field( wp_unslash( $_POST['rm_event_start'] ) ) ) );
     }
 
     if( isset( $_POST['rm_event_end'] ) ) {
-        update_post_meta( $post_id, '_race_event_end', sanitize_text_field( $_POST['rm_event_end'] ) );
+        update_post_meta( $post_id, '_race_event_end', rm_normalize_event_datetime( sanitize_text_field( wp_unslash( $_POST['rm_event_end'] ) ) ) );
     }
 
     // Potentially update last_upload if you want it editable or
