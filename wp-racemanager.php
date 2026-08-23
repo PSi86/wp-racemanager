@@ -52,6 +52,11 @@ function rm_activate() {
     rm_create_file_from_template('template-pwa-sw.js', ABSPATH);
     rm_create_file_from_template('template-manifest.json', ABSPATH);
 
+    // Register the /live/{race}/{view}/ rules and write them to the rewrite cache.
+    require_once plugin_dir_path(__FILE__) . 'includes/live-routing.php';
+    rm_live_rewrite_rules();
+    rm_flush_live_rewrite_rules();
+
 }
 register_activation_hook(
     __FILE__,
@@ -118,6 +123,8 @@ final class WP_RaceManager {
         // active on all pages
         require_once plugin_dir_path(__FILE__) . 'includes/vapid-handler.php'; // VAPID keys for Web Push (frontend needs the public key)
         require_once plugin_dir_path(__FILE__) . 'includes/race-data-functions.php'; // helpers for the per-race JSON files (path/URL), used by REST and the viewers
+        require_once plugin_dir_path(__FILE__) . 'includes/live-routing.php'; // resolves the selected race from the URL path
+        require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php'; // PWA meta/manifest; also refreshes the generated files in admin
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';
         include_once plugin_dir_path(__FILE__) . 'includes/ajax-subscription-handler.php'; // Handles all subscription-related AJAX requests for the RaceManager plugin.
         // active on every page
@@ -170,9 +177,9 @@ final class WP_RaceManager {
 
     public function handle_live_pages() {
         if ( $this->is_live_page() ) {
+            // Routing and canonical redirects are handled by includes/live-routing.php,
+            // which is loaded on every request and hooks template_redirect itself.
             include_once plugin_dir_path(__FILE__) . 'includes/livepage-handler.php';
-            rm_start_session();
-            rm_rewrite_live_urls();
             include_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
             rm_load_live_resources();
         }

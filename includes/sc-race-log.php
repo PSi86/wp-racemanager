@@ -14,8 +14,8 @@ add_shortcode( 'rm_race_log', 'race_log_shortcode' );
  * Outputs a scrollable list of notifications stored in _race_notification_log.
  */
 function race_log_shortcode( $atts ) {
-    // Grab and sanitize race_id from URL
-    $race_id = isset( $_GET['race_id'] ) ? absint( $_GET['race_id'] ) : 0;
+    // The race comes from the URL path; see live-routing.php.
+    $race_id = rm_get_current_race_id();
     if ( ! $race_id ) {
         return '<p><em>No race specified.</em></p>';
     }

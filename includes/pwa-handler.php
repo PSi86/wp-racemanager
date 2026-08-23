@@ -103,27 +103,77 @@ function rm_pwa_add_manifest_link() {
  * @return void
  */
 function rm_create_file_from_template($template_filename, $output_file_path) {
-    $rm_iconfolder = plugin_dir_url(__DIR__) . 'img';
-    $rm_wp_root_url = get_site_url();
-    // TODO: allowing editing the values in the admin panel?
-    $replace_pattern = array(
-        "[siteUrl]" => esc_js("https://domain.com/"), // wp start page url
-        "[livePagesUrl]" => esc_js("https://domain.com/live/"), // also used for pwa_id
-        "[pwaScope]" => esc_js("/live/"),   // relative path to the live pages
-        "[pwaStartUrl]" => esc_js("https://domain.com/live/bracket/"), // when the PWA is started
-        "[pwaStartPage]" => esc_js("/live/bracket/"), // '/wp/live/' relative path to the pwaScope start page
-        "[iconFolderUrl]" => esc_js($rm_iconfolder),
-    );
-    
+    $replace_pattern = rm_get_pwa_template_values();
+
     // construct the full path to the template file
     $template_file = plugin_dir_path(__DIR__) . '/templates/' . $template_filename;
     // construct the full path to the output file
     $output_file = $output_file_path . str_replace('template-', '', $template_filename);
+
+    if ( ! file_exists( $template_file ) ) {
+        return false;
+    }
+
+    // esc_js() escapes for JavaScript string literals and would produce invalid JSON,
+    // so it is applied only to the service worker template.
+    if ( str_ends_with( $template_filename, '.js' ) ) {
+        $replace_pattern = array_map( 'esc_js', $replace_pattern );
+    }
 
     // replace placeholders in the service worker template with actual values using the $replace_pattern array
     $template_content = file_get_contents($template_file);
     $template_content = str_replace(array_keys($replace_pattern), array_values($replace_pattern), $template_content);
 
     // Write the service worker content to the file
-    file_put_contents($output_file, $template_content);
+    return false !== file_put_contents($output_file, $template_content);
 }
+
+/**
+ * Values substituted into the PWA templates.
+ *
+ * Derived from the site URL and the configured live page instead of hard-coded, so the
+ * generated manifest and service worker are correct on every installation.
+ *
+ * The start URL carries ?resume=1, which js/rm-live-resume.js uses to send the visitor back
+ * to the race they last looked at. Without a stored race it simply shows the selection page.
+ *
+ * @return array<string,string>
+ */
+function rm_get_pwa_template_values() {
+    $live_path  = function_exists( 'rm_live_path' ) ? rm_live_path() : '';
+    $live_rel   = $live_path ? '/' . trim( $live_path, '/' ) . '/' : '/';
+    $live_url   = home_url( $live_rel );
+
+    return array(
+        "[siteUrl]"       => home_url( '/' ),
+        "[livePagesUrl]"  => $live_url,                 // also used for the PWA id
+        "[pwaScope]"      => $live_rel,                 // relative path to the live pages
+        "[pwaStartUrl]"   => add_query_arg( 'resume', '1', $live_url ), // when the PWA is started
+        "[pwaStartPage]"  => $live_rel . '?resume=1',   // relative variant, used by the service worker
+        "[iconFolderUrl]" => plugin_dir_url(__DIR__) . 'img',
+    );
+}
+
+/**
+ * Rewrite manifest.json and pwa-sw.js when their content would change.
+ *
+ * They used to be written on activation only, so a plugin update never refreshed them and a
+ * site that changed its URL or live page kept stale files.
+ *
+ * @return void
+ */
+function rm_maybe_refresh_pwa_files() {
+    $signature = md5( wp_json_encode( rm_get_pwa_template_values() ) . WP_RACEMANAGER_VERSION );
+
+    if ( get_option( 'rm_pwa_files_signature' ) === $signature ) {
+        return;
+    }
+
+    $written = rm_create_file_from_template('template-pwa-sw.js', ABSPATH)
+             & rm_create_file_from_template('template-manifest.json', ABSPATH);
+
+    if ( $written ) {
+        update_option( 'rm_pwa_files_signature', $signature, false );
+    }
+}
+add_action( 'admin_init', 'rm_maybe_refresh_pwa_files' );

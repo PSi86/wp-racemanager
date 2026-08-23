@@ -29,7 +29,7 @@ function rm_render_race_buttons_block( $attributes, $content ) {
     $show_join = ( ! $reg_closed && $end_timestamp > $current_time );
     
     // Determine whether to show the "Results" button.
-    $show_results = ! empty( $upload_timestamp );
+    $show_results = ! empty( $upload_timestamp ) && '' !== rm_live_url( $post );
 
     // Begin building the output.
     //$output = '<div class="wp-block-group is-style-default">';
@@ -37,15 +37,15 @@ function rm_render_race_buttons_block( $attributes, $content ) {
 
     if ( $show_join ) {
         // Build the registration URL with the race_id parameter.
-        $join_url = add_query_arg( 'race_id', $race_id, 'https://copterrace.com/register/' );
+        $join_url = add_query_arg( 'race_id', $race_id, home_url( '/register/' ) );
         $output  .= '<div class="wp-block-button">'; //  is-style-outline is-style-outline--5
         $output  .= '<a class="wp-block-button__link has-contrast-background-color has-background wp-element-button" href="' . esc_url( $join_url ) . '" style="padding-top:var(--wp--preset--spacing--x-small);padding-right:var(--wp--preset--spacing--x-small);padding-bottom:var(--wp--preset--spacing--x-small);padding-left:var(--wp--preset--spacing--x-small);">';
         $output  .= 'Join now!</a></div>';
     }
 
     if ( $show_results ) {
-        // Build the results URL with the race_id parameter.
-        $results_url = add_query_arg( 'race_id', $race_id, 'https://copterrace.com/live/bracket/' );
+        // Canonical live URL for this race.
+        $results_url = rm_live_url( $post );
         $output     .= '<div class="wp-block-button">';
         $output     .= '<a class="wp-block-button__link has-contrast-background-color has-background wp-element-button" href="' . esc_url( $results_url ) . '" style="padding: var(--wp--preset--spacing--x-small);">';
         $output     .= 'Results</a></div>';

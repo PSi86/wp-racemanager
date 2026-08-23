@@ -53,9 +53,17 @@ function rm_render_race_select_block( $attributes, $content ) {
         // Convert the MySQL timestamp to a Unix timestamp
         $upload_timestamp = strtotime( $last_upload );
         
-        // Build a custom URL with a "race_id" parameter. Adjust the target page as needed.
-        $custom_link = site_url( '/live/bracket/?race_id=' . $race_id );
-        $output .= '<li><a href="' . esc_url( $custom_link ) . '">';
+        // Canonical live URL for this race, e.g. /live/spring-cup-2026/bracket/
+        $custom_link = rm_live_url( get_post( $race_id ) );
+        if ( ! $custom_link ) {
+            continue; // No live page configured, so there is nothing to link to.
+        }
+
+        // Links back to this page carry the race the visitor came from, so it can be marked.
+        $is_current = ( $race_id === rm_get_current_race_id() );
+
+        $output .= '<li class="race-select-item' . ( $is_current ? ' is-current' : '' ) . '">';
+        $output .= '<a href="' . esc_url( $custom_link ) . '"' . ( $is_current ? ' aria-current="true"' : '' ) . '>';
         
         // TODO: use css stylesheet instead of inline style
         //$output .=  $race_live ? '<span style="color: red;">Live: </span>' : '';
