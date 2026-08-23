@@ -54,8 +54,10 @@ bin/build-plugin-zip.sh --no-vendor      # without the Composer dependencies
 
 It produces `build/wp-racemanager-<ref>.zip` containing a single top-level folder
 `wp-racemanager/` — the shape WordPress expects from an uploaded plugin ZIP. The script exports
-the tracked files with `git archive`, then adds `vendor/` (installed with `--no-dev`) unless you
-opt out.
+the tracked files with `git archive`, installs the Composer dependencies with `--no-dev` into the
+export, and strips the packages' own `.git`/`.github` directories. That last step matters: when a
+dist download is unavailable Composer silently falls back to a *source* install, and the checked-out
+repositories turn a 2.5 MB artifact into a 26 MB one.
 
 Build the blocks before packaging if you touched `blocks-src/`:
 
@@ -64,10 +66,10 @@ npm install && npm run build
 git status --short blocks/      # commit the result - blocks/ is tracked
 ```
 
-> The build script runs `composer install --no-dev` when there is no `vendor/` yet. `composer.lock`
-> is currently git-ignored, so a fresh clone resolves the dependency versions anew instead of
-> reproducing them. Committing `composer.lock` would make builds reproducible; until then, build
-> from a working copy whose `vendor/` you have actually tested.
+> `composer.lock` is currently git-ignored. The build script uses the one in your working copy if
+> it is there, so a build from a checkout you have tested reproduces those exact versions — but a
+> build from a fresh clone resolves them anew. Committing `composer.lock` would remove that
+> difference; until then, build from a working copy whose dependencies you have actually run.
 
 ---
 
@@ -106,7 +108,8 @@ The one catch: on a *replace*, the **activation hook does not run again**. Secti
 that means you have to do by hand.
 
 If the upload fails with "the uploaded file exceeds the upload_max_filesize directive", use
-route B — a ZIP with `vendor/` can exceed the 2 MB some shared hosts still default to.
+route B. The ZIP is around 2.5 MB with `vendor/` included, and 2 MB is still a common default on
+shared hosting.
 
 ### Route B — SFTP or the Plesk file manager
 

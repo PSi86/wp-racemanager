@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 23 — 13 resolved, 1 partially, 9 open |
+| Findings | 24 — 13 resolved, 1 partially, 10 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -69,6 +69,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | D2 | P3 | **open** | Frontend JS | Gallery block binds an inline script to `DOMContentLoaded` | no |
 | D4 | P3 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Push | VAPID keys empty and not configurable anywhere | no |
 | E6 | P3 | **open** | REST | Upload endpoint guarded only by `is_user_logged_in()`; the API key check is dead code | no |
+| E10 | P3 | **open** | Activation | `create_event_registration_cf7_form()` creates another CF7 form on every activation | no |
 | E7 | P3 | **open** | Cleanup | `ABSPATH` guard commented out, dead code, three different version numbers | no |
 | F1 | P3 | **open** | Toolchain | npm and Composer dependencies one to two majors behind | indirectly |
 
@@ -171,6 +172,11 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
   so WordPress cannot warn about an incompatible update.
 - **E8 remainder** — `includes/admin-registrations.php` still hard-codes
   `registration@copterrace.com` in the CF7 form template it creates on activation.
+- **E10** — `create_event_registration_cf7_form()` runs on every activation and inserts a new
+  *Event Registration Example* form each time; the duplicate check in it is commented out. That
+  makes deactivate/reactivate — the obvious way to re-run the activation hook after a manual
+  deployment — a lossy operation, and it is why [`deployment.md`](deployment.md) tells you to do
+  the hook's work by hand instead.
 - **E9** — `includes/seo-handler.php` prints its own `<title>` at `wp_head` priority 1, where
   core also registers `_wp_render_title_tag()`, giving two title tags. `$post_title`,
   `$post_desc` and `$post_keys` are read on non-singular pages without being defined.
