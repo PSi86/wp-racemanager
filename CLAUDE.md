@@ -101,21 +101,34 @@ in `blocks/`.
 
 ## Known open items
 
-Tracked in the audit from the WordPress 6.9–7.1 catch-up. Still open, roughly by priority:
+The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
+23 findings, 11 resolved. The ones most likely to bite while working here:
 
 - **C1** `_race_event_start` / `_race_event_end` hold two different formats — a Unix integer
   when RotorHazard creates a race, a `datetime-local` string when it is edited in the admin.
   Queries cast to `DATE`/`DATETIME`, so the integer variant casts to NULL and those races drop
   out of the navigation submenu, the archive filter and the CF7 dropdown. Needs one canonical
   format plus a migration.
+- **B3** `rm_print_js_module_config()` is hooked to `wp_head` from inside each shortcode. That
+  only works because block themes render the template before `wp_head()`. Two such shortcodes
+  on one page also overwrite each other's config. Should move to the script module data API.
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
-  out of iframe mode for any post containing one.
+  out of iframe mode for any post containing one. Needs F1 first.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
-  Only bites during a live race on a long-open page. Note the two fixes belong together:
-  rebuilding the list alone makes the selection go blank when a pilot leaves the field,
-  because today the stale option is what keeps it selected.
+  Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
+  the list alone makes the selection go blank when a pilot leaves the field, because today the
+  stale option is what keeps it selected.
 - **E4** `dbDelta()` is called with `CREATE TABLE IF NOT EXISTS`, so core parses the table name
   as "IF" and schema upgrades never apply.
 - **E6** The REST upload endpoint is guarded only by `is_user_logged_in()`; the API key check
   is dead code.
+- **E7** The `ABSPATH` guard in `wp-racemanager.php` is commented out, and the version appears
+  as `1.0`, `1.0.0` and `1.0.1` in three places. No `Requires at least` / `Requires PHP`
+  headers, so WordPress cannot warn about an incompatible update.
 - **F1** npm and Composer dependencies are one to two majors behind.
+
+## Documentation
+
+- [`docs/`](docs/) — the audit and to-do list, the deployment test protocol, and the reasoning
+  behind the live URLs and the VAPID handling.
+- [`tests/README.md`](tests/README.md) — how to run and extend the suites.
