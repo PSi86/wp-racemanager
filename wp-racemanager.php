@@ -123,6 +123,7 @@ final class WP_RaceManager {
         // active on all pages
         require_once plugin_dir_path(__FILE__) . 'includes/vapid-handler.php'; // VAPID keys for Web Push (frontend needs the public key)
         require_once plugin_dir_path(__FILE__) . 'includes/race-data-functions.php'; // helpers for the per-race JSON files (path/URL), used by REST and the viewers
+        require_once plugin_dir_path(__FILE__) . 'includes/race-dates.php'; // one canonical format for the event dates
         require_once plugin_dir_path(__FILE__) . 'includes/live-routing.php'; // resolves the selected race from the URL path
         require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php'; // PWA meta/manifest; also refreshes the generated files in admin
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';

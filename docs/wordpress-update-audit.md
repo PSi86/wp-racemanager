@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 23 — 11 resolved, 1 partially, 11 open |
+| Findings | 23 — 13 resolved, 1 partially, 9 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -51,7 +51,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | A1 | P0 | ✅ [#2](https://github.com/PSi86/wp-racemanager/pull/2) | Live / PWA | Fatal `TypeError` from the new `wp_register_script_module()` signature | yes — WP 6.9 |
 | E1 | P0 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Security | `keygen.php` was publicly reachable and printed the private VAPID key | no |
 | B1 | P1 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Live / PWA | Race selection lived in the PHP session — not cache-, tab- or PWA-safe | worsened by 6.8+ |
-| C1 | P1 | **open** | Data model | `_race_event_start` / `_race_event_end` hold Unix integers *and* `datetime-local` strings | no |
+| C1 | P1 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `_race_event_start` / `_race_event_end` hold Unix integers *and* `datetime-local` strings | no |
 | E2 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | Security | Registrations admin had no nonces; bulk delete was not scoped to the race | no |
 | E5 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | REST upload | Upload directory was never created; the `WP_Error` was discarded | no |
 | A2 | P2 | **open** | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9, editor drops out of the iframe | yes — WP 6.9/7.0 |
@@ -65,7 +65,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | E4 | P2 | **open** | Database | `dbDelta()` called with `IF NOT EXISTS` — schema upgrades never apply | no |
 | E8 | P2 | ⚠️ partly [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Portability | Hard-coded `copterrace.com` — the URLs are gone, the email addresses in the CF7 form template remain | no |
 | E9 | P2 | **open** | SEO | Duplicate `<title>`, PHP warnings on non-singular pages | no |
-| C2 | P3 | **open** | Data model | `register_post_meta()` with the invalid type `datetime` | no |
+| C2 | P3 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `register_post_meta()` with the invalid type `datetime` | no |
 | D2 | P3 | **open** | Frontend JS | Gallery block binds an inline script to `DOMContentLoaded` | no |
 | D4 | P3 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Push | VAPID keys empty and not configurable anywhere | no |
 | E6 | P3 | **open** | REST | Upload endpoint guarded only by `is_user_logged_in()`; the API key check is dead code | no |
@@ -76,9 +76,9 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 
 ## What is still open, in detail
 
-### C1 — two date formats in the same meta field · P1
+### C1 — two date formats in the same meta field · resolved
 
-The highest-value item left, because it silently hides races.
+Was the highest-value item left, because it silently hid races.
 
 - **Write path 1** — `includes/rest-handler.php` stores an **integer** for races created by
   RotorHazard: `update_post_meta( $race_id, '_race_event_start', strtotime('today 8:00') )`
@@ -93,11 +93,20 @@ therefore drops out of the navigation submenu, the archive filter and the CF7 re
 dropdown, and sorts as NULL in the race list. Not sporadic — deterministic, depending on
 whether a race was ever edited in the backend.
 
-**Fix:** one canonical format (`Y-m-d H:i:s`, site timezone), normalise on save in *both*
-write paths, one-time migration. Run a dry run first that only reports how many posts hold
-which format. **C2** belongs with it: `register_post_meta()` uses `'type' => 'datetime'`,
-which is not a valid meta type (allowed: `string`, `boolean`, `integer`, `number`, `array`,
-`object`).
+**Resolved** in [#8](https://github.com/PSi86/wp-racemanager/pull/8): one canonical format
+(`Y-m-d H:i:s`, site-local wall clock — the same thing `current_time('mysql')` produces),
+normalised on save in *both* write paths, plus a migration behind a permanent dry run on
+**Settings → RaceManager**. The report always shows the current state and a sample of what
+would change; the write needs a confirmation checkbox. Values that cannot be understood are
+left untouched and counted rather than guessed at.
+
+The one decision worth recording: integers are read back with `gmdate()`, not `wp_date()`.
+WordPress runs PHP in UTC, so the integers `strtotime('today 8:00')` produced reverse exactly
+and give back the wall clock the caller meant. Going through the site timezone would turn an
+intended 8am start into 10am on a UTC+2 site.
+
+**C2** was fixed with it: `register_post_meta()` used `'type' => 'datetime'`, which is not a
+valid meta type (allowed: `string`, `boolean`, `integer`, `number`, `array`, `object`).
 
 ### B3 — JS config hooked from inside a shortcode · P2
 
@@ -173,12 +182,10 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
 
 ## Suggested order
 
-1. **C1 + C2** — data model. Highest value left, and the only item with a migration. Dry run
-   first.
-2. **E4, E6, E7, E9** — small, self-contained, no migration risk. Good to batch.
-3. **B3** — script module data API. Touches the same file as any future live-page work.
-4. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
-5. **D1 + D2** — frontend polish. Low risk, low urgency.
+1. **E4, E6, E7, E9** — small, self-contained, no migration risk. Good to batch.
+2. **B3** — script module data API. Touches the same file as any future live-page work.
+3. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
+4. **D1 + D2** — frontend polish. Low risk, low urgency.
 
 ---
 
@@ -194,5 +201,5 @@ Findings marked resolved were re-verified against `main` by reading the code. **
 remainder were found to be still open during that re-verification**, having previously been
 assumed fixed.
 
-Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 147 checks
-across six suites.
+Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 181 checks
+across seven suites.

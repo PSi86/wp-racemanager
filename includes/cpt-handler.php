@@ -225,7 +225,7 @@ function rm_register_cpt() {
         array(
             'show_in_rest' => false,
             'single'       => true,
-            'type'         => 'datetime', // or 'datetime'
+            'type'         => 'string', // canonical 'Y-m-d H:i:s', see includes/race-dates.php
             'auth_callback' => function() {
                 return current_user_can( 'edit_posts' );
             },
@@ -239,7 +239,7 @@ function rm_register_cpt() {
         array(
             'show_in_rest' => false,
             'single'       => true,
-            'type'         => 'datetime', // or 'datetime'
+            'type'         => 'string', // canonical 'Y-m-d H:i:s', see includes/race-dates.php
             'auth_callback' => function() {
                 return current_user_can( 'edit_posts' );
             },
@@ -253,7 +253,7 @@ function rm_register_cpt() {
         array(
             'show_in_rest' => false,
             'single'       => true,
-            'type'         => 'datetime', // or 'datetime'string
+            'type'         => 'string', // MySQL datetime from current_time('mysql')
             'auth_callback' => function() {
                 return current_user_can( 'edit_posts' );
             },

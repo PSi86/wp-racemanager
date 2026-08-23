@@ -67,6 +67,9 @@ Consequences worth keeping in mind when changing this:
   `array $args`. Passing anything else there is an uncaught `TypeError`.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
+- Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
+  `Y-m-d H:i:s` in site-local wall clock; the admin inputs need `rm_event_datetime_for_input()`
+  because `datetime-local` rejects a space instead of the `T`.
 
 ## Tests
 
@@ -102,13 +105,8 @@ in `blocks/`.
 ## Known open items
 
 The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
-23 findings, 11 resolved. The ones most likely to bite while working here:
+23 findings, 13 resolved. The ones most likely to bite while working here:
 
-- **C1** `_race_event_start` / `_race_event_end` hold two different formats — a Unix integer
-  when RotorHazard creates a race, a `datetime-local` string when it is edited in the admin.
-  Queries cast to `DATE`/`DATETIME`, so the integer variant casts to NULL and those races drop
-  out of the navigation submenu, the archive filter and the CF7 dropdown. Needs one canonical
-  format plus a migration.
 - **B3** `rm_print_js_module_config()` is hooked to `wp_head` from inside each shortcode. That
   only works because block themes render the template before `wp_head()`. Two such shortcodes
   on one page also overwrite each other's config. Should move to the script module data API.

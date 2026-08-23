@@ -363,11 +363,10 @@ function rm_find_or_create_race( $data ) {
         update_post_meta( $race_id, '_race_last_upload', $timestamp );
         update_post_meta( $race_id, '_race_reg_closed', true );
 
-        $date_start = strtotime('today 8:00');
-        update_post_meta( $race_id, '_race_event_start', $date_start );
-
-        $date_end = strtotime('today 19:00');
-        update_post_meta( $race_id, '_race_event_end', $date_end );
+        // Placeholder times the organiser is expected to correct in the backend. Stored in
+        // the canonical format so they do not cast to NULL in the date queries.
+        update_post_meta( $race_id, '_race_event_start', rm_normalize_event_datetime( strtotime( 'today 8:00' ) ) );
+        update_post_meta( $race_id, '_race_event_end', rm_normalize_event_datetime( strtotime( 'today 19:00' ) ) );
 
         return [
             'status'  => 'success',
