@@ -134,8 +134,15 @@ what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read t
 
 ## Known open items
 
-The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
-24 findings, 21 resolved. The ones most likely to bite while working here:
+Two lists, and they answer different questions:
+
+- [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
+  updates broke or exposed. 24 findings, 21 resolved. **The maintenance to-do list.**
+- [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
+  could get better, above all its data path. L1–L10, none started, four questions to answer first.
+  [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
+
+From the audit, the ones most likely to bite while working here:
 
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
   out of iframe mode for any post containing one. Needs F1 first.

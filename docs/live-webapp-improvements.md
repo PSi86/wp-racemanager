@@ -15,11 +15,34 @@ Three things drive the ordering:
 
 ---
 
+## The list
+
+IDs are stable and referenced from commits and pull requests, the same way the audit's are.
+Nothing here is started yet.
+
+| ID | Prio | Needs | What |
+|---|---|---|---|
+| L1 | P1 | nothing — measure first | Serve the race JSON compressed |
+| L5 | P1 | nothing | Freshness indicator: is this current, when was it last checked, is it checking now |
+| L4 | P1 | nothing | Visibility-aware, jittered, backing-off polling |
+| L9 | P1 | the theme's rendered markup | A stylesheet for the mobile navigation |
+| L2 | P2 | nothing | Conditional requests instead of `cache: 'no-store'` |
+| L3 | P2 | nothing | `localStorage` instead of per-tab `sessionStorage` |
+| L6 | P2 | nothing | A service worker that caches, so the installed PWA survives bad reception |
+| L7 | P2 | nothing | Split the payload into per-section files with an index |
+| L8 | P3 | a change on the RotorHazard side | Upload only the sections that changed |
+| L10 | P3 | numbers from a real event | A CDN in front of the JSON |
+
+`D1` (the pilot dropdown) stays in [`wordpress-update-audit.md`](wordpress-update-audit.md) but
+belongs to whichever of L4/L5 touches the loader first — see below.
+
+---
+
 ## Stage 1 — no protocol change, no RotorHazard change
 
 Everything here is inside the plugin and can ship in one release.
 
-### 1.1 Serve the JSON compressed
+### L1 · Serve the JSON compressed
 
 Check first (`curl -sI` with `Accept-Encoding: gzip`, see [`data-flow.md`](data-flow.md)). Plesk
 and nginx compress `text/html` and `text/css` by default; `application/json` from an uploads
@@ -36,14 +59,14 @@ If the host does not do it, an `.htaccess` in `wp-content/uploads/races/` can:
 **Effort:** minutes. **Effect:** the single largest transfer saving available, on every request,
 for every viewer. Do this before anything else, and measure again afterwards.
 
-### 1.2 Let the browser cache, and use conditional requests
+### L2 · Let the browser cache, and use conditional requests
 
 Drop `cache: 'no-store'` and send `If-None-Match` instead. The web server already produces `ETag`
 and `Last-Modified` for static files, so an unchanged file answers **304 with no body**. Combined
 with the timestamp gate this mostly protects reloads, second tabs and the PWA cold start — the
 cases that today always cost a full transfer.
 
-### 1.3 Cache across tabs, not per tab
+### L3 · Cache across tabs, not per tab
 
 `sessionStorage` → `localStorage`, keyed by race and by the data timestamp. A reopened PWA then
 renders the last known standing **immediately**, before the network is even asked, and the first
@@ -52,7 +75,7 @@ request is a cheap timestamp check rather than a full download.
 Storage is capacity-limited, so evict other races' entries on write, and treat every read and
 write as failable (private mode, full quota).
 
-### 1.4 Poll like a phone, not like a server
+### L4 · Poll like a phone, not like a server
 
 Four changes to the same loop:
 
@@ -65,7 +88,7 @@ Four changes to the same loop:
   second. ±20 % random offset spreads that across the interval — this is the difference between a
   spike of a hundred simultaneous requests and a smooth trickle.
 
-### 1.5 The freshness indicator
+### L5 · The freshness indicator
 
 *(Explicitly wanted, and the one improvement every viewer sees.)*
 
@@ -92,7 +115,7 @@ Details worth getting right: `role="status"` and `aria-live="polite"` so a scree
 changes without stealing focus; one shared timer for the relative time rather than one per
 component; the absolute time in `title`; never show "aktuell" while a check is failing.
 
-### 1.6 A service worker that caches
+### L6 · A service worker that caches
 
 The service worker handles push and nothing else — there is no `fetch` handler, so the installed
 PWA shows an error page when reception drops, even though it had the data a moment ago.
@@ -105,6 +128,8 @@ network or the freshness indicator starts lying.
 ---
 
 ## Stage 2 — split the payload, plugin side only
+
+### L7 · Per-section files with an index
 
 Still no RotorHazard change: the timer keeps uploading the whole file, and `rm_write_files()`
 splits it on arrival.
@@ -139,6 +164,8 @@ every viewer, on every update.
 
 ## Stage 3 — the upload side, needs RotorHazard
 
+### L8 · Upload only the sections that changed
+
 Only worth doing after stage 2, because stage 2 defines the sections and the hashes this builds on.
 
 **The simple version, and the one to build:** before uploading, the timer fetches
@@ -160,7 +187,7 @@ each side and cuts the hotspot traffic again.
 
 Not needed at current scale; listed so the option is known.
 
-- **A CDN in front of the JSON** (Cloudflare's free tier is enough): short TTL plus
+- **L10 — a CDN in front of the JSON** (Cloudflare's free tier is enough): short TTL plus
   `stale-while-revalidate`, purged on upload. The origin then serves one request per change
   instead of one per viewer per change. This is the largest possible win for viewer load and needs
   no protocol change at all.
@@ -177,7 +204,7 @@ Not needed at current scale; listed so the option is known.
 
 ## Separate from the data path
 
-### The mobile menu needs a stylesheet
+### L9 · The mobile menu needs a stylesheet
 
 The plugin ships exactly one navigation style: `css/rm_live_page_link.css`, twenty lines for the
 blinking dot on the live link. Everything else about the live navigation is the theme's, and on a
@@ -190,7 +217,7 @@ Proposed: `css/rm-live-nav.css`, enqueued on live pages only, mobile first —
   the burger menu;
 - tap targets of at least 44 px, and `padding-bottom: env(safe-area-inset-bottom)` so the
   installed PWA does not put controls under the home indicator;
-- the freshness indicator from 1.5 living in that same bar;
+- the freshness indicator from L5 living in that same bar;
 - the burger overlay's items sized for a thumb rather than a mouse.
 
 **To do this properly I need the rendered markup**, since the classes come from the theme: the
@@ -205,16 +232,52 @@ the selection makes the selection go blank when a pilot leaves the field.
 
 ---
 
-## Suggested order
+## What has to be answered before some of this can start
 
-1. **1.1 compression** — measure, then fix. Minutes, and it changes what everything else is worth.
-2. **1.5 freshness indicator + 1.4 polling** — one piece of work, since both live in the loader's
-   state machine. This is what the viewer actually notices.
-3. **1.2 / 1.3 caching** — small, and they make reloads and PWA restarts cheap.
-4. **1.6 service worker caching** — the installed app stops being useless without reception.
-5. **Stage 2 sectioning** — the real transfer win, still plugin-only.
-6. **Stage 3 upload deltas** — once the timer side can be changed.
-7. **Stage 4** — only when the numbers say so.
+These are not rhetorical — each one changes what gets built, and none of them can be answered
+from inside the repository.
+
+1. **How big is a real `-data.json`, and is it already compressed?**
+   ```bash
+   curl -sI  https://<site>/wp-content/uploads/races/<id>-data.json | grep -i -E 'content-length|content-encoding'
+   curl -s   https://<site>/wp-content/uploads/races/<id>-data.json | gzip -c | wc -c
+   ```
+   At 30 KB already gzipped, L7 may never be worth building. At 300 KB uncompressed it is the most
+   valuable item on the list. **Everything below L5 waits on this number.**
+
+2. **Is the uploader on the RotorHazard side yours to change?** If yes, L8 becomes realistic and
+   L7 should be designed with it in mind. If no, the plan ends at L7 and the upload stays
+   all-or-nothing.
+
+3. **What does the live navigation actually render on a phone?** The classes come from the theme,
+   so L9 needs the markup or a screenshot at phone width. (This session cannot fetch the
+   production site — the sandbox blocks outbound access to it.)
+
+4. **How many people watch a race at once?** Ten and fifty are different systems. It decides
+   whether L10 is ever needed and how much L7 is worth.
+
+---
+
+## Next steps
+
+In order, and each one is a self-contained piece of work:
+
+1. **Deploy what is already merged.** Nothing on this list should be built on top of a production
+   site that still runs the June 2025 code. See [`deployment.md`](deployment.md).
+2. **Measure** — question 1 above, plus a look at how often the timer uploads during a heat.
+3. **L1**, if the measurement says compression is missing. Minutes of work, and it changes what
+   every other item is worth.
+4. **L5 + L4 together**, in the local environment. They are one state machine, and browser
+   devtools can simulate the bad network they exist for; a live race cannot be paused to test.
+   Take D1 along, since it subscribes to the same loader.
+5. **L9**, once the markup is available.
+6. **L2, L3, L6** as one release — all three are about not re-fetching what is already known.
+7. **L7**, if the numbers justify it.
+8. **L8**, if question 2 is a yes.
+
+---
+
+## Where to build this
 
 Stages 1 and 2 are worth doing in the local development environment
 ([`development-setup.md`](development-setup.md)) rather than against production: the whole point is
