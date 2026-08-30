@@ -396,32 +396,61 @@ function rm_download_csv($race_id, $selected_ids = array()) {
     exit;
 }
 
-// Create the Contact Form 7 form for event registration
-// This function should be called only once, e.g., on plugin activation.
-function create_event_registration_cf7_form() {
-/*     // Check if a form with the title "Event Registration" already exists.
-    $args = array(
-        'post_type'      => 'wpcf7_contact_form',
-        'post_status'    => 'any',
-        's'              => 'Event Registration',
-        'posts_per_page' => 5,
-    );
-    $query = new WP_Query( $args );
-    $existing_form = null;
-    if ( $query->have_posts() ) {
-        foreach ( $query->posts as $post ) {
-            if ( $post->post_title === 'Event Registration' ) {
-                $existing_form = $post;
-                break;
-            }
-        }
-        // Rename the existing form to avoid conflicts.
-        if ( $existing_form ) {
-            $existing_form->post_title = 'Event Registration Backup';
-            wp_update_post( $existing_form );
-        }
+/** Title of the example registration form the plugin ships. */
+const RM_CF7_FORM_TITLE = 'Event Registration Example';
+
+/**
+ * Find the example registration form, if this site already has one.
+ *
+ * Looks at the ID recorded when it was created, and falls back to the title for installs that
+ * predate that bookkeeping.
+ *
+ * @return int Post ID, or 0 when there is none.
+ */
+function rm_find_event_registration_cf7_form() {
+    $recorded = (int) get_option( 'rm_cf7_form_id' );
+    if ( $recorded && 'wpcf7_contact_form' === get_post_type( $recorded ) ) {
+        return $recorded;
     }
-    wp_reset_postdata(); */
+
+    $found = get_posts( array(
+        'post_type'        => 'wpcf7_contact_form',
+        'post_status'      => 'any',
+        'title'            => RM_CF7_FORM_TITLE,
+        'posts_per_page'   => 1,
+        'fields'           => 'ids',
+        'suppress_filters' => false,
+    ) );
+
+    if ( $found ) {
+        update_option( 'rm_cf7_form_id', (int) $found[0], false );
+        return (int) $found[0];
+    }
+
+    return 0;
+}
+
+/**
+ * Create the Contact Form 7 example form for event registration.
+ *
+ * Runs from the activation hook, which fires again on every reactivation -- and a plugin gets
+ * deactivated and reactivated for all sorts of reasons, not least because that is the only way
+ * to re-run this hook after a manual deployment. Creating the form unconditionally left one
+ * more copy behind every time, all with the same name and no way to tell which one a page
+ * actually embeds. So: create it once, then leave it alone. An organiser who edited the form is
+ * editing the one this returns.
+ *
+ * @return int Post ID of the form, or 0 when Contact Form 7 is not available.
+ */
+function create_event_registration_cf7_form() {
+    if ( ! class_exists( 'WPCF7_ContactForm' ) ) {
+        return 0;
+    }
+
+    $existing = rm_find_event_registration_cf7_form();
+    if ( $existing ) {
+        return $existing;
+    }
 
     // Define the form content.
     $form_content = '<h4>Select Event</h4>
@@ -476,7 +505,7 @@ Diese E-Mail ist eine Bestätigung für das Absenden deines Kontaktformulars auf
 
     // Create a new contact form using CF7 API.
     $contact_form = WPCF7_ContactForm::get_template();
-    $contact_form->set_title( 'Event Registration Example' );
+    $contact_form->set_title( RM_CF7_FORM_TITLE );
     $contact_form->set_properties( array(
         'form' => $form_content,
         'mail' => array(
@@ -492,7 +521,20 @@ Diese E-Mail ist eine Bestätigung für das Absenden deines Kontaktformulars auf
         'additional_settings' => 'skip_mail: off',
         // additional properties (like messages, mail_2, etc.)
     ) );
-    $contact_form->save();
+    // save() is documented to return the post ID, but id() is the accessor CF7 guarantees --
+    // take whichever actually yields one rather than depending on the return value alone.
+    $saved   = $contact_form->save();
+    $form_id = is_numeric( $saved ) ? (int) $saved : 0;
+    if ( ! $form_id && method_exists( $contact_form, 'id' ) ) {
+        $form_id = (int) $contact_form->id();
+    }
+
+    // Remember it, so the next activation finds it instead of making another one.
+    if ( $form_id ) {
+        update_option( 'rm_cf7_form_id', $form_id, false );
+    }
+
+    return $form_id;
 }
 
 // register_activation_hook( __FILE__, 'create_event_registration_cf7_form' );

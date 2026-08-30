@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     define( 'ABSPATH', RM_TEST_DIR . '/.fake-wp/' );
 }
 if ( ! defined( 'WP_RACEMANAGER_VERSION' ) ) {
-    define( 'WP_RACEMANAGER_VERSION', '1.0.0' );
+    define( 'WP_RACEMANAGER_VERSION', '1.1.0' );
 }
 if ( ! defined( 'WP_RACEMANAGER_DIR' ) ) {
     define( 'WP_RACEMANAGER_DIR', RM_PLUGIN_DIR . '/' );

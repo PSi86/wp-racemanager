@@ -2,17 +2,26 @@
 /**
  * Plugin Name: WP RaceManager
  * Description: Provides REST API endpoints for RotorHazard: download pilot registrations, upload race results. The "Races" menu item will be populated with the latest races. For more information, see the plugin settings.
- * Version: 1.0
+ * Version: 1.1.0
  * Author: Peter Simandl
  * Text Domain: wp-racemanager
+ * Requires at least: 6.5
+ * Requires PHP: 8.2
  */
+
+// "Requires at least" is 6.5 because the live pages are built on the Script Modules API
+// (wp_register_script_module()), which core added in that release.
+//
+// "Requires PHP" is 8.2 because minishlink/web-push pulls in web-token/jwt-library, which
+// declares php >= 8.2. Without these two headers WordPress cannot warn about an incompatible
+// update and would happily install the plugin into an environment where it dies.
 
 // Define the namespace
 namespace RaceManager;  // Use your preferred namespace if you have one.
 
-//if (!defined('ABSPATH')) exit; // Exit if accessed directly
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-define( 'WP_RACEMANAGER_VERSION', '1.0.0' );
+define( 'WP_RACEMANAGER_VERSION', '1.1.0' ); // keep in sync with the plugin header and package.json
 define( 'WP_RACEMANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 //define( 'WP_RACEMANAGER_ASSETS', WP_RACEMANAGER_URL . 'assets/build/' );
@@ -153,16 +162,10 @@ final class WP_RaceManager {
         
     }
     
-/*     public static function activate() {
-        require_once plugin_dir_path(__FILE__) . 'includes/pwa-subscription-handler.php';
-        \RaceManager\PWA_Subscription_Handler::create_db_table();
-        // ...
-    }
-    register_activation_hook(__FILE__, [ 'RaceManager\WP_RaceManager', 'activate' ]); */
-
     /**
-     * Check if we need to load the PWA subscription code,
-     * and then load it if necessary.
+     * Register the REST routes RotorHazard talks to.
+     *
+     * Runs on rest_api_init only, so none of this is loaded on ordinary page requests.
      */
     public function register_rest_routes() {
         // Load helper functions for RH JSON data
@@ -186,24 +189,6 @@ final class WP_RaceManager {
         }
     }
 
-    /**
-     * Detect whether this request is a WP REST API request for our "racemanager" namespace.
-     */
-    private function is_racemanager_rest_api_request() {
-        return true;
-        // Make sure it's a REST request at all.
-        if ( ! defined( 'REST_REQUEST' ) || ! REST_REQUEST ) {
-            return false;
-        }
-        // Ensure rest_route param is present.
-        if ( empty( $_GET['rest_route'] ) ) {
-            return false;
-        }
-        // Check if it starts with "racemanager/v1" (adjust to your chosen namespace/version).
-        //return ( 0 === strpos( ltrim( $_GET['rest_route'], '/' ), 'rm/v1' ) );
-        return true;
-    }
-    
     public static function is_live_page() {
         // Only proceed on page requests.
         if ( ! is_page() ) {

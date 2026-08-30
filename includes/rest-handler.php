@@ -2,11 +2,6 @@
 // includes/rest-handler.php
 // Register the REST API routes
 
-// Reminder: if you need to check for permissions, you can use a callback like this:
-//'permission_callback' => function() {
-//    return current_user_can( 'edit_posts' );
-//},
-
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 //add_action('rest_api_init', function () {
@@ -52,8 +47,29 @@ function rm_register_rest_routes_rh() {
 }
 //);
 
+/**
+ * Gate for the endpoints RotorHazard talks to.
+ *
+ * "Logged in" was too wide: on a site with registered pilots every one of them could reach the
+ * upload endpoint and have a body of arbitrary size decoded and validated before the per-race
+ * capability check further down said no. edit_posts is the smallest capability that every
+ * client which can currently succeed already holds -- updating a race needs edit_post on it,
+ * creating one needs publish_posts, and both imply edit_posts -- so this rejects earlier
+ * without turning away a timer that works today.
+ *
+ * @param \WP_REST_Request $request
+ * @return true|\WP_Error
+ */
 function permission_check_user( \WP_REST_Request $request ) {
-    return is_user_logged_in(); 
+    if ( current_user_can( 'edit_posts' ) ) {
+        return true;
+    }
+
+    return new \WP_Error(
+        'rest_forbidden',
+        __( 'You do not have permission to use the RaceManager endpoints.', 'wp-racemanager' ),
+        array( 'status' => is_user_logged_in() ? 403 : 401 )
+    );
 }
 
 function permission_check_race_id( $param, \WP_REST_Request $request, $key ) {
@@ -90,14 +106,8 @@ function permission_check_race_id( $param, \WP_REST_Request $request, $key ) {
  * @return WP_REST_Response|WP_Error
  */
 function rm_handle_upload( WP_REST_Request $request ) {
-    // 1. Validate API Key
-    /* $maybe_error = rm_validate_api_key( $request );
-    if ( is_wp_error( $maybe_error ) ) {
-        return new WP_REST_Response([
-            'status'  => 'error',
-            'message' => $maybe_error->get_error_message(),
-        ], $maybe_error->get_error_data() ?: 401);
-    } */
+    // Authentication happens in permission_check_user(); the per-race capability is checked in
+    // rm_process_race() once the request names a race.
 
     // Validate request size & decode JSON
     $data = rm_validate_and_decode_json( $request );
@@ -156,23 +166,6 @@ function rm_handle_upload( WP_REST_Request $request ) {
         'nextup' => $upcomingPilots,
         'notifiedIds' => $notified,
     ], $is_update ? 200 : 201);
-}
-
-/**
- * Validate API key header.
- */
-function rm_validate_api_key( WP_REST_Request $request ) {
-    $api_key      = get_option('rm_api_key');
-    $provided_key = $request->get_header('api_key');
-
-    if ( $provided_key !== $api_key ) {
-        return new WP_Error(
-            'invalid_api_key',
-            'Invalid API Key',
-            401
-        );
-    }
-    return true; // All good
 }
 
 /**

@@ -22,6 +22,8 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `vapid` | Key generation, the refusal to generate while subscriptions exist, key and contact validation, and constants beating the database. Runs against the real `minishlink/web-push`. |
 | `settings-vapid` | That a plain settings save can never wipe the stored private key — it is not rendered into the form, so nothing in the request carries it. |
 | `race-files` | The per-race JSON directory being created on demand and reporting failure, and the SQL scoping that keeps a bulk delete inside one race. |
+| `activation` | What the activation hook leaves behind, and what a *second* activation must not: the `CREATE TABLE` statement `dbDelta()` can actually parse, the CF7 example form being created once rather than once per activation, and the plugin header — one version number in three places, plus the `Requires` headers. |
+| `rest-auth` | That the RotorHazard endpoints ask for a capability instead of just "is logged in", that all three routes are behind that gate, and that the dead API key check stays gone. |
 
 ## Optional dependencies
 
