@@ -189,6 +189,15 @@ the project is happy to live with (see B3).
 
 ---
 
+## Beyond the catch-up
+
+This document tracks what a year of WordPress updates broke or exposed. Improvements to the live
+app itself — the data path, the freshness indicator, the mobile navigation — are a separate list in
+[`live-webapp-improvements.md`](live-webapp-improvements.md), with
+[`data-flow.md`](data-flow.md) as the baseline they change.
+
+---
+
 ## Method
 
 WordPress core was cloned from `github.com/WordPress/WordPress` and tag 6.8.1 compared against
