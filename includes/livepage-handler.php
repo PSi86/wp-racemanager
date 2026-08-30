@@ -43,6 +43,43 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 $rm_js_config = null; // Global variable to store the JS configuration object
 
 /**
+ * Contribute one shortcode's configuration to the object printed for the JS modules.
+ *
+ * Every shortcode used to assign $rm_js_config outright. Two live shortcodes on one page --
+ * say the pilot stats above the bracket -- meant the second assignment threw the first one's
+ * settings away, and the module that ran first came up unconfigured. (The wp_head action was
+ * never the problem: add_action() stores a string callback under its own name, so registering
+ * it four times still fires it once.)
+ *
+ * Merging is per module, so two shortcodes that configure different modules both get what they
+ * asked for. Where both configure the *same* module the later one wins, key by key; that is
+ * unchanged, and configuring one module twice with different element IDs on a single page
+ * would need per-instance configuration rather than one global object.
+ *
+ * @param array $config Module name => settings.
+ * @return void
+ */
+function rm_add_js_module_config( array $config ) {
+    global $rm_js_config;
+
+    if ( ! is_array( $rm_js_config ) ) {
+        $rm_js_config = array();
+    }
+
+    foreach ( $config as $module => $settings ) {
+        if ( is_array( $settings ) && isset( $rm_js_config[ $module ] ) && is_array( $rm_js_config[ $module ] ) ) {
+            $rm_js_config[ $module ] = array_merge( $rm_js_config[ $module ], $settings );
+        } else {
+            $rm_js_config[ $module ] = $settings;
+        }
+    }
+
+    // Only works because block themes render the template before wp_head(); accepted by
+    // decision, see docs/wordpress-update-audit.md (B3).
+    add_action( 'wp_head', 'rm_print_js_module_config' );
+}
+
+/**
  * Shortcode to display pilots data.
  * Usage: [rm_pilots]
  */
@@ -70,8 +107,7 @@ function rm_pilots_shortcode( $atts ) {
     );
 
     // Load dataLoader, pilotSelector, pushSubscription
-    global $rm_js_config;
-    $rm_js_config = array(
+    rm_add_js_module_config( array(
         'dataLoader' => [], // Auto-filled by rm_print_js_module_config
         'pilotSelector' => [
             'pilotSelectorId'    => 'pilotSelector',
@@ -79,9 +115,7 @@ function rm_pilots_shortcode( $atts ) {
         'displayStats' => [
             'filterCheckboxId'   => 'filterCheckbox', // no filter checkbox here
         ],
-    );
-        
-    add_action( 'wp_head', 'rm_print_js_module_config' ); // necessary if using one of the js modules
+    ) );
 
     // Enqueue the module.
     wp_enqueue_script_module( 'rm-pilot-stats' );
@@ -135,8 +169,7 @@ function rm_bracket_shortcode( $atts ) {
         '1.0.3'
     );
 
-    global $rm_js_config;
-    $rm_js_config = array(
+    rm_add_js_module_config( array(
         'dataLoader' => [], // Auto-filled by rm_print_js_module_config
         'pilotSelector' => [
             'pilotSelectorId'    => 'pilotSelector',
@@ -144,9 +177,7 @@ function rm_bracket_shortcode( $atts ) {
         'displayHeats' => [
             'filterCheckboxId'   => 'filterCheckbox',
         ],
-    );
-
-    add_action( 'wp_head', 'rm_print_js_module_config' ); // necessary if using one of the js modules
+    ) );
     // Enqueue the module.
     wp_enqueue_script_module( 'rm-displayHeats' );
 
@@ -193,8 +224,7 @@ function rm_stats_shortcode( $atts ) {
     );
 
     // Load dataLoader, pilotSelector, pushSubscription
-    global $rm_js_config;
-    $rm_js_config = array(
+    rm_add_js_module_config( array(
         'dataLoader' => [], // Auto-filled by rm_print_js_module_config
         'pilotSelector' => [
             'pilotSelectorId'    => 'pilotSelector',
@@ -202,9 +232,7 @@ function rm_stats_shortcode( $atts ) {
         'displayStats' => [
             'filterCheckboxId'   => 'filterCheckbox', // no filter checkbox here
         ],
-    );
-        
-    add_action( 'wp_head', 'rm_print_js_module_config' ); // necessary if using one of the js modules
+    ) );
 
     // Enqueue the module.
     wp_enqueue_script_module( 'rm-stats' );
@@ -256,8 +284,7 @@ function rm_nextup_shortcode( $atts ) {
     $nonce = wp_create_nonce( 'rm_ajax_nonce' );
 
     // Load dataLoader, pilotSelector, pushSubscription
-    global $rm_js_config;
-    $rm_js_config = array(
+    rm_add_js_module_config( array(
         'dataLoader' => [],
         'pilotSelector' => [
             'pilotSelectorId'    => 'pilotSelector',
@@ -276,9 +303,7 @@ function rm_nextup_shortcode( $atts ) {
         'displayLog' => [
             'containerId'     => 'log-container', // ID of the container for the log display
         ],
-    );
-        
-    add_action( 'wp_head', 'rm_print_js_module_config' ); // necessary if using one of the js modules
+    ) );
 
     // Enqueue the module.
     wp_enqueue_script_module( 'rm-nextUp' );

@@ -110,19 +110,14 @@ in `blocks/`.
 ## Known open items
 
 The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
-24 findings, 17 resolved. The ones most likely to bite while working here:
+24 findings, 20 resolved. The ones most likely to bite while working here:
 
-- **B3** Two live shortcodes on one page overwrite each other's `$rm_js_config`; the last one
-  wins. The `wp_head`-from-a-shortcode detour only works in block themes — that dependency is
-  accepted by decision, the collision is not.
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
   out of iframe mode for any post containing one. Needs F1 first.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
   Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
   the list alone makes the selection go blank when a pilot leaves the field, because today the
   stale option is what keeps it selected.
-- **E9** `includes/seo-handler.php` prints its own `<title>` at `wp_head` priority 1, where core
-  registers one too — two title tags, plus undefined variables on non-singular pages.
 - **F1** npm and Composer dependencies are one to two majors behind.
 
 ## Documentation

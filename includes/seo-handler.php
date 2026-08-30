@@ -5,6 +5,53 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+/**
+ * Read the SEO overrides stored on the current post.
+ *
+ * Returns empty strings off a singular view, so callers never touch an undefined variable --
+ * which is what happened before on archives, the 404 page and the search results, where PHP 8
+ * turns every read into a warning in the log.
+ *
+ * @return array{title:string, description:string, keywords:string}
+ */
+function rm_seo_post_overrides() {
+    $empty = array( 'title' => '', 'description' => '', 'keywords' => '' );
+
+    if ( ! is_singular() ) {
+        return $empty;
+    }
+
+    $post_id = get_queried_object_id();
+    if ( ! $post_id ) {
+        return $empty;
+    }
+
+    return array(
+        'title'       => (string) get_post_meta( $post_id, '_seo_title', true ),
+        'description' => (string) get_post_meta( $post_id, '_seo_description', true ),
+        'keywords'    => (string) get_post_meta( $post_id, '_seo_keywords', true ),
+    );
+}
+
+/**
+ * Feed the per-post title override into the one title tag WordPress prints.
+ *
+ * This used to be echoed from wp_head at priority 1 -- the same hook and priority core uses for
+ * _wp_render_title_tag(), so every singular page carried two <title> elements. Which one a
+ * search engine or a browser tab honours is undefined. Filtering the document title instead
+ * means there is exactly one, and the override also reaches everything else that asks for the
+ * document title.
+ *
+ * @param string $title Title WordPress would use.
+ * @return string
+ */
+function rm_seo_document_title( $title ) {
+    $overrides = rm_seo_post_overrides();
+
+    return '' !== $overrides['title'] ? $overrides['title'] : $title;
+}
+add_filter( 'pre_get_document_title', 'rm_seo_document_title' );
+
 // Hook early to override theme defaults if needed
 add_action('wp_head', 'rm_seo_output_meta', 1);
 function rm_seo_output_meta() {
@@ -19,17 +66,20 @@ function rm_seo_output_meta() {
     );
 
     // Per-post overrides
-    if ( is_singular() ) {
-        global $post;
-        $post_title = get_post_meta($post->ID, '_seo_title', true);
-        $post_desc  = get_post_meta($post->ID, '_seo_description', true);
-        $post_keys  = get_post_meta($post->ID, '_seo_keywords', true);
-    }
+    $overrides  = rm_seo_post_overrides();
+    $post_title = $overrides['title'];
+    $post_desc  = $overrides['description'];
+    $post_keys  = $overrides['keywords'];
 
-    // Title
-    $title = $post_title ?: ( is_home() ? $seo['default_title'] : wp_get_document_title() );
-    if ( ! empty( $title ) ) {
+    // Title. The <title> element itself belongs to core -- rm_seo_document_title() already put
+    // the override into it -- so only the Open Graph twin is printed here.
+    $title = is_home() ? $seo['default_title'] : wp_get_document_title();
+    if ( ! current_theme_supports( 'title-tag' ) && ! empty( $title ) ) {
+        // A theme that opts out of the title tag leaves the document without one; then, and
+        // only then, print it ourselves.
         echo "<title>" . esc_html( $title ) . "</title>";
+    }
+    if ( ! empty( $title ) ) {
         echo '<meta property="og:title" content="' . esc_attr( $title ) . '">';
     }
 
@@ -50,8 +100,7 @@ function rm_seo_output_meta() {
     if ( is_front_page() || is_home() ) {
         $url = home_url( '/' );
     } elseif ( is_singular() ) {
-        global $post;
-        $url = get_permalink( $post->ID );
+        $url = get_permalink( get_queried_object_id() );
     } else {
         $url = '';
     }
