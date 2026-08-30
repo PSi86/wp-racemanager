@@ -132,7 +132,11 @@ function rm_gallery_shortcode($atts) {
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function(){
+    // On an ordinary page load this markup is parsed before DOMContentLoaded, so waiting for
+    // the event works. It does not work when the gallery arrives later -- an editor preview, a
+    // block rendered into an already-loaded document -- because the event has been and gone by
+    // then and never fires again. So: wait only while there is something left to wait for.
+    var rmGalleryInit = function(){
         var overlay = document.getElementById('rm-gallery-overlay');
         var closeBtn = document.getElementById('rm-gallery-close');
         var overlayVideos = document.getElementById('rm-gallery-overlay-videos');
@@ -268,7 +272,13 @@ function rm_gallery_shortcode($atts) {
                 openOverlay('images', index);
             }
         }
-    });
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', rmGalleryInit);
+    } else {
+        rmGalleryInit();
+    }
     </script>
 
     <style>

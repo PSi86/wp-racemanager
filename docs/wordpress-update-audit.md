@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 24 — 17 resolved, 1 partially, 6 open |
+| Findings | 24 — 20 resolved, 1 partially, 3 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -56,7 +56,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | E5 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | REST upload | Upload directory was never created; the `WP_Error` was discarded | no |
 | A2 | P2 | **open** | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9, editor drops out of the iframe | yes — WP 6.9/7.0 |
 | B2 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Performance | `session_start()` on every live page load disabled page caching | no |
-| B3 | P2 | **open (reduced)** | Live / PWA | Two live shortcodes on one page overwrite each other's JS config. The block-theme dependency itself is accepted — see below | no |
+| B3 | P2 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | Live / PWA | Two live shortcodes on one page overwrote each other's JS config. The block-theme dependency itself is accepted — see below | no |
 | B4 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Live / PWA | Session redirect without no-cache headers; `/live/*` not excluded from speculative loading | yes — WP 6.8/7.1 |
 | D1 | P2 | **open** | Frontend JS | Pilot dropdown accumulates duplicates on every data refresh | no |
 | D3 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | PWA | Manifest and service worker contained `https://domain.com/` and were only written on activation | no |
@@ -64,9 +64,9 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | E3 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Robustness | Composer autoload via `../../../../../vendor/`, unguarded and inconsistent | no |
 | E4 | P2 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Database | `dbDelta()` called with `IF NOT EXISTS` — schema upgrades never apply | no |
 | E8 | P2 | ⚠️ partly [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Portability | Hard-coded `copterrace.com` — the URLs are gone, the email addresses in the CF7 form template remain | no |
-| E9 | P2 | **open** | SEO | Duplicate `<title>`, PHP warnings on non-singular pages | no |
+| E9 | P2 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | SEO | Duplicate `<title>`, PHP warnings on non-singular pages | no |
 | C2 | P3 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `register_post_meta()` with the invalid type `datetime` | no |
-| D2 | P3 | **open** | Frontend JS | Gallery block binds an inline script to `DOMContentLoaded` | no |
+| D2 | P3 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | Frontend JS | Gallery block binds an inline script to `DOMContentLoaded` | no |
 | D4 | P3 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Push | VAPID keys empty and not configurable anywhere | no |
 | E6 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | REST | Upload endpoint guarded only by `is_user_logged_in()`; the API key check is dead code | no |
 | E10 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Activation | `create_event_registration_cf7_form()` creates another CF7 form on every activation | no |
@@ -116,15 +116,16 @@ of the four shortcodes in `includes/livepage-handler.php`. That works only becau
 themes render the template *before* `wp_head()` (`wp-includes/template-canvas.php`). In a
 classic theme `window.RmJsConfig` would simply be absent and every JS module would throw.
 
-There is a second problem, and it bites in block themes too: each shortcode assigns
-`$rm_js_config` wholesale, so with two of them on one page the last one wins and the earlier
-module loses its configuration. The action is also added once per shortcode.
+There was a second problem, and it bit in block themes too: each shortcode assigned
+`$rm_js_config` wholesale, so with two of them on one page the last one won and the earlier
+module came up unconfigured. (Registering the `wp_head` action four times was never part of it —
+core stores a string callback under its own name, so it fires once regardless.)
 
 **Project decision:** the site runs a block theme and will keep doing so, so the theme
 dependency is accepted and B3 is *not* a reason to rewrite the configuration mechanism. What
-remains in scope is the collision — two live shortcodes on one page must both get their
-configuration. Merging into `$rm_js_config` instead of overwriting it fixes that within the
-current design; moving to the script module data API (`script_module_data_{$id}`) stays the
+remained in scope was the collision, and [#11](https://github.com/PSi86/wp-racemanager/pull/11) fixed it: `rm_add_js_module_config()` merges
+per module instead of overwriting, so two shortcodes that configure different modules both get
+what they asked for. Moving to the script module data API (`script_module_data_{$id}`) stays the
 cleaner long-term option, not a prerequisite.
 
 ### D1 — pilot dropdown accumulates options · P2
@@ -168,9 +169,6 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
   risky one to migrate: it uses the old Backbone media library (`wp.media`, `wp.shortcode`).
 - **E8 remainder** — `includes/admin-registrations.php` still hard-codes
   `registration@copterrace.com` in the CF7 form template it creates on activation.
-- **E9** — `includes/seo-handler.php` prints its own `<title>` at `wp_head` priority 1, where
-  core also registers `_wp_render_title_tag()`, giving two title tags. `$post_title`,
-  `$post_desc` and `$post_keys` are read on non-singular pages without being defined.
 - **F1** — `@wordpress/components` is ten majors behind, `@wordpress/scripts` four;
   `minishlink/web-push` is on 9.x with 11.x current. The devcontainer pins Node 18 (EOL).
   Needed before A2 can be tackled.
@@ -184,10 +182,10 @@ robustness.** No redesigns, no feature work, and nothing that exists purely to l
 the project is happy to live with (see B3).
 
 1. ~~**E7, E4, E6, E10**~~ — done in [#10](https://github.com/PSi86/wp-racemanager/pull/10).
-2. **E9, E8 remainder, D2** — same class: warnings, duplicated output, hard-coded addresses.
-3. **B3 (reduced)** — merge the per-shortcode config instead of overwriting it.
-4. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
-5. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
+2. ~~**E9, D2**~~ and ~~**B3 (reduced)**~~ — done in [#11](https://github.com/PSi86/wp-racemanager/pull/11). **E8 remainder** is left: the
+   `copterrace.com` addresses in the CF7 template are a content decision, not cleanup.
+3. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
+4. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
    becomes a visible regression.
 
 ---
@@ -204,5 +202,5 @@ Findings marked resolved were re-verified against `main` by reading the code. **
 remainder were found to be still open during that re-verification**, having previously been
 assumed fixed.
 
-Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 219 checks
-across nine suites.
+Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 240 checks
+across ten suites.

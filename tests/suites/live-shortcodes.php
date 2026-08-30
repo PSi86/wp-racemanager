@@ -84,4 +84,24 @@ rm_test_check( 'storageKey is the race post ID', str_contains( $head, '"storageK
 rm_test_check( 'no session-era race_id link left', ! str_contains( $head, 'race_id=' ) );
 rm_test_check( 'public VAPID key handed to the client', str_contains( $head, 'TESTPUBKEY' ) );
 
+rm_test_section( 'Two shortcodes on one page do not overwrite each other (B3)' );
+// All four shortcodes ran above. Every one of them used to assign $rm_js_config outright, so
+// only the last one's modules survived and everything before it came up unconfigured.
+preg_match( '/window\.RmJsConfig = (\{.*?\});/s', $head, $m );
+$config = isset( $m[1] ) ? json_decode( $m[1], true ) : array();
+
+rm_test_check( 'the config parses', is_array( $config ) && $config, $head );
+rm_test_check( 'displayStats survived, from the first shortcode', isset( $config['displayStats'] ),
+    'keys: ' . implode( ', ', array_keys( (array) $config ) ) );
+rm_test_check( 'displayLog is there, from the last one', isset( $config['displayLog'] ) );
+rm_test_check( 'so are displayHeats and pushSubscription',
+    isset( $config['displayHeats'] ) && isset( $config['pushSubscription'] ) );
+rm_test_check( 'dataLoader is still filled in, not emptied by a later []',
+    isset( $config['dataLoader']['dataUrl'] ) && '' !== $config['dataLoader']['dataUrl'] );
+rm_test_check( 'the config object is printed once', 1 === substr_count( $head, 'window.RmJsConfig' ), $head );
+// Core stores a string callback under its own name, so repeated registration fires once anyway.
+rm_test_check( 'the head hook holds one callback',
+    array( 'rm_print_js_module_config' ) === array_values( array_unique( $GLOBALS['rm_head_actions'], SORT_REGULAR ) ),
+    implode( ', ', array_map( 'strval', $GLOBALS['rm_head_actions'] ) ) );
+
 rm_test_finish();
