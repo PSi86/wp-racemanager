@@ -102,15 +102,47 @@ in `blocks/`.
 ## Environment
 
 - Requires Contact Form 7 (checked on activation).
+- Requires **PHP 8.2** and **WordPress 6.5** — declared in the plugin header. The PHP floor comes
+  from `web-token/jwt-library` behind `minishlink/web-push`, the WordPress one from the Script
+  Modules API.
 - Push needs `minishlink/web-push` via Composer. The autoloader is looked for in several
   locations; historically it lived outside the plugin.
 - Registration data lives in a custom table `{prefix}rm_registrations`, push subscriptions in
-  `{prefix}rm_subscriptions`.
+  `{prefix}rm_subscriptions`. Race JSON lives in `wp-content/uploads/races/`.
+
+### Options the plugin owns
+
+| Option | What it holds |
+|---|---|
+| `rm_live_page_id` | The live area's parent page. Everything under `/live/` hangs off it. |
+| `rm_live_routing` | Cached view slugs and the live path; rebuilt when the live pages change. |
+| `rm_vapid` | Web Push key pair and subject, unless the `RM_VAPID_*` constants are set. |
+| `rm_registration_email` | Sender/Reply-To/Bcc of the registration mail. Empty = derive from the site domain. |
+| `rm_cf7_form_id` | The CF7 example form the activation hook created, so it is created only once. |
+| `rm_seo` | Default title, description and keywords. |
+| `rm_last_races_count` | How many races the navigation submenu lists. |
+| `rm_callsign_field` | Name of the CF7 field holding the pilot callsign. |
+| `rm_pwa_files_signature` | Hash of the values baked into `manifest.json` / `pwa-sw.js`; a mismatch regenerates them. |
+| `rm_event_dates_migrated` | Timestamp of the last event-date migration run. |
+
+## How the data reaches the viewer
+
+RotorHazard uploads the **whole** result JSON; the plugin writes it to two files per race and the
+browser polls the small one to decide whether to download the big one. The contract, its costs and
+what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read that before changing
+`js/rm-m-dataLoader.js`, `rm_write_files()` or the upload endpoint.
 
 ## Known open items
 
-The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
-24 findings, 21 resolved. The ones most likely to bite while working here:
+Two lists, and they answer different questions:
+
+- [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
+  updates broke or exposed. 24 findings, 21 resolved. **The maintenance to-do list.**
+- [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
+  could get better, above all its data path. L1–L10, none started, four questions to answer first.
+  [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
+
+From the audit, the ones most likely to bite while working here:
 
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
   out of iframe mode for any post containing one. Needs F1 first.
