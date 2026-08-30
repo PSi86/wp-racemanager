@@ -4,6 +4,8 @@ Written while catching up with WordPress 6.9–7.1 after a year without updates.
 
 | Document | What it is for |
 |---|---|
+| [development-setup.md](development-setup.md) | Setting up a local WordPress to develop and test against, with DDEV and VS Code. **Not set up yet — postponed until back at the desktop, not abandoned.** |
+| [deployment.md](deployment.md) | Building the plugin artifact and getting it onto the production host, which has no WP-CLI. |
 | [wordpress-update-audit.md](wordpress-update-audit.md) | The findings list with a status per item. **This is the to-do list.** |
 | [deployment-test-protocol.md](deployment-test-protocol.md) | What to check manually after deploying. Automated tests cover the rest — see [`tests/README.md`](../tests/README.md). |
 | [live-urls-and-vapid.md](live-urls-and-vapid.md) | Why the live URLs and the VAPID handling look the way they do. Read before changing either. |

@@ -5,3 +5,4 @@ tests/.wordpress
 tests/.fake-wp
 .DS_Store
 *.log
+/build

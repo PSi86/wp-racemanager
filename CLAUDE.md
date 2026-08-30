@@ -15,7 +15,12 @@ js/                       Frontend. rm-m-*.js are ES modules for the live pages
 css/, img/, assets/       Styles, PWA icons, bundled Swiper
 templates/                Templates for the generated manifest.json and pwa-sw.js
 tests/                    Plain-PHP test suites — see tests/README.md
+bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.sh (local site check)
 ```
+
+`.gitattributes` decides what ships: everything development-only is `export-ignore`d, so
+`git archive` (and with it `bin/build-plugin-zip.sh`) leaves it out. See
+[`docs/deployment.md`](docs/deployment.md).
 
 ### The pieces that matter most
 
@@ -105,11 +110,11 @@ in `blocks/`.
 ## Known open items
 
 The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
-23 findings, 13 resolved. The ones most likely to bite while working here:
+24 findings, 13 resolved. The ones most likely to bite while working here:
 
-- **B3** `rm_print_js_module_config()` is hooked to `wp_head` from inside each shortcode. That
-  only works because block themes render the template before `wp_head()`. Two such shortcodes
-  on one page also overwrite each other's config. Should move to the script module data API.
+- **B3** Two live shortcodes on one page overwrite each other's `$rm_js_config`; the last one
+  wins. The `wp_head`-from-a-shortcode detour only works in block themes — that dependency is
+  accepted by decision, the collision is not.
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
   out of iframe mode for any post containing one. Needs F1 first.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
@@ -129,4 +134,12 @@ The full list with status per item is in [`docs/wordpress-update-audit.md`](docs
 
 - [`docs/`](docs/) — the audit and to-do list, the deployment test protocol, and the reasoning
   behind the live URLs and the VAPID handling.
+- [`docs/development-setup.md`](docs/development-setup.md) — setting up a local WordPress with
+  DDEV. The plugin belongs in `wp-content/plugins/wp-racemanager/`, which is also the layout the
+  `live-links` suite needs to find a WordPress checkout. **Still pending:** development is meant
+  to move to VS Code against this local site; the guide is written, the site is not built yet.
+  Postponed, not dropped.
+- [`docs/deployment.md`](docs/deployment.md) — building the artifact and installing it on a host
+  without WP-CLI. Note that a ZIP replace does **not** re-run the activation hook, and that
+  reactivating to force it duplicates the CF7 registration form (E10).
 - [`tests/README.md`](tests/README.md) — how to run and extend the suites.
