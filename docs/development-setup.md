@@ -7,6 +7,14 @@ production data down painless.
 
 Everything here is done once. Afterwards the daily loop is `ddev start`, edit, `php tests/run.php`.
 
+> **Status: written, not yet set up. Postponed, not dropped.**
+> The plan is to move development from the cloud session to VS Code on the desktop, against a
+> local DDEV site built exactly as described here. That has not happened yet — it is waiting on
+> being back at the desktop machine, not on a decision. Until then work continues in the cloud
+> session, and every change still has to survive `php tests/run.php` plus the manual protocol in
+> [`deployment-test-protocol.md`](deployment-test-protocol.md). When the local site does come up,
+> `bin/dev-doctor.sh` (section 6) is the first thing to run.
+
 ---
 
 ## 1 · What you need on your machine

@@ -136,7 +136,9 @@ The full list with status per item is in [`docs/wordpress-update-audit.md`](docs
   behind the live URLs and the VAPID handling.
 - [`docs/development-setup.md`](docs/development-setup.md) — setting up a local WordPress with
   DDEV. The plugin belongs in `wp-content/plugins/wp-racemanager/`, which is also the layout the
-  `live-links` suite needs to find a WordPress checkout.
+  `live-links` suite needs to find a WordPress checkout. **Still pending:** development is meant
+  to move to VS Code against this local site; the guide is written, the site is not built yet.
+  Postponed, not dropped.
 - [`docs/deployment.md`](docs/deployment.md) — building the artifact and installing it on a host
   without WP-CLI. Note that a ZIP replace does **not** re-run the activation hook, and that
   reactivating to force it duplicates the CF7 registration form (E10).
