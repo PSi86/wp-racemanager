@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 24 — 13 resolved, 1 partially, 10 open |
+| Findings | 24 — 17 resolved, 1 partially, 6 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -62,15 +62,15 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | D3 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | PWA | Manifest and service worker contained `https://domain.com/` and were only written on activation | no |
 | D5 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Frontend JS | `rm-m-pwa-subscribe.js` touched missing DOM nodes unguarded, taking the whole nextup page down | no |
 | E3 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Robustness | Composer autoload via `../../../../../vendor/`, unguarded and inconsistent | no |
-| E4 | P2 | **open** | Database | `dbDelta()` called with `IF NOT EXISTS` — schema upgrades never apply | no |
+| E4 | P2 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Database | `dbDelta()` called with `IF NOT EXISTS` — schema upgrades never apply | no |
 | E8 | P2 | ⚠️ partly [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Portability | Hard-coded `copterrace.com` — the URLs are gone, the email addresses in the CF7 form template remain | no |
 | E9 | P2 | **open** | SEO | Duplicate `<title>`, PHP warnings on non-singular pages | no |
 | C2 | P3 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `register_post_meta()` with the invalid type `datetime` | no |
 | D2 | P3 | **open** | Frontend JS | Gallery block binds an inline script to `DOMContentLoaded` | no |
 | D4 | P3 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Push | VAPID keys empty and not configurable anywhere | no |
-| E6 | P3 | **open** | REST | Upload endpoint guarded only by `is_user_logged_in()`; the API key check is dead code | no |
-| E10 | P3 | **open** | Activation | `create_event_registration_cf7_form()` creates another CF7 form on every activation | no |
-| E7 | P3 | **open** | Cleanup | `ABSPATH` guard commented out, dead code, three different version numbers | no |
+| E6 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | REST | Upload endpoint guarded only by `is_user_logged_in()`; the API key check is dead code | no |
+| E10 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Activation | `create_event_registration_cf7_form()` creates another CF7 form on every activation | no |
+| E7 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Cleanup | `ABSPATH` guard commented out, dead code, three different version numbers | no |
 | F1 | P3 | **open** | Toolchain | npm and Composer dependencies one to two majors behind | indirectly |
 
 ---
@@ -166,22 +166,8 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
 - **A2** — all blocks on `apiVersion: 2`. Since 6.9 `registerBlockType` logs a deprecation and
   the post editor drops out of iframe mode for any post containing one. `race-gallery` is the
   risky one to migrate: it uses the old Backbone media library (`wp.media`, `wp.shortcode`).
-- **E4** — `create_db_table()` passes `CREATE TABLE IF NOT EXISTS` to `dbDelta()`. Core parses
-  the table name with `preg_match('|CREATE TABLE ([^ ]*)|')` and so reads it as "IF". The table
-  is created the first time (MySQL handles it), but **schema changes are never detected**.
-- **E6** — `/rm/v1/upload` is guarded only by `is_user_logged_in()`; per-post capability is
-  checked later. `rm_validate_api_key()` is dead code and uses a non-timing-safe comparison.
-- **E7** — the `ABSPATH` guard in `wp-racemanager.php` is commented out; `is_racemanager_rest_api_request()`
-  starts with `return true`; the version appears as `1.0` (header), `1.0.0` (constant) and
-  `1.0.1` (`package.json`); `Requires at least` and `Requires PHP` headers are missing entirely,
-  so WordPress cannot warn about an incompatible update.
 - **E8 remainder** — `includes/admin-registrations.php` still hard-codes
   `registration@copterrace.com` in the CF7 form template it creates on activation.
-- **E10** — `create_event_registration_cf7_form()` runs on every activation and inserts a new
-  *Event Registration Example* form each time; the duplicate check in it is commented out. That
-  makes deactivate/reactivate — the obvious way to re-run the activation hook after a manual
-  deployment — a lossy operation, and it is why [`deployment.md`](deployment.md) tells you to do
-  the hook's work by hand instead.
 - **E9** — `includes/seo-handler.php` prints its own `<title>` at `wp_head` priority 1, where
   core also registers `_wp_render_title_tag()`, giving two title tags. `$post_title`,
   `$post_desc` and `$post_keys` are read on non-singular pages without being defined.
@@ -197,7 +183,7 @@ The working filter for this round: **only changes that improve general code qual
 robustness.** No redesigns, no feature work, and nothing that exists purely to lift a constraint
 the project is happy to live with (see B3).
 
-1. **E7, E4, E6, E10** — small, self-contained, no migration risk. Good to batch.
+1. ~~**E7, E4, E6, E10**~~ — done in [#10](https://github.com/PSi86/wp-racemanager/pull/10).
 2. **E9, E8 remainder, D2** — same class: warnings, duplicated output, hard-coded addresses.
 3. **B3 (reduced)** — merge the per-shortcode config instead of overwriting it.
 4. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
@@ -218,5 +204,5 @@ Findings marked resolved were re-verified against `main` by reading the code. **
 remainder were found to be still open during that re-verification**, having previously been
 assumed fixed.
 
-Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 181 checks
-across seven suites.
+Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 219 checks
+across nine suites.
