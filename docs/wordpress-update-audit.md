@@ -56,7 +56,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | E5 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | REST upload | Upload directory was never created; the `WP_Error` was discarded | no |
 | A2 | P2 | **open** | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9, editor drops out of the iframe | yes — WP 6.9/7.0 |
 | B2 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Performance | `session_start()` on every live page load disabled page caching | no |
-| B3 | P2 | **open** | Live / PWA | JS config is hooked to `wp_head` from inside a shortcode — only works in block themes | no |
+| B3 | P2 | **open (reduced)** | Live / PWA | Two live shortcodes on one page overwrite each other's JS config. The block-theme dependency itself is accepted — see below | no |
 | B4 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Live / PWA | Session redirect without no-cache headers; `/live/*` not excluded from speculative loading | yes — WP 6.8/7.1 |
 | D1 | P2 | **open** | Frontend JS | Pilot dropdown accumulates duplicates on every data refresh | no |
 | D3 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | PWA | Manifest and service worker contained `https://domain.com/` and were only written on activation | no |
@@ -116,11 +116,16 @@ of the four shortcodes in `includes/livepage-handler.php`. That works only becau
 themes render the template *before* `wp_head()` (`wp-includes/template-canvas.php`). In a
 classic theme `window.RmJsConfig` would simply be absent and every JS module would throw.
 
-There is a second problem: with two such shortcodes on one page, the global `$rm_js_config` is
-overwritten by the last one and the config script is printed twice.
+There is a second problem, and it bites in block themes too: each shortcode assigns
+`$rm_js_config` wholesale, so with two of them on one page the last one wins and the earlier
+module loses its configuration. The action is also added once per shortcode.
 
-**Fix:** attach the configuration to the module itself via the script module data API
-(`script_module_data_{$id}`) instead of a global `wp_head` detour.
+**Project decision:** the site runs a block theme and will keep doing so, so the theme
+dependency is accepted and B3 is *not* a reason to rewrite the configuration mechanism. What
+remains in scope is the collision — two live shortcodes on one page must both get their
+configuration. Merging into `$rm_js_config` instead of overwriting it fixes that within the
+current design; moving to the script module data API (`script_module_data_{$id}`) stays the
+cleaner long-term option, not a prerequisite.
 
 ### D1 — pilot dropdown accumulates options · P2
 
@@ -188,10 +193,16 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
 
 ## Suggested order
 
-1. **E4, E6, E7, E9** — small, self-contained, no migration risk. Good to batch.
-2. **B3** — script module data API. Touches the same file as any future live-page work.
-3. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
-4. **D1 + D2** — frontend polish. Low risk, low urgency.
+The working filter for this round: **only changes that improve general code quality and
+robustness.** No redesigns, no feature work, and nothing that exists purely to lift a constraint
+the project is happy to live with (see B3).
+
+1. **E7, E4, E6, E10** — small, self-contained, no migration risk. Good to batch.
+2. **E9, E8 remainder, D2** — same class: warnings, duplicated output, hard-coded addresses.
+3. **B3 (reduced)** — merge the per-shortcode config instead of overwriting it.
+4. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
+5. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
+   becomes a visible regression.
 
 ---
 

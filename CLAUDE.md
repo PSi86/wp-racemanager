@@ -112,9 +112,9 @@ in `blocks/`.
 The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
 24 findings, 13 resolved. The ones most likely to bite while working here:
 
-- **B3** `rm_print_js_module_config()` is hooked to `wp_head` from inside each shortcode. That
-  only works because block themes render the template before `wp_head()`. Two such shortcodes
-  on one page also overwrite each other's config. Should move to the script module data API.
+- **B3** Two live shortcodes on one page overwrite each other's `$rm_js_config`; the last one
+  wins. The `wp_head`-from-a-shortcode detour only works in block themes — that dependency is
+  accepted by decision, the collision is not.
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
   out of iframe mode for any post containing one. Needs F1 first.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
