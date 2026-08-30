@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 24 — 20 resolved, 1 partially, 3 open |
+| Findings | 24 — 21 resolved, 3 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -63,7 +63,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | D5 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Frontend JS | `rm-m-pwa-subscribe.js` touched missing DOM nodes unguarded, taking the whole nextup page down | no |
 | E3 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Robustness | Composer autoload via `../../../../../vendor/`, unguarded and inconsistent | no |
 | E4 | P2 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Database | `dbDelta()` called with `IF NOT EXISTS` — schema upgrades never apply | no |
-| E8 | P2 | ⚠️ partly [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Portability | Hard-coded `copterrace.com` — the URLs are gone, the email addresses in the CF7 form template remain | no |
+| E8 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5), [#12](https://github.com/PSi86/wp-racemanager/pull/12) | Portability | Hard-coded `copterrace.com` — the URLs went in #5, the CF7 mail addresses in #12 | no |
 | E9 | P2 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | SEO | Duplicate `<title>`, PHP warnings on non-singular pages | no |
 | C2 | P3 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `register_post_meta()` with the invalid type `datetime` | no |
 | D2 | P3 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | Frontend JS | Gallery block binds an inline script to `DOMContentLoaded` | no |
@@ -167,8 +167,6 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
 - **A2** — all blocks on `apiVersion: 2`. Since 6.9 `registerBlockType` logs a deprecation and
   the post editor drops out of iframe mode for any post containing one. `race-gallery` is the
   risky one to migrate: it uses the old Backbone media library (`wp.media`, `wp.shortcode`).
-- **E8 remainder** — `includes/admin-registrations.php` still hard-codes
-  `registration@copterrace.com` in the CF7 form template it creates on activation.
 - **F1** — `@wordpress/components` is ten majors behind, `@wordpress/scripts` four;
   `minishlink/web-push` is on 9.x with 11.x current. The devcontainer pins Node 18 (EOL).
   Needed before A2 can be tackled.
@@ -182,8 +180,9 @@ robustness.** No redesigns, no feature work, and nothing that exists purely to l
 the project is happy to live with (see B3).
 
 1. ~~**E7, E4, E6, E10**~~ — done in [#10](https://github.com/PSi86/wp-racemanager/pull/10).
-2. ~~**E9, D2**~~ and ~~**B3 (reduced)**~~ — done in [#11](https://github.com/PSi86/wp-racemanager/pull/11). **E8 remainder** is left: the
-   `copterrace.com` addresses in the CF7 template are a content decision, not cleanup.
+2. ~~**E9, D2**~~ and ~~**B3 (reduced)**~~ — done in [#11](https://github.com/PSi86/wp-racemanager/pull/11);
+   ~~**E8 remainder**~~ in [#12](https://github.com/PSi86/wp-racemanager/pull/12), where the address became a setting that defaults to the
+   site's own domain.
 3. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
 4. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
    becomes a visible regression.
@@ -200,7 +199,7 @@ locally on PHP 8.4.19.
 
 Findings marked resolved were re-verified against `main` by reading the code. **B3 and the E8
 remainder were found to be still open during that re-verification**, having previously been
-assumed fixed.
+assumed fixed; both are closed now.
 
-Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 240 checks
-across ten suites.
+Regression coverage for the resolved items lives in [`tests/`](../tests/README.md) — 263 checks
+across eleven suites.

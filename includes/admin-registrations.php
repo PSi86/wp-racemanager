@@ -396,6 +396,145 @@ function rm_download_csv($race_id, $selected_ids = array()) {
     exit;
 }
 
+/**
+ * The address the registration form sends from, replies to and copies.
+ *
+ * Stored in the `rm_registration_email` option and editable under Settings -> RaceManager.
+ * It used to be `registration@copterrace.com`, hard-coded in three places, which is wrong on
+ * every installation but one -- the default is now derived from the site's own domain, so a
+ * fresh install is already correct without anyone touching a setting.
+ *
+ * @return string
+ */
+function rm_registration_email() {
+    $stored = sanitize_email( (string) get_option( 'rm_registration_email', '' ) );
+
+    return is_email( $stored ) ? $stored : rm_default_registration_email();
+}
+
+/**
+ * `registration@` plus the site's own host, with any `www.` dropped -- mail from
+ * registration@www.example.com would look wrong and often is not even deliverable.
+ *
+ * Falls back to the administrator address for hosts that cannot carry a mailbox, such as a
+ * local development site.
+ *
+ * @return string
+ */
+function rm_default_registration_email() {
+    $host = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+    $host = is_string( $host ) ? preg_replace( '/^www\./i', '', $host ) : '';
+
+    if ( '' === $host || ! str_contains( $host, '.' ) ) {
+        return (string) get_option( 'admin_email' );
+    }
+
+    $candidate = 'registration@' . $host;
+
+    return is_email( $candidate ) ? $candidate : (string) get_option( 'admin_email' );
+}
+
+/**
+ * The mail properties of the example form, built around one address.
+ *
+ * Kept in one place because two callers need to agree on them: the form creation below, and
+ * rm_sync_cf7_registration_email(), which compares what a form currently holds against what the
+ * plugin would have written for the previous address.
+ *
+ * @param string $email Address to send from, reply to and copy.
+ * @return array CF7 "mail" property.
+ */
+function rm_cf7_registration_mail( $email ) {
+    $body = 'Hallo,
+
+Wir von [_site_title] freuen uns, dass du dich angemeldet hast und auf deine Teilnahme am Rennen.
+
+Deine angegeben Daten / Your specified data :
+
+Name: [pilot_name_1]
+Nickname: [pilot_nickname_1]
+Mobile: [pilot_phone_1]
+Email: [pilot_mail_1]
+Rennen: [race_id]
+
+
+Mit freundlichen Grüssen / Best regards
+
+[_site_title]
+
+-- 
+Diese E-Mail ist eine Bestätigung für das Absenden deines Kontaktformulars auf unserer Website ([_site_title] [_site_url]), in der deine E-Mail-Adresse verwendet wurde. Wenn du das nicht warst, ignoriere bitte diese Nachricht.
+';
+
+    return array(
+        'active'             => true,
+        'sender'             => '[_site_title] <' . $email . '>',
+        'recipient'          => '[pilot_mail_1]',
+        'subject'            => '[_site_title]: Race Registration Confirmation',
+        'body'               => $body,
+        'additional_headers' => "Reply-To: $email\r\n" . "Bcc: $email",
+    );
+}
+
+/**
+ * Carry a changed address over to the form the plugin created.
+ *
+ * Only the fields still holding exactly what the plugin wrote for the *previous* address are
+ * touched. An organiser who edited the sender or the Bcc by hand keeps their version -- the
+ * setting is not worth overwriting someone's work for.
+ *
+ * @param mixed $old_value Previous option value.
+ * @param mixed $new_value New option value.
+ * @return void
+ */
+function rm_sync_cf7_registration_email( $old_value, $new_value ) {
+    if ( ! class_exists( 'WPCF7_ContactForm' ) ) {
+        return;
+    }
+
+    $old = sanitize_email( (string) $old_value );
+    $old = is_email( $old ) ? $old : rm_default_registration_email();
+    $new = rm_registration_email();
+
+    if ( $old === $new ) {
+        return;
+    }
+
+    $form_id = rm_find_event_registration_cf7_form();
+    if ( ! $form_id ) {
+        return;
+    }
+
+    $form = WPCF7_ContactForm::get_instance( $form_id );
+    if ( ! $form || ! method_exists( $form, 'prop' ) || ! method_exists( $form, 'set_properties' ) ) {
+        return;
+    }
+
+    $mail = $form->prop( 'mail' );
+    if ( ! is_array( $mail ) ) {
+        return;
+    }
+
+    $was    = rm_cf7_registration_mail( $old );
+    $wanted = rm_cf7_registration_mail( $new );
+
+    $changed = false;
+    foreach ( array( 'sender', 'additional_headers' ) as $key ) {
+        if ( isset( $mail[ $key ] ) && $mail[ $key ] === $was[ $key ] ) {
+            $mail[ $key ] = $wanted[ $key ];
+            $changed      = true;
+        }
+    }
+
+    if ( ! $changed ) {
+        return;
+    }
+
+    $form->set_properties( array( 'mail' => $mail ) );
+    $form->save();
+}
+add_action( 'update_option_rm_registration_email', 'rm_sync_cf7_registration_email', 10, 2 );
+
 /** Title of the example registration form the plugin ships. */
 const RM_CF7_FORM_TITLE = 'Event Registration Example';
 
@@ -481,43 +620,12 @@ Fügt mich zur Whatsapp-Gruppe / Discord-Server hinzu.
 
 [submit "Senden"]';
 
-    // Define the mail content.
-    $mail_content = 'Hallo,
-
-Wir von Rotormaniacs freuen uns, dass du dich angemeldet hast und auf deine Teilnahme am Rennen.
-
-Deine angegeben Daten / Your specified data :
-
-Name: [pilot_name_1]
-Nickname: [pilot_nickname_1]
-Mobile: [pilot_phone_1]
-Email: [pilot_mail_1]
-Rennen: [race_id]
-
-
-Mit freundlichen Grüssen / Best regards
-
-TSV Korntal - FPV racing
-
--- 
-Diese E-Mail ist eine Bestätigung für das Absenden deines Kontaktformulars auf unserer Website ([_site_title] [_site_url]), in der deine E-Mail-Adresse verwendet wurde. Wenn du das nicht warst, ignoriere bitte diese Nachricht.
-';
-
     // Create a new contact form using CF7 API.
     $contact_form = WPCF7_ContactForm::get_template();
     $contact_form->set_title( RM_CF7_FORM_TITLE );
     $contact_form->set_properties( array(
-        'form' => $form_content,
-        'mail' => array(
-            'active'    => true,
-            'sender'    => '[_site_title] <registration@copterrace.com>',
-            'recipient' => '[pilot_mail_1]',
-            'subject'   => '[_site_title]: Race Registration Confirmation',
-            'body'      => $mail_content,
-            'additional_headers' => 
-                "Reply-To: registration@copterrace.com\r\n" .
-                "Bcc: registration@copterrace.com",
-        ),
+        'form'                => $form_content,
+        'mail'                => rm_cf7_registration_mail( rm_registration_email() ),
         'additional_settings' => 'skip_mail: off',
         // additional properties (like messages, mail_2, etc.)
     ) );
