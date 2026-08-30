@@ -41,6 +41,12 @@ class PWA_Subscription_Handler {
     /**
      * Creates/updates the custom DB table for storing subscriptions.
      * Call on plugin activation.
+     *
+     * The statement must say "CREATE TABLE", not "CREATE TABLE IF NOT EXISTS": dbDelta() reads
+     * the table name with preg_match('|CREATE TABLE ([^ ]*)|') and would take it to be "IF",
+     * then compare the wanted schema against a table of that name, find nothing, and never
+     * issue a single ALTER. The table would still be created the first time -- MySQL handles
+     * that -- but every later schema change would silently not apply.
      */
     public static function create_db_table() {
         global $wpdb;
@@ -48,7 +54,7 @@ class PWA_Subscription_Handler {
         $table_name      = $wpdb->prefix . 'rm_subscriptions';
         $charset_collate = $wpdb->get_charset_collate();
     
-        $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        $sql = "CREATE TABLE $table_name (
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         race_id bigint(20) unsigned NOT NULL,
         pilot_id int(20) unsigned NOT NULL,
