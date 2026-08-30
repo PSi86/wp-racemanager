@@ -115,7 +115,32 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
 - [ ] *Optional:* **force a write failure.** Make `uploads/races/` read-only briefly and upload.
       Expected: an **error** instead of `201 Created`, and no empty race left behind.
 
-## 6 · Closing
+## 6 · The cleanup round (PRs #10 and #11)
+
+These four are new since the round above and each has one thing that can only be checked on a
+real site.
+
+- [ ] **The upload still works.** The REST endpoints now ask for the `edit_posts` capability
+      instead of just "is logged in" (E6). Any account that could upload before already has it,
+      so this should be invisible — but do one real upload from the timer, or replay one with
+      `curl` and an application password, before a race day depends on it.
+- [ ] **PHP is 8.2 or newer.** The plugin now declares `Requires PHP: 8.2` (E7). If the host is
+      still on 8.1, WordPress refuses the update — which is the point, but it means switching
+      the PHP version first. Tools → Site Health → Info → Server.
+- [ ] **No second registration form.** Deactivating and reactivating the plugin used to leave
+      another *Event Registration Example* behind every time (E10). Contact → Contact Forms
+      shows exactly one, and any duplicates from earlier reactivations can be deleted — check
+      first which one the registration page actually embeds.
+- [ ] **One `<title>`.** View source on a race page, the front page and an archive: exactly one
+      `<title>` element (E9). A page with an `_seo_title` override still shows the override.
+- [ ] **No undefined-variable warnings** in `debug.log` from an archive, a search or a 404 page.
+- [ ] **Two live shortcodes on one page.** If any page carries two of them, both areas work now
+      rather than only the lower one (B3).
+- [ ] **The gallery opens** from a thumbnail, and the overlay's arrows and swipe work (D2).
+
+---
+
+## 7 · Closing
 
 - [ ] **Review the log.** `wp-content/debug.log` holds no new warnings or errors from the
       plugin.
