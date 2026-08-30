@@ -240,6 +240,7 @@ add_action('admin_init', function () {
     register_setting('rm_options_group', 'rm_live_page_id', 'rm_settings_sanitize_live_page'); // integer via sanitize callback
     register_setting('rm_options_group', 'rm_last_races_count', ['type' => 'integer', 'sanitize_callback' => 'absint', 'default' => 5]);
     register_setting('rm_options_group', 'rm_callsign_field', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'pilot_callsign']);
+    register_setting('rm_options_group', 'rm_registration_email', ['type' => 'string', 'sanitize_callback' => 'rm_sanitize_registration_email', 'default' => '']);
 
     // Register SEO settings as a single array
     register_setting(
@@ -318,6 +319,14 @@ add_action('admin_init', function () {
             echo "<input type='text' name='rm_callsign_field' value='" . esc_attr($value) . "' class='regular-text'>";
             echo "<p class='description'>Name of the Registration Form Field for the Pilot's Callsign. Default: pilot_callsign</p>";
         },
+        'rm',
+        'rm_wp_section'
+    );
+
+    add_settings_field(
+        'registration_email_field',
+        'Registration Address',
+        'rm_settings_registration_email_cb',
         'rm',
         'rm_wp_section'
     );
@@ -440,6 +449,58 @@ function rm_settings_push_section_cb() {
         __( 'For production, keep the private key out of the database by defining <code>RM_VAPID_PUBLIC_KEY</code> and <code>RM_VAPID_PRIVATE_KEY</code> in <code>wp-config.php</code>. Those constants take precedence over the values stored here.', 'wp-racemanager' ),
         [ 'code' => [] ]
     ) . '</p>';
+}
+
+/**
+ * The address the registration form sends from, replies to and copies.
+ *
+ * Empty means "use the default", which is derived from the site's own domain -- so this setting
+ * is only ever needed when the mailbox is somewhere else than the site.
+ *
+ * @return void
+ */
+function rm_settings_registration_email_cb() {
+    $stored  = (string) get_option( 'rm_registration_email', '' );
+    $default = rm_default_registration_email();
+
+    echo '<input type="email" name="rm_registration_email" value="' . esc_attr( $stored ) . '" class="regular-text" placeholder="' . esc_attr( $default ) . '">';
+    echo '<p class="description">';
+    printf(
+        /* translators: %s: the address used when the field is left empty */
+        esc_html__( 'Sender, Reply-To and Bcc of the registration confirmation mail. Leave empty to use %s.', 'wp-racemanager' ),
+        '<code>' . esc_html( $default ) . '</code>'
+    );
+    echo '<br>';
+    esc_html_e( 'Changing this updates the form the plugin created, as long as its mail settings still hold the previous address. A form you edited yourself is left alone — change it under Contact → Contact Forms → Mail.', 'wp-racemanager' );
+    echo '</p>';
+}
+
+/**
+ * Keep an unusable address out of the option rather than sending mail from it.
+ *
+ * @param mixed $value Submitted value.
+ * @return string Valid address, or '' to fall back to the derived default.
+ */
+function rm_sanitize_registration_email( $value ) {
+    // The raw value decides whether the field was left empty on purpose. sanitize_email()
+    // returns '' for anything malformed too, so checking after it would turn a typo into a
+    // silent fallback to the derived default.
+    $raw = trim( (string) $value );
+
+    if ( '' === $raw ) {
+        return '';
+    }
+
+    $value = sanitize_email( $raw );
+
+    if ( ! is_email( $value ) ) {
+        add_settings_error( 'rm_registration_email', 'rm_registration_email_invalid',
+            __( 'That is not a valid email address; the registration address was left unchanged.', 'wp-racemanager' ), 'error' );
+
+        return (string) get_option( 'rm_registration_email', '' );
+    }
+
+    return $value;
 }
 
 // Status field: where the keys come from and whether push can work at all

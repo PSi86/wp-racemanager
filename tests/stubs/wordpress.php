@@ -261,6 +261,9 @@ if ( ! function_exists( 'sanitize_key' ) ) {
 if ( ! function_exists( 'sanitize_email' ) ) {
     function sanitize_email( $mail ) { return filter_var( trim( (string) $mail ), FILTER_VALIDATE_EMAIL ) ?: ''; }
 }
+if ( ! function_exists( 'is_email' ) ) {
+    function is_email( $mail ) { return (bool) filter_var( trim( (string) $mail ), FILTER_VALIDATE_EMAIL ); }
+}
 if ( ! function_exists( 'absint' ) ) {
     function absint( $value ) { return abs( (int) $value ); }
 }

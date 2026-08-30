@@ -110,7 +110,7 @@ in `blocks/`.
 ## Known open items
 
 The full list with status per item is in [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md);
-24 findings, 20 resolved. The ones most likely to bite while working here:
+24 findings, 21 resolved. The ones most likely to bite while working here:
 
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
   out of iframe mode for any post containing one. Needs F1 first.

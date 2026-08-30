@@ -136,6 +136,11 @@ real site.
 - [ ] **No undefined-variable warnings** in `debug.log` from an archive, a search or a 404 page.
 - [ ] **Two live shortcodes on one page.** If any page carries two of them, both areas work now
       rather than only the lower one (B3).
+- [ ] **The registration address.** Settings → RaceManager shows a *Registration Address* field
+      whose placeholder is `registration@copterrace.com`, derived from the site's own domain
+      (E8). Leave it empty unless the mailbox lives elsewhere. The existing CF7 form keeps its
+      own Mail settings either way — check them under Contact → Contact Forms → Mail if a
+      confirmation mail ever bounces.
 - [ ] **The gallery opens** from a thumbnail, and the overlay's arrows and swipe work (D2).
 
 ---
