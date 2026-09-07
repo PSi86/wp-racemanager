@@ -14,3 +14,7 @@
 /package.json       export-ignore
 /tests              export-ignore
 /webpack.config.js  export-ignore
+
+# Shell scripts run inside the DDEV container, where CRLF line endings make the
+# shebang fail with "bad interpreter". Keep them LF regardless of core.autocrlf.
+*.sh text eol=lf
