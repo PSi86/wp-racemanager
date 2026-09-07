@@ -89,6 +89,19 @@ ddev exec test -f "$PLUGIN_DIR/wp-racemanager.php" 2>/dev/null \
         named differently. See section 3 of docs/development-setup.md."
 ok "plugin found at $PLUGIN_DIR"
 
+# Docker creates whatever directories a bind mount needs, and it creates them as
+# root. Starting from an empty wp-app/ that is the entire wp-content/ tree, which
+# then belongs to root and WP-CLI cannot unpack a theme into it. Creating the path
+# before the first 'ddev start' avoids it; see docs/development-setup.md.
+if ddev exec test -w "/var/www/html/${WP_APP_DIR}/wp-content" 2>/dev/null; then
+    ok "wp-content is writable"
+else
+    die "/var/www/html/${WP_APP_DIR}/wp-content is not writable in the container.
+        Docker created it as root to hold the plugin mount. Repair it on the host with
+        'sudo chown -R \$USER: ${WP_APP_DIR}', and create ${WP_APP_DIR}/wp-content/plugins/
+        yourself before the first 'ddev start' next time."
+fi
+
 PHP_VERSION="$(ddev exec php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)"
 if [ -n "$PHP_VERSION" ] && [ "$(printf '%s\n8.2\n' "$PHP_VERSION" | sort -V | head -1)" = "8.2" ]; then
     ok "PHP $PHP_VERSION"
@@ -137,8 +150,17 @@ step "Theme"
 # shortcodes, which only works under a block theme -- a classic theme renders
 # the template after wp_head() has already run, so the live pages would silently
 # lose their JavaScript configuration. See docs/wordpress-update-audit.md (B3).
-if [ "$(wp eval 'echo wp_is_block_theme() ? 1 : 0;' 2>/dev/null | tr -d '\r\n')" = "1" ]; then
-    ok "active theme is a block theme: $(wp option get stylesheet 2>/dev/null)"
+#
+# Asking wp_is_block_theme() through `wp eval` answers wrongly and prints a
+# "called incorrectly" notice under WordPress 6.8: WP-CLI has not registered the
+# theme directory at that point. The theme was reinstalled on every run because
+# of it. A block theme is defined by carrying templates/index.html, so look for
+# the file instead.
+STYLESHEET="$(wp option get stylesheet 2>/dev/null | tr -d '\r\n')"
+THEME_DIR="/var/www/html/${WP_APP_DIR}/wp-content/themes/${STYLESHEET}"
+if [ -n "$STYLESHEET" ] && { ddev exec test -f "$THEME_DIR/templates/index.html" 2>/dev/null \
+        || ddev exec test -f "$THEME_DIR/block-templates/index.html" 2>/dev/null; }; then
+    ok "active theme is a block theme: $STYLESHEET"
 else
     wp theme install twentytwentyfive --activate
     did "installed and activated Twenty Twenty-Five"

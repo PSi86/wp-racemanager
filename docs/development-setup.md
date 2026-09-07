@@ -117,7 +117,7 @@ Create the project directory, clone the repository beside the site, and let DDEV
 `--project-name` decides the URL, so this becomes `https://racemanager.ddev.site`:
 
 ```bash
-mkdir -p ~/dev/WP_RaceManager/wp-app && cd ~/dev/WP_RaceManager
+mkdir -p ~/dev/WP_RaceManager/wp-app/wp-content/plugins && cd ~/dev/WP_RaceManager
 
 git clone https://github.com/PSi86/wp-racemanager.git wp-racemanager
 
@@ -147,6 +147,42 @@ ddev start          # asks for elevation once, to add racemanager.ddev.site to t
 DDEV reads every `.ddev/docker-compose.*.yaml` and merges it into the project's compose file, so
 this needs no further registration — but it is only picked up at `ddev start` / `ddev restart`.
 `${DDEV_APPROOT}` is the project root, which keeps the file portable between machines.
+
+The `mkdir` above creates `wp-content/plugins/` for a reason: Docker creates whatever directories
+a bind mount needs, and it creates them **as root**. Starting from an empty `wp-app/` that is the
+whole `wp-content/` tree, after which WP-CLI cannot unpack a theme into it and the bootstrap dies
+with *"Could not create directory"*. If it happened anyway,
+`sudo chown -R $USER: wp-app` repairs it.
+
+### HTTPS, once
+
+DDEV issues the site certificate with mkcert, but the browser that has to trust it runs on Windows
+while DDEV runs in the distro — so both sides have to use the *same* certificate authority. Create
+it on Windows, then hand the path across:
+
+```powershell
+# Windows PowerShell. mkcert comes with DDEV, in %LOCALAPPDATA%\Programs\DDEV.
+mkcert -install                        # confirm the certificate dialog that appears
+setx CAROOT "$(mkcert -CAROOT)"
+setx WSLENV "CAROOT/up"                # append with a ':' if WSLENV already has a value
+```
+
+`CAROOT/up` tells WSL to pass `CAROOT` through and rewrite it as a Unix path, so the distro reads
+the same `rootCA.pem` from `/mnt/c/...`. In a **new** shell in the distro, so that it inherits the
+variables:
+
+```bash
+echo "$CAROOT"          # must print /mnt/c/Users/<you>/AppData/Local/mkcert
+sudo mkcert -install    # the distro's own trust store, so curl verifies too
+ddev restart
+```
+
+`ddev restart` prints the URL it settled on. Without the shared CA it warns that the CA files are
+unreadable and falls back to `http://racemanager.ddev.site` — and on plain HTTP the service worker,
+the PWA install prompt and `PushManager.subscribe()` are all unavailable, which is half of this
+plugin. Section 6 says the same thing from the testing side.
+
+### Build the site
 
 Everything after that is mechanical and checkable, so a script does it:
 
