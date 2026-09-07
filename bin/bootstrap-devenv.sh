@@ -11,18 +11,21 @@
 # than assuming a fresh install -- every step is skipped when already done, and
 # running it twice changes nothing.
 #
-# It expects the layout described in docs/development-setup.md, with WordPress
-# below the docroot rather than at the project root:
+# It expects the layout described in docs/development-setup.md: the repository
+# sits beside the site and DDEV mounts it into wp-content/plugins/, so inside the
+# container the plugin is at the path WordPress insists on without being buried
+# four levels deep on disk.
 #
 #   <ddev project>/
-#   |- .ddev/config.yaml         docroot: wp-app
-#   `- wp-app/                   <- WP_APP_DIR below
-#      `- wp-content/plugins/wp-racemanager/     <- this repository
+#   |- .ddev/config.yaml                   docroot: wp-app
+#   |- .ddev/docker-compose.plugin.yaml    mounts the repository into the site
+#   |- wp-racemanager/                     <- this repository
+#   `- wp-app/                             <- WP_APP_DIR below, disposable
+#      `- wp-content/plugins/wp-racemanager/    <- where the mount lands
 #
-# The one-time host steps that have to happen before this script can run:
-#
-#   mkdir wp-app && ddev config --project-type=wordpress --docroot=wp-app \
-#       --php-version=8.3 && ddev start
+# The one-time host steps that have to happen before this script can run -- ddev
+# config, the compose override and ddev start -- are in section 3 of
+# docs/development-setup.md.
 #
 # Set WP_APP_DIR to match if the docroot is named differently.
 #
@@ -49,7 +52,7 @@ LIVE_VIEWS="bracket pilots stats nextup"
 for arg in "$@"; do
     case "$arg" in
         --recreate-live-pages) RECREATE_LIVE_PAGES=1 ;;
-        -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $arg" >&2; exit 1 ;;
     esac
 done
@@ -81,8 +84,9 @@ ok "ddev is available and the project is running"
 
 ddev exec test -f "$PLUGIN_DIR/wp-racemanager.php" 2>/dev/null \
     || die "The plugin is not at $PLUGIN_DIR inside the container.
-        Move this repository to <ddev project>/${WP_APP_DIR}/wp-content/plugins/wp-racemanager,
-        or set WP_APP_DIR if the docroot is named differently."
+        Check that .ddev/docker-compose.plugin.yaml mounts this repository there and
+        that 'ddev restart' has picked it up, or set WP_APP_DIR if the docroot is
+        named differently. See section 3 of docs/development-setup.md."
 ok "plugin found at $PLUGIN_DIR"
 
 PHP_VERSION="$(ddev exec php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)"
