@@ -31,6 +31,13 @@
 
 set -euo pipefail
 
+# Git Bash on Windows rewrites arguments that look like absolute POSIX paths
+# into Windows paths before handing them to a native executable, so ddev.exe
+# would receive C:/Program Files/Git/var/www/html/... instead of the container
+# path. Harmless environment variables everywhere else.
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL='*'
+
 WP_APP_DIR="${WP_APP_DIR:-wp-app}"
 PLUGIN_DIR="/var/www/html/${WP_APP_DIR}/wp-content/plugins/wp-racemanager"
 RECREATE_LIVE_PAGES=0
