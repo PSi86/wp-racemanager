@@ -7,13 +7,11 @@ production data down painless.
 
 Everything here is done once. Afterwards the daily loop is `ddev start`, edit, `php tests/run.php`.
 
-> **Status: written, not yet set up. Postponed, not dropped.**
-> The plan is to move development from the cloud session to VS Code on the desktop, against a
-> local DDEV site built exactly as described here. That has not happened yet — it is waiting on
-> being back at the desktop machine, not on a decision. Until then work continues in the cloud
-> session, and every change still has to survive `php tests/run.php` plus the manual protocol in
-> [`deployment-test-protocol.md`](deployment-test-protocol.md). When the local site does come up,
-> `bin/dev-doctor.sh` (section 6) is the first thing to run.
+> **Status: being set up.** Development has moved from the cloud session to VS Code on the
+> desktop, and the DDEV project described here now exists. The steps in sections 3 and 4 are
+> automated by [`bin/bootstrap-devenv.sh`](../bin/bootstrap-devenv.sh); `bin/dev-doctor.sh`
+> (section 6) is what to run afterwards. Every change still has to survive `php tests/run.php`
+> plus the manual protocol in [`deployment-test-protocol.md`](deployment-test-protocol.md).
 
 ---
 
@@ -38,72 +36,85 @@ The repository *is* the plugin — its root contains `wp-racemanager.php`. So th
 cloned **into** a WordPress installation, not the other way round:
 
 ```
-~/dev/racemanager/                  <- the DDEV project
-├── .ddev/
-├── wp-admin/  wp-includes/  ...    <- WordPress core, downloaded by DDEV
-└── wp-content/
-    ├── uploads/                    <- race JSON files live here
-    └── plugins/
-        └── wp-racemanager/         <- THIS repository
+~/dev/WP_RaceManager/               <- the DDEV project. Not a repository.
+├── .ddev/                          <- docroot: wp-app
+└── wp-app/                         <- the whole site, and disposable
+    ├── wp-admin/  wp-includes/     <- WordPress core, downloaded by DDEV
+    ├── wp-config.php               <- the RM_VAPID_* constants go here
+    └── wp-content/
+        ├── uploads/                <- race JSON files live here
+        └── plugins/
+            └── wp-racemanager/     <- THIS repository
 ```
 
-Two things depend on that layout, so keep it:
+WordPress sits below the docroot rather than at the project root, so the project directory
+*holds* an environment instead of *being* one: `wp-app/` can be deleted and rebuilt without
+touching anything else. Everything is inside the DDEV project directory, which is what Mutagen
+synchronises — a plugin folder bind-mounted in from outside would work but would skip that, and
+put the files edited most often on the slowest path.
 
-- The plugin folder must be named **`wp-racemanager`** — that is the folder name the production
-  install uses, and the name the deployment ZIP carries.
+Three things depend on this layout, so keep it:
+
+- The plugin folder must be named **`wp-racemanager`**. It is the name the deployment ZIP carries,
+  and — the reason it actually matters — the name a production database expects: `active_plugins`
+  holds `wp-racemanager/wp-racemanager.php`, so under any other name an imported site treats the
+  plugin as deactivated.
+- The plugin must be a **real directory**, not a symlink. PHP resolves `__FILE__` to the real path,
+  so a symlinked plugin folder makes `plugin_dir_url()` compute URLs outside `wp-content/plugins/`
+  and every asset 404s.
 - `php tests/run.php` finds the WordPress checkout it needs for the `live-links` suite by looking
-  three levels above the plugin. In this layout that is the WordPress root, so the suite runs with
-  no further configuration. See [`tests/README.md`](../tests/README.md).
+  three levels above the plugin. In this layout that is `wp-app/`, so the suite runs with no further
+  configuration. `WP_CORE_DIR` overrides it if you need a different layout. See
+  [`tests/README.md`](../tests/README.md).
 
 ---
 
 ## 3 · Create the site
 
+Create the project directory and let DDEV configure it. `--project-name` decides the URL, so this
+becomes `https://racemanager.ddev.site`:
+
 ```bash
-mkdir -p ~/dev/racemanager && cd ~/dev/racemanager
+mkdir -p ~/dev/WP_RaceManager/wp-app && cd ~/dev/WP_RaceManager
 
-# Primary URL becomes https://racemanager.ddev.site (derived from the folder name)
-ddev config --project-type=wordpress --php-version=8.3
-
-ddev start
-ddev wp core download
-ddev wp core install \
-  --url='$DDEV_PRIMARY_URL' \
-  --title='RaceManager Dev' \
-  --admin_user=admin --admin_password=admin \
-  --admin_email=you@example.com
+ddev config --project-name=racemanager --project-type=wordpress \
+            --docroot=wp-app --php-version=8.3 --nodejs-version=20
 ```
 
 `--php-version=8.3` is not cosmetic: `minishlink/web-push` v9 pulls in `web-token/jwt-library`,
 which requires **PHP ≥ 8.2**. Push notifications silently stay unavailable on anything older.
 
-Then clone the plugin and its dependencies:
+Put the plugin in place, then start:
 
 ```bash
-git clone https://github.com/PSi86/wp-racemanager.git wp-content/plugins/wp-racemanager
-ddev exec -d /var/www/html/wp-content/plugins/wp-racemanager composer install
+git clone https://github.com/PSi86/wp-racemanager.git \
+    wp-app/wp-content/plugins/wp-racemanager
+
+ddev start          # asks for elevation once, to add racemanager.ddev.site to the hosts file
 ```
 
-`vendor/` is git-ignored, so this step is required after every fresh clone.
-
-Contact Form 7 must be present **before** the plugin is activated — the activation hook
-deactivates the plugin and dies with an error message otherwise:
+Everything after that is mechanical and checkable, so a script does it:
 
 ```bash
-ddev wp plugin install contact-form-7 --activate
-ddev wp plugin activate wp-racemanager
-ddev wp rewrite structure '/%postname%/'       # pretty permalinks; the live URLs need them
-ddev launch wp-admin/
+cd wp-app/wp-content/plugins/wp-racemanager
+bin/bootstrap-devenv.sh
 ```
 
-The admin login is `admin` / `admin`.
+It downloads and installs core, runs `composer install` for the plugin, makes sure a block theme
+is active, installs Contact Form 7 **before** activating the plugin — the activation hook
+deactivates the plugin and dies otherwise — switches on pretty permalinks, and builds the `/live/`
+pages of section 4. Every step is skipped when it is already done, so it is safe to re-run; it is
+the fastest way back after `ddev delete`.
+
+The admin login is `admin` / `admin`. Section 4 explains what the script builds, and stays worth
+reading when something is off.
 
 ---
 
 ## 4 · Set up the live area
 
 The live micro-site is built from ordinary WordPress pages, so it has to exist before anything
-under `/live/` works. One parent page plus one child page per view:
+under `/live/` works. One parent page plus one child page per view, each holding its shortcode:
 
 ```bash
 LIVE=$(ddev wp post create --post_type=page --post_title='Live' --post_name=live \
@@ -111,15 +122,16 @@ LIVE=$(ddev wp post create --post_type=page --post_title='Live' --post_name=live
 
 for v in bracket pilots stats nextup; do
   ddev wp post create --post_type=page --post_title="$v" --post_name="$v" \
-      --post_parent="$LIVE" --post_status=publish --porcelain
+      --post_parent="$LIVE" --post_status=publish --post_content="[rm_$v]" --porcelain
 done
 
 ddev wp option update rm_live_page_id "$LIVE"
 ddev wp rewrite flush
 ```
 
-Then put the matching shortcode into each child page — `[rm_bracket]`, `[rm_pilots]`,
-`[rm_stats]`, `[rm_nextup]` — and add a navigation block to the Live page listing the four views.
+`bin/bootstrap-devenv.sh` does exactly this, and skips whatever already exists; run it with
+`--recreate-live-pages` to tear the four pages down and rebuild them. What it does not do is add a
+navigation block to the Live page listing the four views — do that by hand in the editor.
 
 Worth knowing while testing:
 
@@ -293,7 +305,7 @@ No PHP on the host, or an older one than the container runs? Run the suites insi
 the `vapid` suite exercises the real push library and therefore needs PHP 8.2 like the plugin does:
 
 ```bash
-ddev exec -d /var/www/html/wp-content/plugins/wp-racemanager php tests/run.php
+ddev exec -d /var/www/html/wp-app/wp-content/plugins/wp-racemanager php tests/run.php
 ```
 
 Useful DDEV commands for this plugin specifically:
@@ -306,7 +318,7 @@ Useful DDEV commands for this plugin specifically:
 | `ddev snapshot` / `ddev snapshot restore --latest` | Database checkpoint before trying a migration — for example the event-date migration on the settings page. |
 | `ddev wp ...` | Any WP-CLI command. |
 | `ddev restart` | After changing `.ddev/config.yaml`. |
-| `ddev delete -O` | Throw the site away and start over; the plugin folder survives if you cloned it inside, so move it out first. |
+| `ddev delete -O` | Throw the database and the DDEV project away. The files stay, so to start truly fresh delete `wp-app/` too — move the plugin folder out first, then back in, and re-run `bin/bootstrap-devenv.sh`. |
 
 ---
 
