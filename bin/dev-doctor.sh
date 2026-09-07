@@ -149,8 +149,13 @@ esac
 # --------------------------------------------------------------- generated files
 head_ "Generated files"
 
+# The WordPress root is not the project root -- the docroot is wp-app/, and the
+# plugin is mounted in from beside the site, so no path derived from this script's
+# own location is right either. Ask WordPress where it is.
+WP_ROOT="$(wp eval 'echo ABSPATH;' | tr -d '[:space:]')"
+
 for f in manifest.json pwa-sw.js; do
-    if ddev exec test -f "/var/www/html/$f" >/dev/null 2>&1; then
+    if [ -n "$WP_ROOT" ] && ddev exec test -f "${WP_ROOT}${f}" >/dev/null 2>&1; then
         ok "$f exists in the WordPress root"
     else
         warn "$f missing — save Settings → RaceManager once to regenerate it"
