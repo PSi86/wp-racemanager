@@ -295,9 +295,9 @@ function rm_find_or_create_race( $data ) {
 
             <!-- wp:social-links {"iconColor":"base","iconColorValue":"#ffffff","iconBackgroundColor":"contrast","iconBackgroundColorValue":"#000000","openInNewTab":true,"metadata":{"name":"Social Links"},"className":"is-style-default","layout":{"type":"flex","justifyContent":"right","orientation":"horizontal"}} -->
             <ul class="wp-block-social-links has-icon-color has-icon-background-color is-style-default">
-<!-- wp:social-link {"url":"https://www.youtube.com/channel/00000","service":"youtube"} /-->
-            <!-- wp:social-link {"url":"https://www.instagram.com/00000/","service":"instagram"} /-->
-            <!-- wp:social-link {"url":"https://discord.gg/00000","service":"discord"} /--></ul>
+            <!-- wp:social-link {"url":"https://www.youtube.com/channel/UClUCsP1HXndOxwIshO17RNA","service":"youtube"} /-->
+            <!-- wp:social-link {"url":"https://www.instagram.com/rotormaniacs/","service":"instagram"} /-->
+            <!-- wp:social-link {"url":"https://discord.gg/NCKQwhw62e","service":"discord"} /--></ul>
             <!-- /wp:social-links --></div>
             <!-- /wp:group -->
 

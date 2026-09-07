@@ -12,7 +12,11 @@ import { dataLoaderInstance } from './rm-m-dataLoader.js';
 
 class DisplayLog {
     constructor() {
-        const configData = (window.RmJsConfig && window.RmJsConfig["displayLog"]) || {};
+        const configData = window.RmJsConfig?.displayLog || {}; // Use optional chaining to safely access the config data
+        // not necessary to check for configData here, as there are no required properties
+        /* if (!configData) {
+            throw new Error("displayLog: Missing configuration data");
+        } */
 
         // Configuration properties
         this.containerId = configData.containerId || 'log-container';

@@ -12,8 +12,6 @@ class DisplayRanking {
     const configData = window.RmJsConfig?.displayRanking || {};
     this.containerId = configData.containerId || 'ranking-container';
     this.leaderboard = [];
-
-    // inject our minimalistic styles once
     this.injectStyles();
 
     if (document.readyState === 'complete') {
@@ -27,54 +25,50 @@ class DisplayRanking {
     if (document.getElementById('rm-ranking-styles')) return;
     const css = `
 #${this.containerId} {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
-  gap: 1rem;
-  /* padding: 1rem; */
+  width: 100%;
+  margin: 0 auto;
 }
-.rm-pilot-card {
-  background: #fff;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  overflow: hidden;
-  cursor: pointer;
-  transform: translateY(20px);
-  opacity: 0;
-  animation: fadeIn 0.5s ease forwards;
+.rm-headline {
+  font-size: 1.5rem;
+  text-align: center;
+  margin: 1rem 0;
 }
-.rm-pilot-card:nth-child(n) { animation-delay: calc(0.05s * var(--i)); }
-.rm-pilot-header {
-  padding: 1rem;
+.rm-pilot-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  background: #3f51b5;
-  color: white;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  transition: background 0.3s;
 }
-.rm-pilot-header h3 { margin: 0; font-size: 1.1rem; }
-.rm-expand-icon {
-  transition: transform 0.3s ease;
+.rm-pilot-row:hover {
+  background: rgba(0,0,0,0.05);
 }
-.rm-pilot-card.expanded .rm-expand-icon {
-  transform: rotate(180deg);
+.rm-place, .rm-callsign {
+  transition: transform 0.3s;
 }
-.rm-pilot-details {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-  padding: 0 1rem;
+.rm-place {
+  font-weight: bold;
+  margin-right: 1rem;
 }
-.rm-pilot-card.expanded .rm-pilot-details {
-  max-height: 200px;
-  padding: 1rem;
+.rm-pilot-row:hover .rm-place,
+.rm-pilot-row:hover .rm-callsign {
+  transform: scale(1.05);
 }
-.rm-pilot-details p {
-  margin: 0.3rem 0;
+.rm-place-first .rm-place { color: #ffd700; }
+.rm-place-second .rm-place { color: #c0c0c0; }
+.rm-place-third .rm-place { color: #cd7f32; }
+.rm-details {
+  display: none;
+  padding: 0.75rem 1rem;
+  background: #fafafa;
   font-size: 0.9rem;
-  color: #333;
 }
-@keyframes fadeIn {
-  to { transform: translateY(0); opacity: 1; }
+.rm-pilot-row.expanded + .rm-details {
+  display: block;
+}
+.rm-details p {
+  margin: 0.25rem 0;
 }
 `;
     const style = document.createElement('style');
@@ -84,65 +78,79 @@ class DisplayRanking {
   }
 
   initialize() {
-        // Subscribe to the dataLoader
     dataLoaderInstance.subscribe(this.handleDataLoaderEvent.bind(this));
   }
 
   handleDataLoaderEvent(data) {
     this.leaderboard = computeLeaderboard(data);
-    console.log(this.leaderboard);
+    console.log('DisplayRanking: Leaderboard updated', this.leaderboard);
     this.updateRankingDisplay();
   }
 
   updateRankingDisplay() {
     const container = document.getElementById(this.containerId);
     if (!container) {
-      console.warn(`DisplayRanking: Container not found (${this.containerId})`);
+      console.warn(`DisplayRanking: Container "${this.containerId}" not found`);
       return;
     }
 
-    // 0) If there's no data, hide the whole container
-    if (!this.leaderboard || this.leaderboard.length === 0) {
+    // Hide if no data
+    if (!this.leaderboard?.length) {
       container.style.display = 'none';
       return;
     }
+    container.style.display = '';
 
-    // 1) Otherwise, make sure it's visible again
-    container.style.display = ''; // or 'grid', as your CSS expects
+    // Clear and add headline
+    //container.innerHTML = `<h2 class="rm-headline">Final Ranking</h2>`;
+    container.innerHTML = `<h2>Final Ranking</h2>`;
 
-    // 2) Clear previous contents, then add the headline
-    container.innerHTML = '<h2 style="grid-column: 1/-1; margin:0 0 1rem;">Final Ranking</h2>';
+    this.leaderboard.forEach(pilot => {
+      // Row
+      const row = document.createElement('div');
+      row.className = 'rm-pilot-row';
+      if (pilot.place === 1) row.classList.add('rm-place-first');
+      else if (pilot.place === 2) row.classList.add('rm-place-second');
+      else if (pilot.place === 3) row.classList.add('rm-place-third');
 
-    // 3) Render each pilot card as before
-    this.leaderboard.forEach((pilot, idx) => {
-      const card = document.createElement('div');
-      card.className = 'rm-pilot-card';
-      card.style.setProperty('--i', idx);
+      // Place & Callsign
+      const placeEl = document.createElement('span');
+      placeEl.className = 'rm-place';
+      placeEl.textContent = `#${pilot.place}`;
+      const callEl = document.createElement('span');
+      callEl.className = 'rm-callsign';
+      callEl.textContent = pilot.callsign;
 
-      const header = document.createElement('div');
-      header.className = 'rm-pilot-header';
-      header.innerHTML = `
-        <h3>#${pilot.place} ${pilot.callsign}</h3>
-        <span class="rm-expand-icon">▼</span>
-      `;
-      card.appendChild(header);
+      row.append(placeEl, callEl);
+      container.appendChild(row);
 
+      // Details (hidden)
       const details = document.createElement('div');
-      details.className = 'rm-pilot-details';
-      details.innerHTML = `
-        <p><strong>Team:</strong> ${pilot.team_name || '—'}</p>
-        <p><strong>Laps:</strong> ${pilot.laps ?? '—'}</p>
-        <p><strong>Best Time:</strong> ${pilot.best_time ?? '—'}</p>
-        <p><strong>Avg Time:</strong> ${pilot.avg_time ?? '—'}</p>
-      `;
-      card.appendChild(details);
+      details.className = 'rm-details';
 
-      header.addEventListener('click', () => {
-        card.classList.toggle('expanded');
+      // List every other property
+      const exclude = new Set(['place','pilot_id','callsign', 'team_name', 'points', 'total_time_laps_raw', 'total_time_raw', 'position', 'last_lap', 'last_lap_raw', 'node', 'consecutives_raw', 'consecutives_base', 'average_lap_raw']);
+      Object.entries(pilot).forEach(([key, val]) => {
+        if (!exclude.has(key)) {
+          const p = document.createElement('p');
+          p.innerHTML = `<strong>${this.toTitleCase(key)}:</strong> ${val ?? ''}`;
+          details.appendChild(p);
+        }
       });
 
-      container.appendChild(card);
+      container.appendChild(details);
+
+      // Toggle on click
+      row.addEventListener('click', () => {
+        row.classList.toggle('expanded');
+      });
     });
+  }
+
+  toTitleCase(str) {
+    return str
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase());
   }
 }
 

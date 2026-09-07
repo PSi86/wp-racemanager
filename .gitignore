@@ -6,3 +6,7 @@ tests/.fake-wp
 .DS_Store
 *.log
 /build
+
+# Local environment overrides (may contain secrets)
+.env.local
+.env*.local

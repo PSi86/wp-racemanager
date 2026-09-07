@@ -8,7 +8,7 @@
 }
 
 .js-container h2 {
-	padding: 0.25rem;
+	/* padding: 0.25rem; */
 	background: #386fb6;
 	color: #fff;
 	position: relative;
@@ -45,7 +45,7 @@
 }
 
 .js-container h4 {
-	padding: 0.25rem;
+	padding: 0.5rem;
 	background: hsl(25, 85%, 55%);
 	color: #000;
 	background: hsl(var(--hue_1), var(--sat_1), var(--lum_1_high));
@@ -96,7 +96,7 @@ button.no-style {
 	text-align: inherit;
 	font-weight: 500;
 	width: 100%;
-	border-radius: 3px;
+	border-radius: 2px;
 }
 
 .panel {

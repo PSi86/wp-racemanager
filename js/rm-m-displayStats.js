@@ -198,22 +198,18 @@ class DisplayStats {
     displayStats(rhdata) {
         const msg = rhdata.result_data;
         // Helper function to order leaderboard boards
-        const order_boards = (primary) => {
+        const orderBoards = (primary) => {
             const boards = ['by_race_time', 'by_fastest_lap', 'by_consecutives'];
             boards.sort((x, y) => (x === primary ? -1 : y === primary ? 1 : 0));
             return boards;
         };
 
         // Default meta (assumes RACING_MODE_INDV is globally available)
-        /* const defaultMeta = {
+        const defaultMeta = {
             team_racing_mode: RACING_MODE_INDV,
             start_behavior: 0,
             consecutives_count: msg.consecutives_count,
-        }; */
-        var defaultMeta = new Object;
-			defaultMeta.team_racing_mode = RACING_MODE_INDV;
-			defaultMeta.start_behavior = 0;
-			defaultMeta.consecutives_count = msg.consecutives_count;
+        };
 
         // Get the results container and clear it
         const page = document.getElementById('results');
@@ -286,7 +282,7 @@ class DisplayStats {
                             const classSpecialContent = document.createElement('div');
                             classSpecialContent.className = 'panel-content';
                             classSpecialContent.style.display = 'none';
-                            classSpecialContent.appendChild(this.build_ranking(currentClass.ranking));
+                            classSpecialContent.appendChild(this.buildRanking(currentClass.ranking));
                             classSpecial.appendChild(classSpecialContent);
                             classPanelContent.appendChild(classSpecial);
                         }
@@ -310,7 +306,7 @@ class DisplayStats {
                         classLeaderboardContent.className = 'panel-content';
                         classLeaderboardContent.style.display = 'none';
 
-                        const boards = order_boards(
+                        const boards = orderBoards(
                             currentClass.leaderboard.meta.primary_leaderboard
                         );
                         boards.forEach((board) => {
@@ -319,7 +315,7 @@ class DisplayStats {
                                 h4.textContent = 'Race Totals';
                                 classLeaderboardContent.appendChild(h4);
                                 classLeaderboardContent.appendChild(
-                                    this.build_leaderboard(
+                                    this.buildLeaderboard(
                                         currentClass.leaderboard.by_race_time,
                                         'by_race_time',
                                         currentClass.leaderboard.meta,
@@ -331,7 +327,7 @@ class DisplayStats {
                                 h4.textContent = 'Fastest Laps';
                                 classLeaderboardContent.appendChild(h4);
                                 classLeaderboardContent.appendChild(
-                                    this.build_leaderboard(
+                                    this.buildLeaderboard(
                                         currentClass.leaderboard.by_fastest_lap,
                                         'by_fastest_lap',
                                         currentClass.leaderboard.meta,
@@ -343,7 +339,7 @@ class DisplayStats {
                                 h4.textContent = 'Fastest Consecutive Laps';
                                 classLeaderboardContent.appendChild(h4);
                                 classLeaderboardContent.appendChild(
-                                    this.build_leaderboard(
+                                    this.buildLeaderboard(
                                         currentClass.leaderboard.by_consecutives,
                                         'by_consecutives',
                                         currentClass.leaderboard.meta,
@@ -413,7 +409,7 @@ class DisplayStats {
                                 const heatLeaderboard = document.createElement('div');
                                 heatLeaderboard.className = 'leaderboard';
                                 heatLeaderboard.appendChild(
-                                    this.build_leaderboard(
+                                    this.buildLeaderboard(
                                         heat.leaderboard[heat.leaderboard.meta.primary_leaderboard],
                                         'heat',
                                         heat.leaderboard.meta,
@@ -459,7 +455,7 @@ class DisplayStats {
                                 const raceLeaderboard = document.createElement('div');
                                 raceLeaderboard.className = 'leaderboard';
                                 raceLeaderboard.appendChild(
-                                    this.build_leaderboard(
+                                    this.buildLeaderboard(
                                         round.leaderboard[round.leaderboard.meta.primary_leaderboard],
                                         'round',
                                         round.leaderboard.meta
@@ -581,7 +577,7 @@ class DisplayStats {
             h3RaceTotals.textContent = 'Race Totals';
             eventLeaderboard.appendChild(h3RaceTotals);
             eventLeaderboard.appendChild(
-                this.build_leaderboard(
+                this.buildLeaderboard(
                     msg.event_leaderboard.by_race_time,
                     'by_race_time',
                     msg.event_leaderboard.meta,
@@ -593,7 +589,7 @@ class DisplayStats {
             h3FastestLaps.textContent = 'Fastest Laps';
             eventLeaderboard.appendChild(h3FastestLaps);
             eventLeaderboard.appendChild(
-                this.build_leaderboard(
+                this.buildLeaderboard(
                     msg.event_leaderboard.by_fastest_lap,
                     'by_fastest_lap',
                     msg.event_leaderboard.meta
@@ -604,7 +600,7 @@ class DisplayStats {
             h3FastestConsecutives.textContent = 'Fastest Consecutive Laps';
             eventLeaderboard.appendChild(h3FastestConsecutives);
             eventLeaderboard.appendChild(
-                this.build_leaderboard(
+                this.buildLeaderboard(
                     msg.event_leaderboard.by_consecutives,
                     'by_consecutives',
                     msg.event_leaderboard.meta
@@ -661,7 +657,7 @@ class DisplayStats {
      * @param {Boolean} display_starts - Whether to display the starts column.
      * @returns {HTMLElement} - A DIV element containing the responsive leaderboard table.
      */
-    build_leaderboard(leaderboard, display_type = 'by_race_time', meta, display_starts = false) {
+    buildLeaderboard(leaderboard, display_type = 'by_race_time', meta, display_starts = false) {
         if (typeof meta === 'undefined') {
             meta = {};
             meta.team_racing_mode = RACING_MODE_INDV;
@@ -916,7 +912,7 @@ class DisplayStats {
      * @param {Object} meta - Meta data object.
      * @returns {HTMLElement} - A DIV element containing the responsive team leaderboard table.
      */
-    build_team_leaderboard(leaderboard, display_type = 'by_race_time', meta) {
+    buildTeamLeaderboard(leaderboard, display_type = 'by_race_time', meta) {
         if (typeof meta === 'undefined') {
             meta = {};
             meta.team_racing_mode = RACING_MODE_TEAM;
@@ -1047,7 +1043,7 @@ class DisplayStats {
      * @param {Object} ranking - Ranking object containing ranking data and meta.
      * @returns {HTMLElement} - A DOM element (either a DIV wrapping the table or a paragraph if no ranking was produced).
      */
-    build_ranking(ranking) {
+    buildRanking(ranking) {
         const leaderboard = ranking.ranking;
         const meta = ranking.meta;
         if (!leaderboard || !(meta && meta.rank_fields)) {
@@ -1078,7 +1074,7 @@ class DisplayStats {
         th.textContent = 'Pilot';
         headerRow.appendChild(th);
 
-        if ('team_racing_mode' in meta && meta.team_racing_mode == RACING_MODE_TEAM) {
+        if ('team_racing_mode' in meta && meta.team_racing_mode === RACING_MODE_TEAM) {
             th = document.createElement('th');
             th.className = 'team';
             th.textContent = 'Team';

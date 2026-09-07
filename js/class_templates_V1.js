@@ -483,7 +483,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 2
+        "stage": 1
     },
     {
         "id": 18,
@@ -491,7 +491,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 2
+        "stage": 1
     },
     {
         "id": 19,
@@ -499,7 +499,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 2
+        "stage": 1
     },
     {
         "id": 20,
@@ -507,7 +507,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 2
+        "stage": 1
     },
     {
         "id": 21,
@@ -515,7 +515,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 3
+        "stage": 2
     },
     {
         "id": 22,
@@ -523,7 +523,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 3
+        "stage": 2
     },
     {
         "id": 25,
@@ -531,7 +531,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 4
+        "stage": 3
     },
     {
         "id": 26,
@@ -539,7 +539,7 @@ const de32_template = [
         "winner": false,
         "parents": [],
         "pilots": [],
-        "stage": 4
+        "stage": 3
     },
     {
         "id": 27,
@@ -550,7 +550,7 @@ const de32_template = [
             26
         ],
         "pilots": [],
-        "stage": 5
+        "stage": 4
     },
     {
         "id": 29,
@@ -560,7 +560,7 @@ const de32_template = [
             27
         ],
         "pilots": [],
-        "stage": 6
+        "stage": 5
     }
 ];
 const de16_template = [

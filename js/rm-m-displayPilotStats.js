@@ -205,15 +205,15 @@ class DisplayPilotStats {
       if (key === 'callsign') {
         return item.callsign ? item.callsign.toLowerCase() : "";
       } else if (key === 'fastest_lap') {
-        if (item.fastest_lap_raw !== undefined && typeof item.fastest_lap_raw === 'number' && item.fastest_lap_raw !== Infinity) {
+        if (item.fastest_lap_raw !== undefined && typeof item.fastest_lap_raw === 'number' && item.fastest_lap_raw !== Infinity && item.fastest_lap_raw !== 0) {
           return item.fastest_lap_raw;
         }
-        return this.parseTime(item.fastest_lap);
+        return Infinity;
       } else if (key === 'consecutives') {
-        if (item.consecutives_raw !== undefined && typeof item.consecutives_raw === 'number' && item.consecutives_raw !== Infinity) {
+        if (item.consecutives_raw !== undefined && typeof item.consecutives_raw === 'number' && item.consecutives_raw !== Infinity && item.consecutives_raw !== 0) {
           return item.consecutives_raw;
         }
-        return this.parseTime(item.consecutives);
+        return Infinity;
       } else if (key === 'laps') {
         return (item.laps !== undefined && !isNaN(item.laps)) ? Number(item.laps) : Infinity;
       }
