@@ -28,9 +28,17 @@ class PilotSelector {
     }
 
     initialize() {
+        // The module is imported by every live page, but the control itself is
+        // part of the shortcode markup. Throwing here would take the importing
+        // page down with it, so an absent element only disables the selector.
+        if (!this.pilotSelector) {
+            console.warn(`PilotSelector: no element with id "${this.pilotSelectorId}" — selector stays inactive`);
+            return;
+        }
+
         // Subscribe to the dataLoader (singleton)
         console.log("PilotSelector: Subscribed to DataLoader");
-        
+
         dataLoaderInstance.subscribe(this.populatePilotSelect.bind(this));
 
         // Attach event handlers
@@ -41,13 +49,18 @@ class PilotSelector {
         console.log('PilotSelector: Pilot selected:', event.target.value);
         // Save the selected pilot to sessionStorage
         sessionStorage.setItem(this.pilotSelectionKey, event.target.value);
-        this.selectedPilotId = event.target.value;
-        //const pilotOption = this.pilotSelect.selectedOptions[0];
-        //this.selectedPilotId = pilotOption.getAttribute('data-pilot-id');
+        // Keep this a number, the way the constructor reads it back out of
+        // sessionStorage. displayHeats and displayStats parseInt() the element's
+        // value themselves, so nothing depends on the difference today -- it is
+        // just one less trap for whoever compares against it next.
+        this.selectedPilotId = parseInt(event.target.value) || 0;
     }
 
     populatePilotSelect(data) {
         console.log('PilotSelector: Populating pilot selector.');
+        if (!this.pilotSelector) {
+            return null;
+        }
         if (!data) {
             console.error("populatePilotSelect: Missing data");
             return null;
@@ -62,8 +75,19 @@ class PilotSelector {
         // Sort the pilotsMap alphabetically by callsign
         pilotsMap.sort((a, b) => a.callsign.localeCompare(b.callsign));
 
-        // Example: Populate the pilot selector with data
-        //const pilotSelector = document.getElementById('pilotSelector');
+        // The dataLoader notifies on every upload during a live race -- and once
+        // more on every failed poll -- so this runs many times on a page that
+        // stays open. Replace the options rather than appending another full set:
+        // four hours of racing used to leave a couple of thousand of them here.
+        //
+        // Only the ones this module added carry data-pilot-id. Anything without
+        // it came from the shortcode markup -- the "-- Select a Pilot --"
+        // placeholder -- and has to survive the rebuild.
+        this.pilotSelector
+            .querySelectorAll('option[data-pilot-id]')
+            .forEach(option => option.remove());
+
+        const options = document.createDocumentFragment();
         pilotsMap.forEach(pilot => {
             const option = document.createElement('option');
             option.value = pilot.id;
@@ -71,11 +95,26 @@ class PilotSelector {
             option.setAttribute('data-pilot-id', pilot.id);
             option.setAttribute('data-pilot-callsign', pilot.callsign);
             option.setAttribute('data-race-id', this.raceId);
-            this.pilotSelector.appendChild(option);
+            options.appendChild(option);
         });
+        this.pilotSelector.appendChild(options);
 
-        //TODO: find better place for this
-        this.pilotSelector.value = this.selectedPilotId;
+        // Restoring the selection is the other half of the fix, and it cannot be
+        // left out. Appending used to keep a pilot who left the field selected
+        // simply because their stale option was still in the list. Now that the
+        // list is rebuilt, assigning a value no option carries leaves
+        // selectedIndex at -1 and the control renders blank -- not even the
+        // placeholder.
+        this.pilotSelector.value = String(this.selectedPilotId);
+
+        if (this.pilotSelector.selectedIndex === -1) {
+            console.log(`PilotSelector: pilot ${this.selectedPilotId} is no longer in the field, falling back to the placeholder`);
+            this.pilotSelector.selectedIndex = 0;
+            // displayHeats and displayStats read the selection off this element
+            // on its change event, so a silent assignment would leave them
+            // filtering by a pilot the dropdown no longer offers.
+            this.pilotSelector.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     }
 }
 export const pilotSelectInstance = new PilotSelector();

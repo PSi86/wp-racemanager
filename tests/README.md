@@ -5,9 +5,9 @@ Two of them, and they answer different questions.
 **`php tests/run.php`** is the one to reach for: plain PHP, no framework, no WordPress
 installation required, so it runs anywhere and it is fast.
 
-**`npm run test:e2e`** drives the block editor in a real browser. It needs a started DDEV site,
-`node_modules` and a Chromium, so it is deliberately kept out of the PHP runner — see
-[Browser checks](#browser-checks) at the end.
+**`npm run test:e2e`** and **`npm run test:pilot-selector`** use a real browser, because some
+behaviour is what the DOM does rather than what the source says. They are deliberately kept out of
+the PHP runner — see [Browser checks](#browser-checks) at the end.
 
 ```
 php tests/run.php            # everything
@@ -62,12 +62,36 @@ in the locations it has historically lived — see `rm_push_library_available()`
 ## Browser checks
 
 ```bash
+npm run test:pilot-selector                         # no WordPress needed, only a browser
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
 ```
 
-`tests/e2e/editor.cjs`, run through Playwright. Exit codes match the PHP suites: 0 passed,
+Both run through Playwright, and both skip rather than fail when Playwright or its Chromium is
+missing.
+
+### `tests/e2e/pilot-selector.cjs`
+
+`js/rm-m-pilotSelector.js` against the real module in a real DOM. It needs **no** WordPress and no
+DDEV: the page is assembled in the test and the `dataLoader` the module imports is served as a
+stub, so the subscriber callback can be driven directly. A browser is required all the same,
+because what is under test is what a `<select>` does with its options and its `selectedIndex` —
+exactly what a hand-written DOM stub tends to get wrong.
+
+It covers both halves of **D1**, which have to hold together: that repeated data updates rebuild
+the option list instead of appending another copy of it, and that a pilot leaving the field mid-race
+falls back to the placeholder instead of leaving the control blank at `selectedIndex === -1`. Plus
+that the server-rendered placeholder survives the rebuild, that the fallback dispatches a `change`
+so `displayHeats` and `displayStats` stop filtering by a pilot the list no longer offers, and that a
+page without the control does not take the module down on import.
+
+Run against the module as it was before the fix, five of its eight checks fail — which is the
+point of it.
+
+### `tests/e2e/editor.cjs`
+
+The block editor, through Playwright. Exit codes match the PHP suites: 0 passed,
 1 failed, 2 skipped. It skips — rather than fails — when Playwright is missing, when no Chromium
 has been downloaded for the installed Playwright build, when the site is unreachable, or when the
 login is refused; each of those prints the command that fixes it. `RM_E2E_USER` and `RM_E2E_PASS`

@@ -4,6 +4,7 @@
     "scripts": {
         "test": "php tests/run.php",
       "test:e2e": "node tests/e2e/editor.cjs",
+      "test:pilot-selector": "node tests/e2e/pilot-selector.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"
