@@ -157,17 +157,14 @@ what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read t
 Two lists, and they answer different questions:
 
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
-  updates broke or exposed. 24 findings, 23 resolved. **The maintenance to-do list.**
+  updates broke or exposed. 24 findings, all resolved. **The maintenance to-do list.**
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
   could get better, above all its data path. L1–L10, none started, four questions to answer first.
   [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
 
-From the audit, the ones most likely to bite while working here:
-
-- **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
-  Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
-  the list alone makes the selection go blank when a pilot leaves the field, because today the
-  stale option is what keeps it selected.
+The audit is closed, so the second list is the one with work left in it. The audit stays worth
+reading for *why* things are the way they are — several entries record a wrong first diagnosis
+next to the corrected one.
 
 ## Documentation
 
