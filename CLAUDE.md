@@ -157,10 +157,11 @@ From the audit, the ones most likely to bite while working here:
 - [`docs/`](docs/) — the audit and to-do list, the deployment test protocol, and the reasoning
   behind the live URLs and the VAPID handling.
 - [`docs/development-setup.md`](docs/development-setup.md) — setting up a local WordPress with
-  DDEV. The repository sits **beside** the site (`<project>/wp-racemanager`) and DDEV mounts it
-  into `wp-app/wp-content/plugins/wp-racemanager`, so the container sees the path WordPress
-  insists on while the working copy stays one level below the project root. On Windows the whole
-  project lives inside a WSL 2 distro; `bin/bootstrap-devenv.sh` builds the site from scratch.
+  DDEV. The repository sits **beside** the site (`<project>/wp-racemanager`) and a relative
+  symlink at `wp-app/wp-content/plugins/wp-racemanager` points back at it, so the container sees
+  the path WordPress insists on while the working copy stays one level below the project root.
+  The target must stay relative — Mutagen carries symlinks in `portable` mode and refuses an
+  absolute one. `bin/bootstrap-devenv.sh` builds the site from scratch.
 - [`docs/deployment.md`](docs/deployment.md) — building the artifact and installing it on a host
   without WP-CLI. Note that a ZIP replace does **not** re-run the activation hook, and that
   reactivating to force it duplicates the CF7 registration form (E10).

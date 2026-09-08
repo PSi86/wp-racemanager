@@ -39,7 +39,7 @@ if ( ! defined( 'WP_RACEMANAGER_DIR' ) ) {
  *   2. The WordPress root above the plugin -- the normal case when the plugin sits in
  *      wp-content/plugins/ of a development install, so this needs no configuration.
  *   3. A sibling wp-app/ -- the DDEV layout where the repository sits next to the site
- *      and is mounted into it, so the plugin is not below the WordPress root on disk.
+ *      and is symlinked into it, so the plugin is not below the WordPress root on disk.
  *   4. tests/.wordpress/, if someone dropped a checkout there (git-ignored).
  *
  * @return string|null Path to the WordPress root, or null if none was found.

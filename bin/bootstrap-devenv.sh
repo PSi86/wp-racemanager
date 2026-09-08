@@ -12,19 +12,23 @@
 # running it twice changes nothing.
 #
 # It expects the layout described in docs/development-setup.md: the repository
-# sits beside the site and DDEV mounts it into wp-content/plugins/, so inside the
-# container the plugin is at the path WordPress insists on without being buried
-# four levels deep on disk.
+# sits beside the site and a relative symlink inside wp-content/plugins/ points
+# back at it, so inside the container the plugin is at the path WordPress insists
+# on without being buried four levels deep on disk.
 #
 #   <ddev project>/
 #   |- .ddev/config.yaml                   docroot: wp-app
-#   |- .ddev/docker-compose.plugin.yaml    mounts the repository into the site
 #   |- wp-racemanager/                     <- this repository
 #   `- wp-app/                             <- WP_APP_DIR below, disposable
-#      `- wp-content/plugins/wp-racemanager/    <- where the mount lands
+#      `- wp-content/plugins/
+#         `- wp-racemanager -> ../../../wp-racemanager
+#
+# The symlink target has to be relative and has to stay inside the project, because
+# on Windows Mutagen carries it into the container in "portable" mode, which refuses
+# anything else. See section 2 of docs/development-setup.md.
 #
 # The one-time host steps that have to happen before this script can run -- ddev
-# config, the compose override and ddev start -- are in section 3 of
+# config, the symlink and ddev start -- are in section 3 of
 # docs/development-setup.md.
 #
 # Set WP_APP_DIR to match if the docroot is named differently.
@@ -52,7 +56,7 @@ LIVE_VIEWS="bracket pilots stats nextup"
 for arg in "$@"; do
     case "$arg" in
         --recreate-live-pages) RECREATE_LIVE_PAGES=1 ;;
-        -h|--help) sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) awk 'NR > 1 { if (!/^#/) exit; sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
         *) echo "Unknown option: $arg" >&2; exit 1 ;;
     esac
 done
@@ -84,22 +88,21 @@ ok "ddev is available and the project is running"
 
 ddev exec test -f "$PLUGIN_DIR/wp-racemanager.php" 2>/dev/null \
     || die "The plugin is not at $PLUGIN_DIR inside the container.
-        Check that .ddev/docker-compose.plugin.yaml mounts this repository there and
-        that 'ddev restart' has picked it up, or set WP_APP_DIR if the docroot is
-        named differently. See section 3 of docs/development-setup.md."
+        Check that ${WP_APP_DIR}/wp-content/plugins/wp-racemanager is a symlink to
+        ../../../wp-racemanager and that 'ddev start' has synced it, or set WP_APP_DIR
+        if the docroot is named differently. An absolute symlink target is the usual
+        cause -- Mutagen's 'portable' mode refuses to carry one. See section 3 of
+        docs/development-setup.md."
 ok "plugin found at $PLUGIN_DIR"
 
-# Docker creates whatever directories a bind mount needs, and it creates them as
-# root. Starting from an empty wp-app/ that is the entire wp-content/ tree, which
-# then belongs to root and WP-CLI cannot unpack a theme into it. Creating the path
-# before the first 'ddev start' avoids it; see docs/development-setup.md.
+# WP-CLI unpacks core, the theme and Contact Form 7 into wp-content/, so nothing
+# below is worth trying until the container user can write there.
 if ddev exec test -w "/var/www/html/${WP_APP_DIR}/wp-content" 2>/dev/null; then
     ok "wp-content is writable"
 else
     die "/var/www/html/${WP_APP_DIR}/wp-content is not writable in the container.
-        Docker created it as root to hold the plugin mount. Repair it on the host with
-        'sudo chown -R \$USER: ${WP_APP_DIR}', and create ${WP_APP_DIR}/wp-content/plugins/
-        yourself before the first 'ddev start' next time."
+        Repair it on the host with 'sudo chown -R \$USER: ${WP_APP_DIR}' and run
+        'ddev start' again."
 fi
 
 PHP_VERSION="$(ddev exec php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)"
