@@ -50,8 +50,25 @@ PLUGIN_DIR="/var/www/html/${WP_APP_DIR}/wp-content/plugins/wp-racemanager"
 RECREATE_LIVE_PAGES=0
 
 # The live area: one parent page, one child per view, each holding its shortcode.
-# The child slugs are what the /live/{race}/{view}/ rewrite rule is built from.
-LIVE_VIEWS="bracket pilots stats nextup"
+# The child slugs are what the /live/{race}/{view}/ rewrite rule is built from, so
+# they are also what makes a local URL identical to production's. These match
+# copterrace.com -- note "next-up", whose shortcode is nevertheless [rm_nextup].
+LIVE_VIEWS="bracket pilots stats next-up"
+
+# The slug is not always the shortcode name, and not always the page title.
+view_shortcode() {
+    case "$1" in
+        next-up) printf 'rm_nextup' ;;
+        *)       printf 'rm_%s' "$1" ;;
+    esac
+}
+
+view_title() {
+    case "$1" in
+        next-up) printf 'Next up' ;;
+        *)       printf '%s' "$1" | awk '{ print toupper(substr($0,1,1)) substr($0,2) }' ;;
+    esac
+}
 
 for arg in "$@"; do
     case "$arg" in
@@ -219,20 +236,31 @@ LIVE_ID="$(page_id live)"
 if [ -n "$LIVE_ID" ]; then
     ok "parent page /live/ exists (ID $LIVE_ID)"
 else
-    LIVE_ID="$(wp post create --post_type=page --post_title='Live' --post_name=live \
+    LIVE_ID="$(wp post create --post_type=page --post_title='Select Race' --post_name=live \
         --post_status=publish --porcelain | tr -d '\r\n')"
     did "created the parent page /live/ (ID $LIVE_ID)"
 fi
 
+# Older installs built by this script have "nextup"; production has "next-up".
+# Renaming beats creating a second page, which is what the create below would
+# otherwise do -- and the slug is baked into the rewrite rule, so leaving both
+# would give the live area a view that no longer matches production.
+LEGACY_NEXTUP="$(page_id nextup "$LIVE_ID")"
+if [ -n "$LEGACY_NEXTUP" ] && [ -z "$(page_id next-up "$LIVE_ID")" ]; then
+    wp post update "$LEGACY_NEXTUP" --post_name=next-up --post_title='Next up' >/dev/null
+    did "renamed /live/nextup/ to /live/next-up/ (ID $LEGACY_NEXTUP)"
+fi
+
 for view in $LIVE_VIEWS; do
     CHILD_ID="$(page_id "$view" "$LIVE_ID")"
+    SHORTCODE="$(view_shortcode "$view")"
     if [ -n "$CHILD_ID" ]; then
         ok "/live/$view/ exists (ID $CHILD_ID)"
     else
-        CHILD_ID="$(wp post create --post_type=page --post_title="$view" --post_name="$view" \
-            --post_parent="$LIVE_ID" --post_status=publish \
-            --post_content="[rm_$view]" --porcelain | tr -d '\r\n')"
-        did "created /live/$view/ with [rm_$view] (ID $CHILD_ID)"
+        CHILD_ID="$(wp post create --post_type=page --post_title="$(view_title "$view")" \
+            --post_name="$view" --post_parent="$LIVE_ID" --post_status=publish \
+            --post_content="[$SHORTCODE]" --porcelain | tr -d '\r\n')"
+        did "created /live/$view/ with [$SHORTCODE] (ID $CHILD_ID)"
     fi
 done
 

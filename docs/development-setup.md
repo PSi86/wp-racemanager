@@ -279,17 +279,24 @@ The live micro-site is built from ordinary WordPress pages, so it has to exist b
 under `/live/` works. One parent page plus one child page per view, each holding its shortcode:
 
 ```bash
-LIVE=$(ddev wp post create --post_type=page --post_title='Live' --post_name=live \
+LIVE=$(ddev wp post create --post_type=page --post_title='Select Race' --post_name=live \
         --post_status=publish --porcelain)
 
-for v in bracket pilots stats nextup; do
-  ddev wp post create --post_type=page --post_title="$v" --post_name="$v" \
-      --post_parent="$LIVE" --post_status=publish --post_content="[rm_$v]" --porcelain
+# slug:shortcode -- the slugs match production, and "next-up" is the one where
+# the two differ, because the shortcode has always been [rm_nextup].
+for pair in bracket:rm_bracket pilots:rm_pilots stats:rm_stats next-up:rm_nextup; do
+  ddev wp post create --post_type=page --post_name="${pair%%:*}" --post_title="${pair%%:*}" \
+      --post_parent="$LIVE" --post_status=publish --post_content="[${pair##*:}]" --porcelain
 done
 
 ddev wp option update rm_live_page_id "$LIVE"
 ddev wp rewrite flush
 ```
+
+The slugs are not cosmetic: they are what the rewrite rule is built from, so using production's
+is what makes a local URL and a production URL the same string. `bin/bootstrap-devenv.sh` uses
+these, and renames an older `nextup` page to `next-up` rather than creating a second one beside
+it.
 
 `bin/bootstrap-devenv.sh` does exactly this, and skips whatever already exists; run it with
 `--recreate-live-pages` to tear the four pages down and rebuild them. What it does not do is add a
