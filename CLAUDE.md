@@ -157,8 +157,10 @@ Two lists, and they answer different questions:
 
 From the audit, the ones most likely to bite while working here:
 
-- **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
-  out of iframe mode for any post containing one. Unblocked now that F1 is done.
+- **A2** Six of the seven blocks are on `apiVersion: 3`; `race-gallery` is still on 2 and still
+  logs the deprecation. In WordPress 7.1 there is no non-iframe fallback left, so a version-2
+  block runs inside the iframe regardless — `race-gallery` drives the Backbone media modal, which
+  is why it needs a manual pass through the editor rather than a code change alone.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
   Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
   the list alone makes the selection go blank when a pilot leaves the field, because today the

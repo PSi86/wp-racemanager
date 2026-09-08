@@ -54,7 +54,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | C1 | P1 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `_race_event_start` / `_race_event_end` hold Unix integers *and* `datetime-local` strings | no |
 | E2 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | Security | Registrations admin had no nonces; bulk delete was not scoped to the race | no |
 | E5 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | REST upload | Upload directory was never created; the `WP_Error` was discarded | no |
-| A2 | P2 | **open** | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9, editor drops out of the iframe | yes — WP 6.9/7.0 |
+| A2 | P2 | **open** — 6 of 7 done | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9; only `race-gallery` is left | yes — WP 6.9/7.0 |
 | B2 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Performance | `session_start()` on every live page load disabled page caching | no |
 | B3 | P2 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | Live / PWA | Two live shortcodes on one page overwrote each other's JS config. The block-theme dependency itself is accepted — see below | no |
 | B4 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Live / PWA | Session redirect without no-cache headers; `/live/*` not excluded from speculative loading | yes — WP 6.8/7.1 |
@@ -164,10 +164,30 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
 
 ### The rest
 
-- **A2** — all blocks on `apiVersion: 2`. Since 6.9 `registerBlockType` logs a deprecation and
-  the post editor drops out of iframe mode for any post containing one. `race-gallery` is the
-  risky one to migrate: it uses the old Backbone media library (`wp.media`, `wp.shortcode`).
-  No longer blocked — F1 is done.
+- **A2** — six of the seven blocks are on `apiVersion: 3` now; `race-gallery` is still on 2, and
+  `registerBlockType` keeps logging a deprecation for it.
+
+  **The consequence recorded here first was 6.9 behaviour and no longer describes 7.1.** It read
+  "the post editor drops out of iframe mode for any post containing one". In 7.1 there is no such
+  fallback left: `editor.min.js` passes `shouldIframe: true` unconditionally, `BlockCanvas` in
+  `block-editor.min.js` defaults it to true, and `editor`, `block-editor` and `edit-post` contain
+  no `apiVersion` check at all. So the version-2 blocks are not degrading the editor — they are
+  already running inside the iframe without having declared that they can, which is the more
+  awkward half of the two. Core's own wording is correspondingly hedged: the block "*may* work as
+  a non-iframe editor".
+
+  The six were safe to move together. Every block in this plugin is dynamic — `save` returns
+  `null` and the output comes from a `render_callback` — so there is no stored markup that a
+  version bump could invalidate. All six already call `useBlockProps`, none reference `document`,
+  their only `window` use is the `window.wp` passed into the IIFE, and none declare styles that
+  would have to be injected into the iframe. Each one still renders server-side unchanged.
+
+  `race-gallery` is what is left, and it is the reason A2 was filed as the risky one: it drives
+  the Backbone media modal (`wp.media`, `wp.shortcode`, `wp.media.model.Selection`,
+  `wp.media({ frame: 'post' })`), which opens in the parent document while the block itself
+  renders in the iframe. Whether that survives is a question about behaviour, not about code
+  reading, so it needs a pass through the editor by hand — select media, edit an existing
+  gallery, reorder.
 
 ### What F1 turned up on the way
 
@@ -198,7 +218,8 @@ the project is happy to live with (see B3).
 2. ~~**E9, D2**~~ and ~~**B3 (reduced)**~~ — done in [#11](https://github.com/PSi86/wp-racemanager/pull/11);
    ~~**E8 remainder**~~ in [#12](https://github.com/PSi86/wp-racemanager/pull/12), where the address became a setting that defaults to the
    site's own domain.
-3. ~~**F1**~~ — done. **A2** is next: `apiVersion: 3`, and `race-gallery` needs the most care.
+3. ~~**F1**~~ — done. **A2** in progress: the six hand-written blocks are on `apiVersion: 3`;
+   `race-gallery` is left and needs a manual pass through the editor.
 4. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
    becomes a visible regression.
 
