@@ -1,6 +1,11 @@
 /node_modules
+
+# vendor/ is installed, not tracked. composer.lock is the opposite and has to
+# stay that way: bin/build-plugin-zip.sh copies it into the staging directory
+# and runs `composer install` against it, so an untracked lock means whoever
+# builds decides which versions ship. web-push 11 resolves its HTTP client at
+# runtime, and a wrong set breaks push without failing a single test.
 /vendor
-composer.lock
 tests/.wordpress
 tests/.fake-wp
 .DS_Store

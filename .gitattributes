@@ -25,3 +25,8 @@
 blocks-src/**/block.json    text eol=lf
 blocks/**/block.json        text eol=lf
 blocks/**/index.asset.php   text eol=lf
+
+# Composer rewrites these with LF on every operation, so without a rule they
+# come back as modified after each `composer install` on a CRLF checkout.
+composer.json               text eol=lf
+composer.lock               text eol=lf
