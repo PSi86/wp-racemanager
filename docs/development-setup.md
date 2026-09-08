@@ -487,7 +487,21 @@ Useful DDEV commands for this plugin specifically:
 | `ddev snapshot` / `ddev snapshot restore --latest` | Database checkpoint before trying a migration — for example the event-date migration on the settings page. |
 | `ddev wp ...` | Any WP-CLI command. |
 | `ddev restart` | After changing `.ddev/config.yaml`. |
+| `ddev exec ls /var/www/html` | Note `MSYS_NO_PATHCONV=1` in Git Bash, or the path is rewritten before ddev.exe sees it. |
 | `ddev delete -O` | Throw the database and the DDEV project away. The files stay, so to start truly fresh delete `wp-app/` too, recreate the plugin symlink (section 3), then `ddev start` and re-run `bin/bootstrap-devenv.sh`. The repository is outside `wp-app/`, so there is nothing to rescue first. |
+
+### Scripting against ddev
+
+Two things bite when a shell script drives `ddev` rather than a person:
+
+- **`ddev` reads stdin.** Inside a `while read ... done < list` loop it consumes the rest of the
+  list, so the loop body runs exactly once and the script looks like it silently skipped
+  everything. Redirect: `ddev wp ... </dev/null`. A `for x in $list` loop does not have the
+  problem, which is why `bin/bootstrap-devenv.sh` uses one.
+- **Uploads are bind-mounted, not synced.** `.ddev/mutagen/mutagen.yml` ignores
+  `/wp-app/wp-content/uploads`, but DDEV bind-mounts that path into the container separately, so a
+  file dropped there on the host *is* immediately visible inside — no `ddev start`, no sync wait.
+  That is where the per-race JSON lives, which makes importing production data a plain `cp`.
 
 ### Building the blocks
 
