@@ -3,6 +3,7 @@
     "version": "1.1.0",
     "scripts": {
         "test": "php tests/run.php",
+      "test:e2e": "node tests/e2e/editor.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"

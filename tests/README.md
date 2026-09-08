@@ -1,6 +1,13 @@
 # Test suites
 
-Plain PHP, no framework, no WordPress installation required.
+Two of them, and they answer different questions.
+
+**`php tests/run.php`** is the one to reach for: plain PHP, no framework, no WordPress
+installation required, so it runs anywhere and it is fast.
+
+**`npm run test:e2e`** drives the block editor in a real browser. It needs a started DDEV site,
+`node_modules` and a Chromium, so it is deliberately kept out of the PHP runner — see
+[Browser checks](#browser-checks) at the end.
 
 ```
 php tests/run.php            # everything
@@ -51,6 +58,37 @@ composer install
 
 That creates a plugin-local `vendor/` (git-ignored). The plugin finds the autoloader there or
 in the locations it has historically lived — see `rm_push_library_available()`.
+
+## Browser checks
+
+```bash
+npm run test:e2e                                    # against https://racemanager.ddev.site
+RM_E2E_URL=https://other.ddev.site npm run test:e2e
+RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
+```
+
+`tests/e2e/editor.cjs`, run through Playwright. Exit codes match the PHP suites: 0 passed,
+1 failed, 2 skipped. It skips — rather than fails — when Playwright is missing, when no Chromium
+has been downloaded for the installed Playwright build, when the site is unreachable, or when the
+login is refused; each of those prints the command that fixes it. `RM_E2E_USER` and `RM_E2E_PASS`
+default to the `admin` / `admin` that `bin/bootstrap-devenv.sh` creates.
+
+What it guards:
+
+| Check | Why it cannot be a PHP suite |
+|---|---|
+| the editor canvas is an iframe | Since 7.1 this is unconditional — there is no `apiVersion` check left in `editor`, `block-editor` or `edit-post`. A block that is not iframe-safe no longer degrades the editor, it just misbehaves. |
+| every block is on `apiVersion: 3` | Read from the live registry rather than from `block.json`, so a block that fails to register is caught too. |
+| each block renders inside the iframe | Insertion and rendering are editor behaviour. Blocks that declare a `parent` or `ancestor` are skipped with the reason, because they cannot be inserted at the document root — `nav-latest-races` only lives inside a `core/navigation-submenu`. |
+| `race-gallery` thumbnails, its inline `<style>`, and its `wp.media` frame | The block ships its CSS as an inline `<style>` instead of through `block.json`, so what matters is that the element reaches the iframe document *and still applies* — the check measures the rendered thumbnail at 150px. The media modal is the Backbone one: the block's JavaScript runs in the parent realm, so the modal opens over the iframe rather than inside it. None of that is visible from the source. |
+| no `apiVersion` deprecation, no console error from this plugin | The browser console is the only place these appear. |
+
+The media checks skip when the library holds no image; `ddev wp media import <file>` gives it one.
+
+This is the check to repeat when a WordPress major changes the editor again. The last time it
+earned its keep was the `apiVersion: 3` migration (**A2** in
+[`wordpress-update-audit.md`](../docs/wordpress-update-audit.md)), where nothing but a real editor
+could answer whether the Backbone media modal survives the iframe.
 
 ## Writing another suite
 

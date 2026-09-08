@@ -79,11 +79,18 @@ Consequences worth keeping in mind when changing this:
 ## Tests
 
 ```bash
-php tests/run.php
+php tests/run.php      # plain PHP, runs anywhere
+npm run test:e2e       # the block editor, in a real browser
 ```
 
-Plain PHP, no framework, no WordPress needed. Two suites need optional dependencies and skip
-themselves cleanly — see `tests/README.md`. Add a suite by dropping a file in `tests/suites/`.
+`tests/run.php` is plain PHP, no framework, no WordPress needed. Two suites need optional
+dependencies and skip themselves cleanly — see `tests/README.md`. Add a suite by dropping a file
+in `tests/suites/`.
+
+`tests/e2e/editor.cjs` is separate on purpose: it needs a started DDEV site, `node_modules` and a
+Chromium, and it covers what PHP cannot reach — that the blocks survive the editor's iframe, that
+`race-gallery`'s media modal still opens, and that the console stays clean. It skips rather than
+fails when any of that is missing.
 
 **When changing the live routing, run `php tests/run.php live` and make sure `live-links` does
 not skip** — that suite needs a WordPress checkout, and it is the one that would catch a
