@@ -3,6 +3,8 @@ import { dataLoaderInstance } from './rm-m-dataLoader.js';
 import { pilotSelectInstance } from './rm-m-pilotSelector.js';
 
 // Exports const displayHeatsInstance = new DisplayHeats(); (at the bottom)
+// Notes:
+// Empty slots were flagged as slot.pilot_id = null (newer) or 0 (earlier versions) of RotorHazard
 
 class DisplayHeats {
     constructor() {
@@ -380,7 +382,7 @@ class DisplayHeats {
             heat.slots.forEach((slot, i) => {
                 let pilotCallsign = "";
                 let pilotResult = "";
-                let pilotId = 0;
+                let pilotId = null;
 
                 // first check if results are available for the heat if(leaderboard)
                 // if not, use the seed_id to display the heat displayname and rank
@@ -390,7 +392,7 @@ class DisplayHeats {
                 // TODO: cant remember why node_index could be null -> check if this is still necessary
                 // slot.method is 1 for seeded slots and 0 for unseeded slots (and -1 for empty slots?)
 
-                if ((slot.pilot_id === 0 || slot.node_index === null) && !heatResultAvailable && slot.method !== -1) {
+                if ((slot.pilot_id === null || slot.pilot_id === 0 || slot.node_index === null) && !heatResultAvailable && slot.method !== -1) {
                     // Slot not seeded
                     // could just get this data from the result_data
                     //result_data.heats[4].rounds[flownRounds].nodes[i].pilot_id
@@ -419,7 +421,7 @@ class DisplayHeats {
                     }
                 } 
                 //else if (slot.pilot_id !== 0 && slot.node_index !== null && heatResultAvailable) {
-                else if (slot.pilot_id !== 0 && slot.node_index !== null) {
+                else if ((slot.pilot_id !== null && slot.pilot_id !== 0) && slot.node_index !== null) {
                     // Slot is seeded
                     pilotId = slot.pilot_id;
                     const pilot = rhData.pilot_data.pilots.find(p => p.pilot_id === slot.pilot_id);
@@ -688,7 +690,7 @@ class DisplayHeats {
                     // either no "pilot" prefix or skip mouse over event registration
                     
                     let pilotClass; // classname for the pilot
-                    if(pilot.id !== 0) {
+                    if(pilot.id !== null && pilot.id !== 0) {
                         pilotClass = `pilotid-${pilot.id}`; // Unique class for each pilot group
                     }
                     else {

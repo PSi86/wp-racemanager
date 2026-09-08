@@ -250,16 +250,16 @@ class PWA_Subscription_Handler {
 
                 if ($storedHeat === 0 && $storedSlot === 0) {
                     // New schedule.
-                    $message = "{$pilotCallsign}: Your next race is {$heatDisplay}. Your channel is {$channel}";
+                    $message = "{$pilotCallsign}: Next race is {$heatDisplay}. Channel is {$channel}";
                 } elseif ($storedHeat === $newHeat && $storedSlot !== $newSlot) {
                     // Slot changed.
-                    $message = "{$pilotCallsign}: Your channel in race {$heatDisplay} has changed to {$channel}";
+                    $message = "{$pilotCallsign}: Channel changed to {$channel} for race {$heatDisplay}";
                 } elseif ($storedHeat !== $newHeat && $storedSlot === $newSlot) {
                     // Heat changed.
-                    $message = "{$pilotCallsign}: You have been reassigned to {$heatDisplay} your channel remains {$channel}";
+                    $message = "{$pilotCallsign}: Reassigned to {$heatDisplay}. Channel remains {$channel}";
                 } elseif ($storedHeat !== $newHeat && $storedSlot !== $newSlot) {
                     // Heat and slot changed.
-                    $message = "{$pilotCallsign}: You have been reassigned to {$heatDisplay} your new channel is {$channel}";
+                    $message = "{$pilotCallsign}: Reassigned to {$heatDisplay}. Channel is {$channel}";
                 } else {
                     // No change; no notification needed.
                     continue;

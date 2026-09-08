@@ -66,7 +66,7 @@ function rm_register_cpt() {
                         array(
                             'core/social-link',
                             array(
-                                'url'     => 'https://www.youtube.com/channel/0000000',
+                                'url'     => 'https://www.youtube.com/channel/UClUCsP1HXndOxwIshO17RNA',
                                 'service' => 'youtube',
                             ),
                             array()
@@ -74,7 +74,7 @@ function rm_register_cpt() {
                         array(
                             'core/social-link',
                             array(
-                                'url'     => 'https://www.instagram.com/00000/',
+                                'url'     => 'https://www.instagram.com/rotormaniacs/',
                                 'service' => 'instagram',
                             ),
                             array()
@@ -82,7 +82,7 @@ function rm_register_cpt() {
                         array(
                             'core/social-link',
                             array(
-                                'url'     => 'https://discord.gg/0000',
+                                'url'     => 'https://discord.gg/NCKQwhw62e',
                                 'service' => 'discord',
                             ),
                             array()
@@ -171,7 +171,7 @@ function rm_register_cpt() {
                 array(
                     'gmap/gmap-block',
                     array(
-                        'address'    => 'Korntal-Münchingen',
+                        'address'    => 'Martin-Luther-Straße 28, 70825 Korntal-Münchingen',
                         'zoom'       => 11,
                         'uniqueId'   => 'gmap-block-gaoc5rx2',
                         'blockStyle' => "\n        \n        \n    \n        @media (max-width: 1024px) and (min-width: 768px) {\n            \n         \n    \n        }\n        @media (max-width: 767px) {\n            \n         \n    \n        }\n    ",

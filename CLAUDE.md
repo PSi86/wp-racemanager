@@ -79,11 +79,18 @@ Consequences worth keeping in mind when changing this:
 ## Tests
 
 ```bash
-php tests/run.php
+php tests/run.php      # plain PHP, runs anywhere
+npm run test:e2e       # the block editor, in a real browser
 ```
 
-Plain PHP, no framework, no WordPress needed. Two suites need optional dependencies and skip
-themselves cleanly — see `tests/README.md`. Add a suite by dropping a file in `tests/suites/`.
+`tests/run.php` is plain PHP, no framework, no WordPress needed. Two suites need optional
+dependencies and skip themselves cleanly — see `tests/README.md`. Add a suite by dropping a file
+in `tests/suites/`.
+
+`tests/e2e/editor.cjs` is separate on purpose: it needs a started DDEV site, `node_modules` and a
+Chromium, and it covers what PHP cannot reach — that the blocks survive the editor's iframe, that
+`race-gallery`'s media modal still opens, and that the console stays clean. It skips rather than
+fails when any of that is missing.
 
 **When changing the live routing, run `php tests/run.php live` and make sure `live-links` does
 not skip** — that suite needs a WordPress checkout, and it is the one that would catch a
@@ -92,12 +99,25 @@ navigation regression.
 ## Building the blocks
 
 ```bash
-npm install
+npm ci             # not `npm install` -- the built output is committed
 npm run build      # wp-scripts, blocks-src/ -> blocks/
 ```
 
 Only `race-gallery` is built from source; the other blocks are hand-written `index.js` files
-in `blocks/`.
+in `blocks/`. The build runs on the host, and `blocks/race-gallery/` is committed, so a source
+change has to be committed together with its rebuilt output.
+
+`webpack.config.js` is load-bearing: wp-scripts empties its output directory before every emit,
+and the output directory is `blocks/`, so the config narrows the clean to the folders that have a
+source under `blocks-src/`. Without it a build deletes the six hand-written blocks silently. After
+any `@wordpress/scripts` bump, run `npm run build && git status --short blocks/` — nothing may
+appear as deleted.
+
+`node_modules/` sits inside the DDEV project and the container never reads it, so
+`.ddev/mutagen/mutagen.yml` ignores `/wp-racemanager/node_modules`. That file has to have its
+`#ddev-generated` marker removed to survive, and the marker must not appear anywhere else in it
+either — DDEV greps the whole file. See "Building the blocks" in
+[`docs/development-setup.md`](docs/development-setup.md).
 
 ## Environment
 
@@ -137,30 +157,28 @@ what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read t
 Two lists, and they answer different questions:
 
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
-  updates broke or exposed. 24 findings, 21 resolved. **The maintenance to-do list.**
+  updates broke or exposed. 24 findings, 23 resolved. **The maintenance to-do list.**
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
   could get better, above all its data path. L1–L10, none started, four questions to answer first.
   [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
 
 From the audit, the ones most likely to bite while working here:
 
-- **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
-  out of iframe mode for any post containing one. Needs F1 first.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
   Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
   the list alone makes the selection go blank when a pilot leaves the field, because today the
   stale option is what keeps it selected.
-- **F1** npm and Composer dependencies are one to two majors behind.
 
 ## Documentation
 
 - [`docs/`](docs/) — the audit and to-do list, the deployment test protocol, and the reasoning
   behind the live URLs and the VAPID handling.
 - [`docs/development-setup.md`](docs/development-setup.md) — setting up a local WordPress with
-  DDEV. The plugin belongs in `wp-content/plugins/wp-racemanager/`, which is also the layout the
-  `live-links` suite needs to find a WordPress checkout. **Still pending:** development is meant
-  to move to VS Code against this local site; the guide is written, the site is not built yet.
-  Postponed, not dropped.
+  DDEV. The repository sits **beside** the site (`<project>/wp-racemanager`) and a relative
+  symlink at `wp-app/wp-content/plugins/wp-racemanager` points back at it, so the container sees
+  the path WordPress insists on while the working copy stays one level below the project root.
+  The target must stay relative — Mutagen carries symlinks in `portable` mode and refuses an
+  absolute one. `bin/bootstrap-devenv.sh` builds the site from scratch.
 - [`docs/deployment.md`](docs/deployment.md) — building the artifact and installing it on a host
   without WP-CLI. Note that a ZIP replace does **not** re-run the activation hook, and that
   reactivating to force it duplicates the CF7 registration form (E10).

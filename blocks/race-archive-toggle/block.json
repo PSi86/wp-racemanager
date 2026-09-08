@@ -1,5 +1,5 @@
 {
-    "apiVersion": 2,
+    "apiVersion": 3,
     "name": "wp-racemanager/race-archive-toggle",
     "title": "Race Archive Toggle",
     "category": "widgets",

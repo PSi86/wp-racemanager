@@ -38,7 +38,9 @@ if ( ! defined( 'WP_RACEMANAGER_DIR' ) ) {
  *   1. The WP_CORE_DIR environment variable.
  *   2. The WordPress root above the plugin -- the normal case when the plugin sits in
  *      wp-content/plugins/ of a development install, so this needs no configuration.
- *   3. tests/.wordpress/, if someone dropped a checkout there (git-ignored).
+ *   3. A sibling wp-app/ -- the DDEV layout where the repository sits next to the site
+ *      and is symlinked into it, so the plugin is not below the WordPress root on disk.
+ *   4. tests/.wordpress/, if someone dropped a checkout there (git-ignored).
  *
  * @return string|null Path to the WordPress root, or null if none was found.
  */
@@ -57,6 +59,7 @@ function rm_test_wp_core_dir() {
     }
 
     $candidates[] = dirname( RM_PLUGIN_DIR, 3 ); // wp-content/plugins/<plugin> -> WordPress root
+    $candidates[] = dirname( RM_PLUGIN_DIR ) . '/wp-app'; // <project>/<repo> -> <project>/wp-app
     $candidates[] = RM_TEST_DIR . '/.wordpress';
 
     foreach ( $candidates as $candidate ) {

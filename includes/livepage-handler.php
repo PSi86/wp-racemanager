@@ -311,6 +311,7 @@ function rm_nextup_shortcode( $atts ) {
     ob_start();
     ?>
     <div id="nextup-display" class="raceclass-container"></div>
+    <div id="ranking-container"></div>
     <div id="pilot-push-container">
       <h2>Select Pilot for Notifications</h2>
       <form id="pilot-push-form">

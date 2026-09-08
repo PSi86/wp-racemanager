@@ -1,19 +1,25 @@
 {
-    "name": "WP Plugin Codespace",
-    "image": "mcr.microsoft.com/devcontainers/php:8.2",      
-    "features": {
-      "ghcr.io/devcontainers/features/node:2": {
-        "version": "18"                                
-      }
-    },
-    "postCreateCommand": "npm install",                 
-    "customizations": {
-      "vscode": {
-        "extensions": [
-          "dbaeumer.vscode-eslint",
-          "esbenp.prettier-vscode"
-        ]
-      }
+  "name": "WP Plugin Codespace",
+  // PHP 8.2 on purpose: it is the floor the plugin header declares, so the
+  // Codespace is where a call that needs something newer shows up.
+  "image": "mcr.microsoft.com/devcontainers/php:8.2",
+  "features": {
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "22"
+    }
+  },
+  // npm ci, not npm install: the built blocks are committed, so the lock file
+  // has to be authoritative here as well. It also fails loudly when the lock
+  // and package.json disagree instead of quietly rewriting the lock, which is
+  // how an inconsistent lock survived unnoticed for as long as this was the
+  // only place the blocks were ever built.
+  "postCreateCommand": "npm ci",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
     }
   }
-  
+}

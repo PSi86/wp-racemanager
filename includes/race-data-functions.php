@@ -1,9 +1,5 @@
 <?php
-// includes/race-data-functions.php
-// Reads the RotorHazard JSON data and extracts the pilots scheduled
-// Clean up attachments on post deletion
-
-if (!defined('ABSPATH')) exit; // Exit if accessed directly
+if (!defined('ABSPATH')) exit;
 
 /**
  * Absolute path of the directory holding the per-race JSON files.
@@ -50,93 +46,323 @@ function rm_get_race_data_url() {
 }
 
 /**
- * Returns an array of pilots scheduled to race in the next three heats.
- * Each entry is an associative array with keys:
- *   - heat_id
- *   - heat_displayname
- *   - pilot_id
- *   - callsign
- *   - slot_id (indicates the channel the pilot will race on)
- *   - channel (the formatted channel string, e.g., "R1")
+ * Returns an array of pilots scheduled to race in the next heats (current + 3).
+ * Uses "double-run" scheduling for Training/Qualifying:
+ *   heat A twice, heat B twice, ... last heat twice, then wrap, until each heat reached class rounds.
+ * Elimination (and other classes) stay sequential (no wrap).
  *
- * @param array $rhData The RotorHazard data decoded from JSON.
- * @return array|null List of pilots for upcoming races or null if data is missing.
+ * Each entry:
+ *   - heat_id, heat_displayname, pilot_id, callsign, slot_id, channel
  */
 function rm_getUpcomingRacePilots($rhData) {
-    if (!$rhData 
-        || !isset($rhData['current_heat']['current_heat']) 
-        || !isset($rhData['heat_data']['heats']) 
+    if (!$rhData
+        || !isset($rhData['current_heat']['current_heat'])
+        || !isset($rhData['heat_data']['heats'])
         || !isset($rhData['pilot_data']['pilots'])
+        || !isset($rhData['class_data']['classes'])
     ) {
-        error_log("getUpcomingRacePilots: Missing required data in rhData");
+        error_log("rm_getUpcomingRacePilots: Missing required data in rhData");
         return null;
     }
 
-    // Build channel mapping for slot_id to channel string.
     $channelMapping = rm_buildChannelMapping($rhData);
-    
-    $currentHeat = $rhData['current_heat']['current_heat'];
-    $limitHeat = $currentHeat + 3;
-    $upcomingPilots = [];
 
-    // Process each heat within the upcoming range.
-    foreach ($rhData['heat_data']['heats'] as $heat) {
-        if ($heat['id'] > $currentHeat && $heat['id'] <= $limitHeat) {
-            $heatId = $heat['id'];
-            $heatDisplayname = $heat['displayname'];
-            
-            if (isset($heat['slots']) && is_array($heat['slots'])) {
-                // Use the slot index as the channel (slot id)
-                foreach ($heat['slots'] as $slotIndex => $slot) {
-                    $pilotId = 0;
-                    $callsign = "";
-                    
-                    // If the slot already has a pilot assigned
-                    if (isset($slot['pilot_id']) && $slot['pilot_id'] != 0) {
-                        $pilotId = $slot['pilot_id'];
-                        $callsign = rm_getPilotCallsign($pilotId, $rhData);
-                    } else {
-                        // If not seeded, check if we can seed from a previous heat
-                        if (isset($slot['seed_id'], $slot['seed_rank']) && $slot['seed_id'] <= $currentHeat) {
-                            $seededPilot = rm_getSeededPilot($slot['seed_id'], $slot['seed_rank'], $rhData);
-                            if ($seededPilot !== null) {
-                                $pilotId = $seededPilot['pilot_id'];
-                                $callsign = $seededPilot['callsign'];
-                            }
-                        }
-                    }
-                    
-                    // Only add valid pilot entries.
-                    if ($pilotId) {
-                        $upcomingPilots[] = [
-                            'heat_id'         => $heatId,
-                            'heat_displayname'=> $heatDisplayname,
-                            'pilot_id'        => $pilotId,
-                            'callsign'        => $callsign,
-                            'slot_id'         => $slotIndex,
-                            'channel'         => isset($channelMapping[$slotIndex]) ? $channelMapping[$slotIndex] : "unknown"
-                        ];
+    // pilot_id => callsign map (avoid repeated scans)
+    $pilotCallsignById = array();
+    foreach ($rhData['pilot_data']['pilots'] as $p) {
+        if (!isset($p['pilot_id'])) continue;
+        $pilotCallsignById[(int)$p['pilot_id']] = isset($p['callsign']) ? (string)$p['callsign'] : '';
+    }
+
+    // Build heat indexes
+    $heatsById = array();         // heat_id => heat array
+    $classHeats = array();        // class_id => [heat_id, heat_id, ...] ordered
+    foreach ($rhData['heat_data']['heats'] as $h) {
+        if (!isset($h['id'])) continue;
+        $hid = (int)$h['id'];
+        $heatsById[$hid] = $h;
+
+        $cid = isset($h['class_id']) ? (int)$h['class_id'] : 0;
+        if ($cid > 0) {
+            if (!isset($classHeats[$cid])) $classHeats[$cid] = array();
+            $classHeats[$cid][] = $hid;
+        }
+    }
+    foreach ($classHeats as $cid => $list) {
+        sort($list, SORT_NUMERIC);
+        $classHeats[$cid] = $list;
+    }
+
+    // Class metadata: order + rounds + double-run flag for Training/Qualifying
+    $classes = $rhData['class_data']['classes'];
+    usort($classes, function($a, $b) {
+        $oa = isset($a['order']) ? $a['order'] : null;
+        $ob = isset($b['order']) ? $b['order'] : null;
+        if (is_numeric($oa) && is_numeric($ob)) {
+            return (int)$oa <=> (int)$ob;
+        }
+        $ia = isset($a['id']) ? (int)$a['id'] : 0;
+        $ib = isset($b['id']) ? (int)$b['id'] : 0;
+        return $ia <=> $ib;
+    });
+
+    $classOrder = array();        // [class_id,...]
+    $classRounds = array();       // class_id => rounds
+    $doubleRunClass = array();    // class_id => true (Training/Qualifying)
+    foreach ($classes as $c) {
+        if (!isset($c['id'])) continue;
+        $cid = (int)$c['id'];
+        $classOrder[] = $cid;
+        $classRounds[$cid] = isset($c['rounds']) ? (int)$c['rounds'] : 1;
+
+        $name = strtolower((string)($c['name'] ?? $c['displayname'] ?? ''));
+        if ($name === 'training' || $name === 'qualifying') {
+            $doubleRunClass[$cid] = true;
+        }
+    }
+
+    $currentHeatId = (int)$rhData['current_heat']['current_heat'];
+
+    // If current heat is already "complete", jump to the next runnable one.
+    $startHeatId = rm_findNextRunnableHeatId(
+        $currentHeatId, $heatsById, $classHeats, $classOrder, $classRounds, $doubleRunClass
+    );
+    if ($startHeatId === null) {
+        return array();
+    }
+
+    // Build upcoming heat-id sequence: current + 3
+    $heatIdsToCheck = array();
+    $hid = $startHeatId;
+    $maxHeats = 4; // keep existing behavior: current + next 3
+    for ($i = 0; $i < $maxHeats && $hid !== null; $i++) {
+        $heatIdsToCheck[] = $hid;
+        $hid = rm_getNextHeatId($hid, $heatsById, $classHeats, $classOrder, $classRounds, $doubleRunClass);
+    }
+
+    // Collect pilots, dedupe by (heat_id, pilot_id) (prevents double notifications if same heat appears twice)
+    $upcomingPilots = array();
+    $seen = array();
+
+    foreach ($heatIdsToCheck as $heatId) {
+        if (!isset($heatsById[$heatId])) continue;
+        $heat = $heatsById[$heatId];
+
+        $heatDisplayname = isset($heat['displayname']) ? (string)$heat['displayname'] : ('Heat ' . $heatId);
+        if (!isset($heat['slots']) || !is_array($heat['slots'])) continue;
+
+        foreach ($heat['slots'] as $slotIndex => $slot) {
+            $pilotId = isset($slot['pilot_id']) ? (int)$slot['pilot_id'] : 0;
+            $callsign = $pilotId ? ($pilotCallsignById[$pilotId] ?? '') : '';
+
+            // If not assigned, try to resolve seed
+            if (!$pilotId && isset($slot['seed_id'], $slot['seed_rank'])) {
+                $seedHeatId = (int)$slot['seed_id'];
+                $seedRank   = (int)$slot['seed_rank'];
+                if ($seedHeatId > 0 && $seedRank > 0) {
+                    $seededPilot = rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById);
+                    if ($seededPilot !== null) {
+                        $pilotId = (int)$seededPilot['pilot_id'];
+                        $callsign = (string)($seededPilot['callsign'] ?? '');
                     }
                 }
             }
+
+            if (!$pilotId) continue;
+
+            $key = $heatId . ':' . $pilotId;
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+
+            $upcomingPilots[] = array(
+                'heat_id'          => $heatId,
+                'heat_displayname' => $heatDisplayname,
+                'pilot_id'         => $pilotId,
+                'callsign'         => $callsign,
+                'slot_id'          => $slotIndex,
+                'channel'          => isset($channelMapping[$slotIndex]) ? $channelMapping[$slotIndex] : 'unknown',
+            );
         }
     }
-    
+
     return $upcomingPilots;
 }
 
 /**
- * Looks up a pilot's callsign using the pilot_id.
- *
- * @param int $pilotId
- * @param array $rhData
- * @return string The pilot callsign or an empty string if not found.
+ * Optimized seeded pilot resolver.
+ * Optional $heatsById allows early skip if seed heat has next_round <= 0 (no completed rounds).
  */
+function rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById = null) {
+    if ($seedHeatId <= 0 || $seedRank <= 0) return null;
+
+    // Optimization: if we know next_round is 0, there's nothing meaningful to seed yet.
+    if (is_array($heatsById) && isset($heatsById[$seedHeatId])) {
+        $nr = isset($heatsById[$seedHeatId]['next_round']) ? (int)$heatsById[$seedHeatId]['next_round'] : 0;
+        if ($nr <= 0) return null;
+    }
+
+    if (!isset($rhData['result_data']['heats']) || !is_array($rhData['result_data']['heats'])) {
+        return null;
+    }
+
+    $resultHeats = $rhData['result_data']['heats'];
+
+    // Fast path: direct access by key (JSON object -> associative array with string keys)
+    $resultHeat = null;
+    $key = (string)$seedHeatId;
+    if (isset($resultHeats[$key]) && is_array($resultHeats[$key])) {
+        $resultHeat = $resultHeats[$key];
+    } else {
+        // Fallback: scan
+        foreach ($resultHeats as $rh) {
+            if (isset($rh['heat_id']) && (int)$rh['heat_id'] === $seedHeatId) {
+                $resultHeat = $rh;
+                break;
+            }
+        }
+    }
+
+    if (!$resultHeat) return null;
+
+    $primaryLeaderboard = 'by_race_time';
+    if (isset($resultHeat['leaderboard']['meta']['primary_leaderboard'])) {
+        $primaryLeaderboard = (string)$resultHeat['leaderboard']['meta']['primary_leaderboard'];
+    }
+
+    if (!isset($resultHeat['leaderboard'][$primaryLeaderboard]) || !is_array($resultHeat['leaderboard'][$primaryLeaderboard])) {
+        return null;
+    }
+
+    foreach ($resultHeat['leaderboard'][$primaryLeaderboard] as $entry) {
+        if (isset($entry['position']) && (int)$entry['position'] === $seedRank && isset($entry['pilot_id'])) {
+            return array(
+                'pilot_id' => (int)$entry['pilot_id'],
+                'callsign' => isset($entry['callsign']) ? (string)$entry['callsign'] : ''
+            );
+        }
+    }
+
+    return null;
+}
+
+/* -------------------------
+   Scheduling helper logic
+   ------------------------- */
+
+function rm_heatIsComplete($heatId, $heatsById, $classRounds) {
+    if (!isset($heatsById[$heatId])) return false;
+    $heat = $heatsById[$heatId];
+    $cid = isset($heat['class_id']) ? (int)$heat['class_id'] : 0;
+    $total = isset($classRounds[$cid]) ? (int)$classRounds[$cid] : 1;
+    $done = isset($heat['next_round']) ? (int)$heat['next_round'] : 0;
+    return $done >= $total;
+}
+
+function rm_getFirstIncompleteHeatIdInClass($classId, $heatsById, $classHeats, $classRounds) {
+    if (!isset($classHeats[$classId]) || !is_array($classHeats[$classId])) return null;
+    $total = isset($classRounds[$classId]) ? (int)$classRounds[$classId] : 1;
+
+    foreach ($classHeats[$classId] as $hid) {
+        if (!isset($heatsById[$hid])) continue;
+        $done = isset($heatsById[$hid]['next_round']) ? (int)$heatsById[$hid]['next_round'] : 0;
+        if ($done < $total) return $hid;
+    }
+    return null;
+}
+
+function rm_getNextClassId($currentClassId, $classOrder) {
+    $idx = array_search($currentClassId, $classOrder, true);
+    if ($idx === false) return null;
+    return isset($classOrder[$idx + 1]) ? (int)$classOrder[$idx + 1] : null;
+}
+
+/**
+ * Returns the next heat id according to:
+ * - Training/Qualifying: double-run + wrap within class until all heats completed class rounds.
+ * - Other classes: sequential, no wrap; when finished -> next class.
+ */
+function rm_getNextHeatId($currentHeatId, $heatsById, $classHeats, $classOrder, $classRounds, $doubleRunClass) {
+    if (!isset($heatsById[$currentHeatId])) return null;
+
+    $heat = $heatsById[$currentHeatId];
+    $classId = isset($heat['class_id']) ? (int)$heat['class_id'] : 0;
+    if ($classId <= 0 || !isset($classHeats[$classId]) || !is_array($classHeats[$classId])) return null;
+
+    $heatsInClass = $classHeats[$classId];
+    $totalRounds = isset($classRounds[$classId]) ? (int)$classRounds[$classId] : 1;
+
+    $done = isset($heat['next_round']) ? (int)$heat['next_round'] : 0;
+    $isDouble = !empty($doubleRunClass[$classId]) && $totalRounds > 1;
+
+    // Double-run rule:
+    // If there is exactly one round remaining (odd total rounds), finish current heat once more.
+    if ($isDouble && $done < $totalRounds && (($totalRounds - $done) === 1)) {
+        return $currentHeatId;
+    }
+
+    // If in double-run and we've done an odd number of rounds: repeat same heat (second run)
+    if ($isDouble && $done < $totalRounds && (($done % 2) === 1)) {
+        return $currentHeatId;
+    }
+
+    // Find current position in class heat list
+    $idx = array_search($currentHeatId, $heatsInClass, true);
+    if ($idx === false) $idx = -1;
+    $n = count($heatsInClass);
+
+    // Next heat selection within class
+    for ($step = 1; $step <= $n; $step++) {
+        $candIdx = $idx + $step;
+
+        if ($isDouble) {
+            // wrap within class
+            $candId = $heatsInClass[$candIdx % $n];
+        } else {
+            // sequential only, no wrap
+            if ($candIdx >= $n) break;
+            $candId = $heatsInClass[$candIdx];
+        }
+
+        if (!isset($heatsById[$candId])) continue;
+        $candDone = isset($heatsById[$candId]['next_round']) ? (int)$heatsById[$candId]['next_round'] : 0;
+
+        // pick only heats that still have rounds left in this class
+        if ($candDone < $totalRounds) {
+            return (int)$candId;
+        }
+    }
+
+    // No remaining heats in this class => advance to next classes until we find an incomplete heat
+    $nextClassId = rm_getNextClassId($classId, $classOrder);
+    while ($nextClassId !== null) {
+        $first = rm_getFirstIncompleteHeatIdInClass($nextClassId, $heatsById, $classHeats, $classRounds);
+        if ($first !== null) return $first;
+        $nextClassId = rm_getNextClassId($nextClassId, $classOrder);
+    }
+
+    return null;
+}
+
+function rm_findNextRunnableHeatId($startHeatId, $heatsById, $classHeats, $classOrder, $classRounds, $doubleRunClass) {
+    $hid = $startHeatId;
+    $guard = 0;
+    $guardMax = count($heatsById)-$startHeatId;
+
+    // Try to skip over already-complete heats (e.g. when current_heat still points to a finished one)
+    while ($hid !== null && $guard < $guardMax) {
+        if (!rm_heatIsComplete($hid, $heatsById, $classRounds)) return $hid;
+        $hid = rm_getNextHeatId($hid, $heatsById, $classHeats, $classOrder, $classRounds, $doubleRunClass);
+        $guard++;
+    }
+
+    return null;
+}
+
+/* Existing helpers kept as-is */
 function rm_getPilotCallsign($pilotId, $rhData) {
     if (!isset($rhData['pilot_data']['pilots']) || !is_array($rhData['pilot_data']['pilots'])) {
         return "";
     }
-    
     foreach ($rhData['pilot_data']['pilots'] as $pilot) {
         if (isset($pilot['pilot_id']) && $pilot['pilot_id'] == $pilotId) {
             return isset($pilot['callsign']) ? $pilot['callsign'] : "";
@@ -145,57 +371,6 @@ function rm_getPilotCallsign($pilotId, $rhData) {
     return "";
 }
 
-/**
- * Attempts to resolve a seeded pilot based on a seed heat id and seed rank.
- * This function looks into the result_data (if available) to find the pilot who finished in the position
- * matching seed_rank in the heat identified by seedHeatId.
- *
- * @param int $seedHeatId
- * @param int $seedRank
- * @param array $rhData
- * @return array|null Returns an associative array with keys 'pilot_id' and 'callsign' or null if not found.
- */
-function rm_getSeededPilot($seedHeatId, $seedRank, $rhData) {
-    if (!isset($rhData['result_data']['heats'])) {
-        return null;
-    }
-    
-    $resultHeats = $rhData['result_data']['heats'];
-    if (!is_array($resultHeats)) {
-        return null;
-    }
-    
-    // Find the results for the seed heat.
-    foreach ($resultHeats as $resultHeat) {
-        if (isset($resultHeat['heat_id']) && $resultHeat['heat_id'] == $seedHeatId) {
-            // Determine which leaderboard to use.
-            $primaryLeaderboard = "by_race_time";
-            if (isset($resultHeat['leaderboard']['meta']['primary_leaderboard'])) {
-                $primaryLeaderboard = $resultHeat['leaderboard']['meta']['primary_leaderboard'];
-            }
-            if (isset($resultHeat['leaderboard'][$primaryLeaderboard]) && is_array($resultHeat['leaderboard'][$primaryLeaderboard])) {
-                foreach ($resultHeat['leaderboard'][$primaryLeaderboard] as $entry) {
-                    if (isset($entry['position']) && $entry['position'] == $seedRank) {
-                        if (isset($entry['pilot_id'])) {
-                            return [
-                                'pilot_id' => $entry['pilot_id'],
-                                'callsign' => isset($entry['callsign']) ? $entry['callsign'] : ""
-                            ];
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return null;
-}
-
-/**
- * Builds a mapping from slot_id to channel string (e.g., "R1") using the frequency data in rhData.
- *
- * @param array $rhData The complete RotorHazard data containing frequency_data.fdata.
- * @return array Associative array mapping slot_id (integer index) to channel string.
- */
 function rm_buildChannelMapping($rhData) {
     $mapping = array();
     if (isset($rhData['frequency_data']['fdata']) && is_array($rhData['frequency_data']['fdata'])) {

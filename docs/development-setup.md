@@ -7,13 +7,12 @@ production data down painless.
 
 Everything here is done once. Afterwards the daily loop is `ddev start`, edit, `php tests/run.php`.
 
-> **Status: written, not yet set up. Postponed, not dropped.**
-> The plan is to move development from the cloud session to VS Code on the desktop, against a
-> local DDEV site built exactly as described here. That has not happened yet — it is waiting on
-> being back at the desktop machine, not on a decision. Until then work continues in the cloud
-> session, and every change still has to survive `php tests/run.php` plus the manual protocol in
-> [`deployment-test-protocol.md`](deployment-test-protocol.md). When the local site does come up,
-> `bin/dev-doctor.sh` (section 6) is the first thing to run.
+> **Status: in use.** Development happens in VS Code against a local DDEV site, with the
+> repository beside the site rather than buried inside it and a symlink putting it where
+> WordPress looks for a plugin (section 2). The steps in sections 3 and 4 are automated by
+> [`bin/bootstrap-devenv.sh`](../bin/bootstrap-devenv.sh); `bin/dev-doctor.sh` (section 6) is what
+> to run afterwards. Every change still has to survive `php tests/run.php` plus the manual
+> protocol in [`deployment-test-protocol.md`](deployment-test-protocol.md).
 
 ---
 
@@ -21,89 +20,263 @@ Everything here is done once. Afterwards the daily loop is `ddev start`, edit, `
 
 | | Why |
 |---|---|
-| **Docker** — Docker Desktop, OrbStack or Colima | DDEV runs the site in containers. Nothing is installed into your system PHP. |
-| **DDEV**, a current release | `brew install ddev/ddev/ddev` (macOS), `winget install DDEV.DDEV` (Windows, with WSL2), or see the [installation docs](https://docs.ddev.com/en/stable/users/install/ddev-installation/). |
-| **Git** | You already have it. |
-| **Node 20+ and npm** | Only for `npm run build` (the `race-gallery` block). Runs on the host, not in the container. |
-| **VS Code** with the Claude Code extension | The editor side. |
+| **Docker** — Docker Desktop, OrbStack or Colima | DDEV runs the site in containers. Nothing is installed into your system PHP. If you take the WSL 2 route below, switch Docker Desktop's **Settings → Resources → WSL Integration** on for the distro, otherwise the daemon socket never reaches it. |
+| **DDEV**, a current release | Windows: `winget install DDEV.DDEV`, which lands in `%LOCALAPPDATA%\Programs\DDEV`. macOS: `brew install ddev/ddev/ddev`. Linux and WSL 2: `curl -fsSL https://ddev.com/install.sh \| bash`. See the [installation docs](https://docs.ddev.com/en/stable/users/install/ddev-installation/). |
+| **Git** | On Windows the Git Bash that comes with Git for Windows is what runs `bin/*.sh`. |
+| **Node 20+ and npm** | Only for `npm run build` (the `race-gallery` block). Runs beside the project, not in the container. |
+| **VS Code** with the Claude Code extension | The editor side. Section 8. |
+| **On Windows, optionally: WSL 2** with a current Ubuntu | Faster, and it removes a class of Windows-only annoyances. Not required — see the trade-off below. |
 
-You do **not** need PHP or Composer on the host — DDEV provides both (`ddev php`, `ddev composer`).
-Having them locally is convenient for `php tests/run.php`, which needs neither Docker nor WordPress.
+You do **not** need PHP or Composer yourself — DDEV provides both (`ddev php`, `ddev composer`).
+Having them installed is convenient for `php tests/run.php`, which needs neither Docker nor
+WordPress; `apt install php-cli` covers it.
+
+### Windows: on `C:` or inside WSL 2
+
+Both work, and the layout in section 2 is the same either way. The only real difference is *where
+the project directory lives*; everything else follows from that.
+
+**On `C:` — what this setup uses.** Docker Desktop's daemon runs inside its own Linux VM, so a
+project on `C:` is reachable from a container only through a filesystem translation layer. That is
+slow enough that DDEV switches on Mutagen, a background process that copies the project into a
+Docker volume and syncs changes both ways. It works, and a plugin this size is nowhere near the
+sizes where Mutagen struggles. What it costs:
+
+- A second copy that can drift. `ddev mutagen reset` followed by `ddev start` is the repair, and
+  `ddev mutagen st racemanager -l` shows what the sync currently believes.
+- Mutagen runs in `portable` symlink mode, which constrains how the plugin is linked into the site.
+  Section 2 spells this out; it is the one thing that will bite if you change the layout.
+- Git Bash rewrites anything that looks like an absolute POSIX path before a Windows executable
+  sees it, so `ddev exec ls /var/www/html` turns into a lookup under `C:\Program Files\Git`. That is
+  why `bin/bootstrap-devenv.sh` sets `MSYS_NO_PATHCONV`, and why you want that exported in any
+  shell where you run `ddev` by hand.
+- `core.autocrlf=true` leaves CRLF in the working tree, which the container then has to tolerate.
+  The `*.sh text eol=lf` rule in `.gitattributes` exists because of exactly this: a shell script
+  with CRLF fails inside the container with *"bad interpreter"*.
+- Creating the symlink in section 3 needs Developer Mode switched on, or an elevated prompt.
+
+In exchange the files stay where Explorer, a file-based backup and any non-WSL tooling can see
+them, which is the whole reason to choose it.
+
+**Inside WSL 2.** A real Linux VM with its own ext4 disk — the same one the Docker daemon runs in,
+so the container bind-mounts the project directly: `performance_mode: none`, no sync layer, no
+ignore rules, no second copy. Symlinks, permissions and executable bits behave the way they do on
+the production host, the checkout is LF like the repository, and shell scripts are run by Linux
+rather than Git Bash. Everything below works unchanged; put the project under `~`, never under
+`/mnt/c/`, or the translation layer is back with none of the benefits.
+
+The cost: the files no longer sit on `C:` in any useful sense. Windows reaches them through
+`\\wsl.localhost\Ubuntu\home\...`, which is slow and not a way to work, so the editor goes into the
+distro too (section 8). And a file-based Windows backup sees the distro as one opaque `.vhdx` — fine
+for a repository with a remote, not fine for anything else you might keep in the project folder.
 
 ---
 
 ## 2 · The directory layout
 
-The repository *is* the plugin — its root contains `wp-racemanager.php`. So the plugin gets
-cloned **into** a WordPress installation, not the other way round:
+The repository *is* the plugin — its root contains `wp-racemanager.php` — and WordPress insists
+that a plugin sits at `wp-content/plugins/<slug>/`. It has no dependency manager in the loading
+path: plugins are found by *listing* that directory, a plugin's identity **is** the path string
+(`active_plugins` holds `wp-racemanager/wp-racemanager.php`), and asset URLs are derived by
+matching a file's real path against `WP_PLUGIN_DIR`. There is no `vendor/`-style indirection to
+hang a working copy off, the way a Composer path repository does for a Symfony bundle.
+
+Taken literally that buries the repository four levels down. So the site and the repository are
+kept side by side, and a symlink inside the site points back at the repository:
 
 ```
-~/dev/racemanager/                  <- the DDEV project
+WP_RaceManager/                     <- the DDEV project. Not a repository.
 ├── .ddev/
-├── wp-admin/  wp-includes/  ...    <- WordPress core, downloaded by DDEV
-└── wp-content/
-    ├── uploads/                    <- race JSON files live here
-    └── plugins/
-        └── wp-racemanager/         <- THIS repository
+│   └── config.yaml                 <- docroot: wp-app
+├── wp-racemanager/                 <- THIS repository. What you open in the editor.
+└── wp-app/                         <- the whole site, and disposable
+    ├── wp-admin/  wp-includes/     <- WordPress core, downloaded by WP-CLI
+    ├── wp-config.php               <- the RM_VAPID_* constants go here
+    └── wp-content/
+        ├── uploads/                <- race JSON files live here
+        └── plugins/
+            └── wp-racemanager -> ../../../wp-racemanager
 ```
 
-Two things depend on that layout, so keep it:
+Two directories, one purpose each: the project directory *holds* an environment instead of
+*being* one, `wp-app/` can be deleted and rebuilt without touching anything else, and the
+repository is one level down where you can find it. Inside the container the plugin is at the
+canonical path, and editing a file in the repository is editing the file the site loads.
 
-- The plugin folder must be named **`wp-racemanager`** — that is the folder name the production
-  install uses, and the name the deployment ZIP carries.
+### Why it is a *relative symlink*, specifically
+
+Both halves of that carry weight, and neither is obvious.
+
+**Symlink.** The instinct is that this cannot work, because PHP resolves `__FILE__` through the
+link: inside the plugin, `plugin_dir_path( __FILE__ )` really does return
+`/var/www/html/wp-racemanager/`, which is nowhere near `WP_PLUGIN_DIR`. Deriving a URL from that
+would point outside `wp-content/plugins/`. WordPress has handled this since 3.9, though:
+`wp-settings.php` calls `wp_register_plugin_realpath()` for every active plugin, which records the
+`plugins/wp-racemanager` → real-path mapping in `$wp_plugin_paths`, and `plugin_basename()` walks
+that mapping *backwards* before stripping `WP_PLUGIN_DIR`. So `plugin_dir_url()`, `plugins_url()`
+and the block asset URLs that `register_block_type()` derives from `block.json` all come out under
+`/wp-content/plugins/wp-racemanager/` regardless. Check it after any change to the layout:
+
+```bash
+ddev wp eval 'echo WP_RACEMANAGER_URL;'
+```
+
+It has to print the site URL plus `/wp-content/plugins/wp-racemanager/`. If it ever prints a path
+containing `/wp-racemanager/` at the top level instead, the plugin is being loaded by something
+other than WordPress's plugin loader and every asset URL on the site is wrong.
+
+**Relative.** On Windows the project is synced into the container by Mutagen, which DDEV configures
+with `symlink: mode: "portable"` (see `.ddev/mutagen/mutagen.yml`). Portable mode carries only
+symlinks that are relative *and* resolve to somewhere inside the synchronization root — the project
+directory. `../../../wp-racemanager` resolves to `<project>/wp-racemanager` and qualifies. An
+absolute target does not, and the way it fails is worth knowing because nothing announces it:
+Mutagen keeps syncing everything else and simply never creates that one link in the container. It
+is reported only under *Scan problems* in
+
+```bash
+ddev mutagen status -l
+```
+
+as `invalid symbolic link: ... (absolute or unsupported path)`. So the symptom is a plugin that has
+silently stopped existing inside the container while the host looks perfectly fine. This is why
+`mklink` in section 3 is given a relative target even though an absolute one is easier to type.
+
+Three things depend on this layout, so keep them:
+
+- The link must be named **`wp-racemanager`**. It is the name the deployment ZIP carries,
+  and — the reason it actually matters — the name a production database expects: `active_plugins`
+  holds `wp-racemanager/wp-racemanager.php`, so under any other name an imported site treats the
+  plugin as deactivated.
+- `wp-app/` must stay disposable. Nothing of yours lives there; deleting it and re-running
+  `bin/bootstrap-devenv.sh` has to stay a five-minute operation. The symlink lives inside
+  `wp-app/`, so deleting the directory takes the link with it — recreate it (section 3) before
+  running the bootstrap.
 - `php tests/run.php` finds the WordPress checkout it needs for the `live-links` suite by looking
-  three levels above the plugin. In this layout that is the WordPress root, so the suite runs with
-  no further configuration. See [`tests/README.md`](../tests/README.md).
+  three levels above the plugin — the layout where the repository really does sit inside the site —
+  and then for a sibling `wp-app/`, which is this one. Either way the suite runs with no further
+  configuration, and `WP_CORE_DIR` overrides both. See [`tests/README.md`](../tests/README.md).
 
 ---
 
 ## 3 · Create the site
 
+Decide where the project lives first (section 1). The commands below are the same either way;
+inside WSL 2 they run in the distro, under `~`, never under `/mnt/c/`.
+
+Create the project directory, clone the repository beside the site, and let DDEV configure it.
+`--project-name` decides the URL, so this becomes `https://racemanager.ddev.site`:
+
 ```bash
-mkdir -p ~/dev/racemanager && cd ~/dev/racemanager
+# Git Bash on Windows resolves ~ to C:\Users\<you>, WSL 2 and macOS to the home directory.
+PROJECT=~/Dev/WP_RaceManager
+mkdir -p "$PROJECT/wp-app/wp-content/plugins" && cd "$PROJECT"
 
-# Primary URL becomes https://racemanager.ddev.site (derived from the folder name)
-ddev config --project-type=wordpress --php-version=8.3
+git clone https://github.com/PSi86/wp-racemanager.git wp-racemanager
 
-ddev start
-ddev wp core download
-ddev wp core install \
-  --url='$DDEV_PRIMARY_URL' \
-  --title='RaceManager Dev' \
-  --admin_user=admin --admin_password=admin \
-  --admin_email=you@example.com
+ddev config --project-name=racemanager --project-type=wordpress \
+            --docroot=wp-app --php-version=8.3 --nodejs-version=20
 ```
 
 `--php-version=8.3` is not cosmetic: `minishlink/web-push` v9 pulls in `web-token/jwt-library`,
 which requires **PHP ≥ 8.2**. Push notifications silently stay unavailable on anything older.
 
-Then clone the plugin and its dependencies:
+Performance mode is deliberately not passed. DDEV picks it per platform — Mutagen on Windows and
+macOS, none on Linux and inside WSL 2 — and `ddev describe` prints what it settled on under
+*Perf mode*. Override it only if that is wrong for where your project actually sits.
+
+Then the symlink that puts the repository where WordPress looks for it. It has to be **relative**,
+and pointing at `../../../wp-racemanager` — section 2 explains why:
 
 ```bash
-git clone https://github.com/PSi86/wp-racemanager.git wp-content/plugins/wp-racemanager
-ddev exec -d /var/www/html/wp-content/plugins/wp-racemanager composer install
+# Linux, macOS, WSL 2
+ln -s ../../../wp-racemanager wp-app/wp-content/plugins/wp-racemanager
 ```
 
-`vendor/` is git-ignored, so this step is required after every fresh clone.
+```bat
+:: Windows, from a cmd prompt, in the project directory.
+:: Needs Developer Mode switched on, or an elevated prompt.
+mklink /D "wp-app\wp-content\plugins\wp-racemanager" "..\..\..\wp-racemanager"
+```
 
-Contact Form 7 must be present **before** the plugin is activated — the activation hook
-deactivates the plugin and dies with an error message otherwise:
+Do not use `ln -s` from Git Bash on Windows: MSYS copies the directory instead of linking it
+unless `MSYS=winsymlinks:nativestrict` is set, and a copy silently stops tracking your edits.
+The target is relative to the **link's own directory**, not to the shell's, which is why it is
+three levels up and not one.
+
+Then start:
 
 ```bash
-ddev wp plugin install contact-form-7 --activate
-ddev wp plugin activate wp-racemanager
-ddev wp rewrite structure '/%postname%/'       # pretty permalinks; the live URLs need them
-ddev launch wp-admin/
+ddev start          # asks for elevation once, to add racemanager.ddev.site to the Windows hosts file
 ```
 
-The admin login is `admin` / `admin`.
+The `mkdir` above matters only because the link has to be created *inside*
+`wp-app/wp-content/plugins/`, so that directory has to exist first. If WP-CLI later fails to
+unpack a theme with *"Could not create directory"*, `wp-content` is not writable by the container
+user — `bin/bootstrap-devenv.sh` checks for that before it does anything else.
+
+### HTTPS, once
+
+DDEV serves the site over HTTPS with a certificate issued by mkcert, and the browser has to trust
+mkcert's certificate authority. On plain HTTP the service worker, the PWA install prompt and
+`PushManager.subscribe()` are all unavailable, which is half of this plugin, so this is not
+optional — section 6 says the same thing from the testing side.
+
+```powershell
+# Windows PowerShell. mkcert comes with DDEV, in %LOCALAPPDATA%\Programs\DDEV.
+mkcert -install     # confirm the certificate dialog that appears
+```
+
+On macOS and Linux `mkcert -install` does the same thing; DDEV runs it for you on first start and
+only asks if it cannot.
+
+#### If, and only if, the project is inside WSL 2
+
+The browser that has to trust the certificate runs on Windows while DDEV runs in the distro, so
+both sides need the *same* certificate authority. Create it on Windows as above, then hand the
+path across:
+
+```powershell
+setx CAROOT "$(mkcert -CAROOT)"
+setx WSLENV "CAROOT/up"                # append with a ':' if WSLENV already has a value
+```
+
+`CAROOT/up` tells WSL to pass `CAROOT` through and rewrite it as a Unix path, so the distro reads
+the same `rootCA.pem` from `/mnt/c/...`. In a **new** shell in the distro, so that it inherits the
+variables:
+
+```bash
+echo "$CAROOT"          # must print /mnt/c/Users/<you>/AppData/Local/mkcert
+sudo mkcert -install    # the distro's own trust store, so curl verifies too
+ddev restart
+```
+
+`ddev restart` prints the URL it settled on. Without the shared CA it warns that the CA files are
+unreadable and falls back to `http://racemanager.ddev.site`.
+
+### Build the site
+
+Everything after that is mechanical and checkable, so a script does it:
+
+```bash
+cd wp-racemanager
+bin/bootstrap-devenv.sh
+```
+
+It downloads and installs core, runs `composer install` for the plugin, makes sure a block theme
+is active, installs Contact Form 7 **before** activating the plugin — the activation hook
+deactivates the plugin and dies otherwise — switches on pretty permalinks, and builds the `/live/`
+pages of section 4. Every step is skipped when it is already done, so it is safe to re-run; it is
+the fastest way back after `ddev delete`.
+
+The admin login is `admin` / `admin`. Section 4 explains what the script builds, and stays worth
+reading when something is off.
 
 ---
 
 ## 4 · Set up the live area
 
 The live micro-site is built from ordinary WordPress pages, so it has to exist before anything
-under `/live/` works. One parent page plus one child page per view:
+under `/live/` works. One parent page plus one child page per view, each holding its shortcode:
 
 ```bash
 LIVE=$(ddev wp post create --post_type=page --post_title='Live' --post_name=live \
@@ -111,15 +284,16 @@ LIVE=$(ddev wp post create --post_type=page --post_title='Live' --post_name=live
 
 for v in bracket pilots stats nextup; do
   ddev wp post create --post_type=page --post_title="$v" --post_name="$v" \
-      --post_parent="$LIVE" --post_status=publish --porcelain
+      --post_parent="$LIVE" --post_status=publish --post_content="[rm_$v]" --porcelain
 done
 
 ddev wp option update rm_live_page_id "$LIVE"
 ddev wp rewrite flush
 ```
 
-Then put the matching shortcode into each child page — `[rm_bracket]`, `[rm_pilots]`,
-`[rm_stats]`, `[rm_nextup]` — and add a navigation block to the Live page listing the four views.
+`bin/bootstrap-devenv.sh` does exactly this, and skips whatever already exists; run it with
+`--recreate-live-pages` to tear the four pages down and rebuild them. What it does not do is add a
+navigation block to the Live page listing the four views — do that by hand in the editor.
 
 Worth knowing while testing:
 
@@ -284,7 +458,7 @@ php tests/run.php          # the whole suite, no Docker needed
 php tests/run.php live     # only the live-routing / live-links / live-shortcodes suites
 php tests/run.php -v       # print each suite's output
 
-npm install                # once
+npm ci                     # once, and after any pull that moves package-lock.json
 npm run build              # blocks-src/ -> blocks/
 npm run start              # watch mode while working on the race-gallery block
 ```
@@ -293,7 +467,7 @@ No PHP on the host, or an older one than the container runs? Run the suites insi
 the `vapid` suite exercises the real push library and therefore needs PHP 8.2 like the plugin does:
 
 ```bash
-ddev exec -d /var/www/html/wp-content/plugins/wp-racemanager php tests/run.php
+ddev exec -d /var/www/html/wp-app/wp-content/plugins/wp-racemanager php tests/run.php
 ```
 
 Useful DDEV commands for this plugin specifically:
@@ -306,17 +480,111 @@ Useful DDEV commands for this plugin specifically:
 | `ddev snapshot` / `ddev snapshot restore --latest` | Database checkpoint before trying a migration — for example the event-date migration on the settings page. |
 | `ddev wp ...` | Any WP-CLI command. |
 | `ddev restart` | After changing `.ddev/config.yaml`. |
-| `ddev delete -O` | Throw the site away and start over; the plugin folder survives if you cloned it inside, so move it out first. |
+| `ddev delete -O` | Throw the database and the DDEV project away. The files stay, so to start truly fresh delete `wp-app/` too, recreate the plugin symlink (section 3), then `ddev start` and re-run `bin/bootstrap-devenv.sh`. The repository is outside `wp-app/`, so there is nothing to rescue first. |
+
+### Building the blocks
+
+Only `race-gallery` is built from source. The other blocks are hand-written `index.js` files in
+`blocks/` and need no toolchain at all.
+
+The build runs **on the host**, not in the container: `@wordpress/scripts` takes
+`blocks-src/race-gallery/` through webpack into `blocks/race-gallery/`, and that output is
+committed. Changing the source means committing the rebuilt files with it.
+
+```bash
+npm ci                     # once, and after any pull that moves package-lock.json
+npm run build              # blocks-src/ -> blocks/
+npm run start              # watch mode while working on the block
+```
+
+`npm ci` rather than `npm install`, and the difference is not cosmetic here. `npm ci` installs
+exactly what `package-lock.json` pins and fails loudly when the lock and `package.json` disagree;
+`npm install` quietly rewrites the lock to make the disagreement go away. Since the built file is
+committed, two people whose installs differ produce different `blocks/race-gallery/index.js` and
+the diff churns for no reason. The toolchain asks for Node ≥ 18.12; the local setup and
+`.devcontainer/devcontainer.json` both run 22.
+
+#### `webpack.config.js` is what keeps the other six blocks alive
+
+`blocks/` is the build output directory *and* the home of the six blocks that are hand-written
+rather than built. wp-scripts empties its output directory before every emit, so left alone a
+build deletes them — no error, just twelve files gone from `git status`. The config narrows the
+clean to the folders that actually have a source, deriving the list from the directories under
+`blocks-src/` so that adding a second source block needs no change to it.
+
+That protection is version-specific and has already had to be rewritten once: up to
+`@wordpress/scripts` 33 the cleaning was a `CleanWebpackPlugin` instance the config replaced,
+and since 34 it is webpack's own `output.clean`, configured with a `keep` predicate. If a future
+major moves it again, the symptom will be deleted files rather than a failing build. The check
+that matters after any toolchain bump is therefore simply:
+
+```bash
+npm run build && git status --short blocks/
+```
+
+Nothing may show up as deleted. Only `blocks/race-gallery/` may show up as modified.
+
+#### Keep node_modules out of the Mutagen sync
+
+`node_modules/` is around 570 MB across a thousand top-level packages, it sits inside the DDEV
+project directory, and the container never reads a byte of it — the site loads the *built* files
+from `blocks/`. Left alone, Mutagen dutifully synchronises all of it into the container. Add the
+path to the ignore list in `.ddev/mutagen/mutagen.yml`:
+
+```yaml
+sync:
+  defaults:
+    ignore:
+      paths:
+        - "/wp-racemanager/node_modules"
+```
+
+That file is normally DDEV's, so two more things are needed, and the second one is a trap:
+
+1. Delete the `#ddev-generated` line at the top. Otherwise DDEV rewrites the file from its
+   template and the ignore is gone.
+2. **Do not write that marker anywhere else in the file — not even inside a comment explaining
+   why you removed it.** DDEV searches the entire file for the string, so such a comment hands the
+   file straight back to DDEV, and the ignore vanishes at the next `ddev start`. Nothing reports
+   it; the first symptom is 570 MB reappearing in the container.
+3. `ddev mutagen reset && ddev start`.
+
+Check it with `ddev exec ls /var/www/html/wp-racemanager`, which should no longer list
+`node_modules`. Ignoring a path means Mutagen leaves it alone on *both* sides, so the copy npm
+just installed on the host stays exactly where it is.
+
+`.ddev/` is not part of this repository, so this is a per-machine step, like the symlink in
+section 3.
+
+`.devcontainer/devcontainer.json` still describes the GitHub Codespace the blocks used to be
+built in — PHP 8.2 plus Node 18. It still satisfies the toolchain, but Node 18 is past end of
+life, and the local build above removes the reason to go through it.
 
 ---
 
 ## 8 · VS Code and Claude Code
 
-Open **the plugin folder** (`wp-content/plugins/wp-racemanager`) as the workspace root, not the
-WordPress root. `CLAUDE.md`, `docs/` and `tests/` sit there, and Claude Code picks up `CLAUDE.md`
-from the workspace root automatically.
+Open **the repository** (`<project>/wp-racemanager`) as the workspace root, not the project
+directory and not the WordPress root. `CLAUDE.md`, `docs/` and `tests/` sit there, and Claude Code
+picks up `CLAUDE.md` from the workspace root automatically.
+
+One consequence of opening the repository rather than the project: `ddev` has to be run from the
+project directory, because it finds its project by walking *up* from the working directory looking
+for `.ddev/config.yaml`. From the repository that walk goes to the parent of the project and
+misses it, so an integrated terminal that starts in the workspace root answers every `ddev`
+command with *"could not find a project"*. `cd ..` first, or keep a second terminal there.
 
 Recommended extensions: PHP Intelephense, PHP Debug (Xdebug), EditorConfig.
+
+**If the project is inside WSL 2**, connect VS Code into the distro with the **WSL** extension
+(`ms-vscode-remote.remote-wsl`): `code .` from a shell in the repository, or the `><` button at the
+bottom left → *Connect to WSL*. The title bar then reads `[WSL: Ubuntu]`. VS Code splits itself in
+two — the window stays a Windows process, while a server installed into the distro runs everything
+that touches files or processes: the explorer, search, the integrated terminal, git, the debugger
+and the language servers. Extensions are classified along the same line, so PHP Intelephense, PHP
+Debug and the Claude Code extension each need one click on *Install in WSL: Ubuntu* the first time.
+The integrated terminal is then a Linux shell, which is where `ddev`, `composer` and `bin/*.sh`
+are supposed to run anyway.
 
 Two things make Claude Code useful here:
 

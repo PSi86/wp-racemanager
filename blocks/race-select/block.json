@@ -1,5 +1,5 @@
 {
-    "apiVersion": 2,
+    "apiVersion": 3,
     "name": "wp-racemanager/race-select",
     "title": "Race List",
     "category": "widgets",
