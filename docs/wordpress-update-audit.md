@@ -133,13 +133,25 @@ cleaner long-term option, not a prerequisite.
 `js/rm-m-pilotSelector.js` appended a full set of `<option>` elements on every data update
 without clearing first. Verified against the real module in a real DOM.
 
-**It was in two places.** `js/bracketV25.js` carries the same construction for the older
-`[rm_viewer]` shortcode, where `processRHData()` runs again on every fetch while the mode is
-`live`. That shortcode is legacy — the only reference to it outside its own file is a
-commented-out line in `rest-handler.php`, so new race posts no longer get it — but posts created
-before the live area existed still can, and the accumulation is identical there. Both are fixed
-the same way; the module is the one with test coverage, since `bracketV25.js` is a jQuery script
-built around globals and cannot be exercised in isolation without stubbing most of it.
+**It is in two places, and only one of them was fixed.** `js/bracketV25.js` carries the same
+construction for the older `[rm_viewer]` shortcode, where `processRHData()` runs again on every
+fetch while the mode is `live`. The accumulation there is identical.
+
+It was left alone deliberately, and the attempt is worth recording because it shows why. The same
+two-part fix was written for it and then reverted: in the module the fallback dispatches a
+`change` event so the other modules converge, but in `bracketV25.js` that event runs
+`updateFilterAndHighlight()`, which calls `updateAllClasses()` — a full re-render fired from the
+middle of `processRHData()`, before `showOnlyActiveClass()` has run and before the function
+reaches its own `updateAllClasses()` at the end. In a script built around mutable globals that is
+exactly the kind of change that misbehaves, and it cannot be tested: `bracketV25.js` is a jQuery
+script whose `processRHData()` cannot be called in isolation without stubbing most of the file.
+
+An unverified change to an untested legacy path is worse than a documented defect. The shortcode
+is legacy anyway — the only reference to it outside its own file is a commented-out line in
+`rest-handler.php`, so new race posts no longer get it, though posts created before the live area
+existed still can. If it ever needs fixing, the safe form is to rebuild the options and assign
+`selectedPilotId` directly rather than dispatching an event, letting the `updateAllClasses()` at
+the end of `processRHData()` do the render.
 
 It only bites on a **live** race: `refreshInterval` is `0` unless `_race_live` is set, so an
 archived race populates exactly once. And the callback fires per *upload*, not per poll —
@@ -237,8 +249,9 @@ the project is happy to live with (see B3).
    ~~**E8 remainder**~~ in [#12](https://github.com/PSi86/wp-racemanager/pull/12), where the address became a setting that defaults to the
    site's own domain.
 3. ~~**F1**~~, ~~**A2**~~ — both done. All seven blocks are on `apiVersion: 3`.
-4. ~~**D1**~~ — done, both halves at once as the entry warned, and in `bracketV25.js` as well as
-   in the module. That closes the audit.
+4. ~~**D1**~~ — done in the module, both halves at once as the entry warned. The same defect in
+   `bracketV25.js` is recorded rather than fixed, for the reason in the entry. That closes the
+   audit.
 
 ---
 
