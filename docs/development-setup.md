@@ -458,7 +458,7 @@ php tests/run.php          # the whole suite, no Docker needed
 php tests/run.php live     # only the live-routing / live-links / live-shortcodes suites
 php tests/run.php -v       # print each suite's output
 
-npm install                # once
+npm ci                     # once, and after any pull that moves package-lock.json
 npm run build              # blocks-src/ -> blocks/
 npm run start              # watch mode while working on the race-gallery block
 ```
@@ -481,6 +481,65 @@ Useful DDEV commands for this plugin specifically:
 | `ddev wp ...` | Any WP-CLI command. |
 | `ddev restart` | After changing `.ddev/config.yaml`. |
 | `ddev delete -O` | Throw the database and the DDEV project away. The files stay, so to start truly fresh delete `wp-app/` too, recreate the plugin symlink (section 3), then `ddev start` and re-run `bin/bootstrap-devenv.sh`. The repository is outside `wp-app/`, so there is nothing to rescue first. |
+
+### Building the blocks
+
+Only `race-gallery` is built from source. The other blocks are hand-written `index.js` files in
+`blocks/` and need no toolchain at all.
+
+The build runs **on the host**, not in the container: `@wordpress/scripts` takes
+`blocks-src/race-gallery/` through webpack into `blocks/race-gallery/`, and that output is
+committed. Changing the source means committing the rebuilt files with it.
+
+```bash
+npm ci                     # once, and after any pull that moves package-lock.json
+npm run build              # blocks-src/ -> blocks/
+npm run start              # watch mode while working on the block
+```
+
+`npm ci` rather than `npm install`, and the difference is not cosmetic here. `npm ci` installs
+exactly what `package-lock.json` pins and fails loudly when the lock and `package.json` disagree;
+`npm install` quietly rewrites the lock to make the disagreement go away. Since the built file is
+committed, two people whose installs differ produce different `blocks/race-gallery/index.js` and
+the diff churns for no reason. The toolchain asks for Node ≥ 18.12. The output committed here was
+built in the GitHub environment, whose devcontainer pins Node 18, and a clean `npm ci` plus build
+on Node 22 reproduces it byte for byte — so the exact version is not something to worry about.
+
+#### Keep node_modules out of the Mutagen sync
+
+`node_modules/` is around 570 MB across a thousand top-level packages, it sits inside the DDEV
+project directory, and the container never reads a byte of it — the site loads the *built* files
+from `blocks/`. Left alone, Mutagen dutifully synchronises all of it into the container. Add the
+path to the ignore list in `.ddev/mutagen/mutagen.yml`:
+
+```yaml
+sync:
+  defaults:
+    ignore:
+      paths:
+        - "/wp-racemanager/node_modules"
+```
+
+That file is normally DDEV's, so two more things are needed, and the second one is a trap:
+
+1. Delete the `#ddev-generated` line at the top. Otherwise DDEV rewrites the file from its
+   template and the ignore is gone.
+2. **Do not write that marker anywhere else in the file — not even inside a comment explaining
+   why you removed it.** DDEV searches the entire file for the string, so such a comment hands the
+   file straight back to DDEV, and the ignore vanishes at the next `ddev start`. Nothing reports
+   it; the first symptom is 570 MB reappearing in the container.
+3. `ddev mutagen reset && ddev start`.
+
+Check it with `ddev exec ls /var/www/html/wp-racemanager`, which should no longer list
+`node_modules`. Ignoring a path means Mutagen leaves it alone on *both* sides, so the copy npm
+just installed on the host stays exactly where it is.
+
+`.ddev/` is not part of this repository, so this is a per-machine step, like the symlink in
+section 3.
+
+`.devcontainer/devcontainer.json` still describes the GitHub Codespace the blocks used to be
+built in — PHP 8.2 plus Node 18. It still satisfies the toolchain, but Node 18 is past end of
+life, and the local build above removes the reason to go through it.
 
 ---
 

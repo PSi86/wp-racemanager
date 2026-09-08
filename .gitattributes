@@ -18,3 +18,9 @@
 # Shell scripts run inside the DDEV container, where CRLF line endings make the
 # shebang fail with "bad interpreter". Keep them LF regardless of core.autocrlf.
 *.sh text eol=lf
+
+# The block build copies blocks-src/**/block.json to blocks/ verbatim. Without a
+# rule both sides follow core.autocrlf, and every `npm run build` then leaves the
+# copy looking modified when only the line endings differ. Pin both to LF.
+blocks-src/**/block.json    text eol=lf
+blocks/**/block.json        text eol=lf

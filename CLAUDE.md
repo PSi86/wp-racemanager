@@ -92,12 +92,19 @@ navigation regression.
 ## Building the blocks
 
 ```bash
-npm install
+npm ci             # not `npm install` -- the built output is committed
 npm run build      # wp-scripts, blocks-src/ -> blocks/
 ```
 
 Only `race-gallery` is built from source; the other blocks are hand-written `index.js` files
-in `blocks/`.
+in `blocks/`. The build runs on the host, and `blocks/race-gallery/` is committed, so a source
+change has to be committed together with its rebuilt output.
+
+`node_modules/` sits inside the DDEV project and the container never reads it, so
+`.ddev/mutagen/mutagen.yml` ignores `/wp-racemanager/node_modules`. That file has to have its
+`#ddev-generated` marker removed to survive, and the marker must not appear anywhere else in it
+either — DDEV greps the whole file. See "Building the blocks" in
+[`docs/development-setup.md`](docs/development-setup.md).
 
 ## Environment
 
