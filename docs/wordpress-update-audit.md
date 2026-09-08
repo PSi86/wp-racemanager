@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 24 — 22 resolved, 2 open |
+| Findings | 24 — 23 resolved, 1 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -54,7 +54,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | C1 | P1 | ✅ [#8](https://github.com/PSi86/wp-racemanager/pull/8) | Data model | `_race_event_start` / `_race_event_end` hold Unix integers *and* `datetime-local` strings | no |
 | E2 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | Security | Registrations admin had no nonces; bulk delete was not scoped to the race | no |
 | E5 | P1 | ✅ [#4](https://github.com/PSi86/wp-racemanager/pull/4) | REST upload | Upload directory was never created; the `WP_Error` was discarded | no |
-| A2 | P2 | **open** — 6 of 7 done | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9; only `race-gallery` is left | yes — WP 6.9/7.0 |
+| A2 | P2 | ✅ | Blocks | All 7 blocks on `apiVersion: 2` — deprecated since 6.9, and 7.1 iframes them anyway | yes — WP 6.9/7.0 |
 | B2 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Performance | `session_start()` on every live page load disabled page caching | no |
 | B3 | P2 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | Live / PWA | Two live shortcodes on one page overwrote each other's JS config. The block-theme dependency itself is accepted — see below | no |
 | B4 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Live / PWA | Session redirect without no-cache headers; `/live/*` not excluded from speculative loading | yes — WP 6.8/7.1 |
@@ -162,34 +162,44 @@ importing page — same failure mode as D5. Currently latent, because both pages
 module do have the element. The type inconsistency (`number` from the constructor, `string`
 after a selection) is cosmetic — no strict comparison anywhere depends on it.
 
-### The rest
+### A2 — all seven blocks on `apiVersion: 2` · resolved
 
-- **A2** — six of the seven blocks are on `apiVersion: 3` now; `race-gallery` is still on 2, and
-  `registerBlockType` keeps logging a deprecation for it.
+**The consequence recorded here first was 6.9 behaviour and did not describe 7.1.** It read "the
+post editor drops out of iframe mode for any post containing one". In 7.1 there is no such
+fallback: `editor.min.js` passes `shouldIframe: true` unconditionally, `BlockCanvas` in
+`block-editor.min.js` defaults it to true, and `editor`, `block-editor` and `edit-post` contain no
+`apiVersion` check at all. The version-2 blocks were therefore not degrading the editor into an
+older mode — they were already running inside the iframe without having declared that they can,
+which is the more awkward of the two readings. Core's own wording is hedged the same way: the
+block "*may* work as a non-iframe editor". Confirmed from the other side by driving the editor:
+the canvas is an iframe, with every block on version 2.
 
-  **The consequence recorded here first was 6.9 behaviour and no longer describes 7.1.** It read
-  "the post editor drops out of iframe mode for any post containing one". In 7.1 there is no such
-  fallback left: `editor.min.js` passes `shouldIframe: true` unconditionally, `BlockCanvas` in
-  `block-editor.min.js` defaults it to true, and `editor`, `block-editor` and `edit-post` contain
-  no `apiVersion` check at all. So the version-2 blocks are not degrading the editor — they are
-  already running inside the iframe without having declared that they can, which is the more
-  awkward half of the two. Core's own wording is correspondingly hedged: the block "*may* work as
-  a non-iframe editor".
+The six hand-written blocks were safe to move together. Every block in this plugin is dynamic —
+`save` returns `null` and the output comes from a `render_callback` — so no stored markup existed
+that a version bump could invalidate, which is the usual risk in this migration. All six already
+called `useBlockProps`, none reference `document`, their only `window` use is the `window.wp`
+passed into the IIFE, and none declare styles that would have to reach into the iframe.
 
-  The six were safe to move together. Every block in this plugin is dynamic — `save` returns
-  `null` and the output comes from a `render_callback` — so there is no stored markup that a
-  version bump could invalidate. All six already call `useBlockProps`, none reference `document`,
-  their only `window` use is the `window.wp` passed into the IIFE, and none declare styles that
-  would have to be injected into the iframe. Each one still renders server-side unchanged.
+`race-gallery` was the one filed as risky, because it drives the Backbone media modal
+(`wp.shortcode`, `wp.media.gallery.attachments`, `wp.media.model.Selection`,
+`wp.media({ frame: 'post' })`) which opens in the parent document while the block renders in the
+iframe. That turned out to work, and it was checked rather than reasoned about — a Playwright run
+against the real editor confirmed all of:
 
-  `race-gallery` is what is left, and it is the reason A2 was filed as the risky one: it drives
-  the Backbone media modal (`wp.media`, `wp.shortcode`, `wp.media.model.Selection`,
-  `wp.media({ frame: 'post' })`), which opens in the parent document while the block itself
-  renders in the iframe. Whether that survives is a question about behaviour, not about code
-  reading, so it needs a pass through the editor by hand — select media, edit an existing
-  gallery, reorder.
+- the block renders inside the iframe, both empty and with media,
+- the inline `<style>` lands in the iframe document and applies (thumbnails measure 150px),
+- the block's own `wp.media` frame opens over the iframe, in `gallery-edit` state, with the
+  existing selection loaded through the `wp.shortcode` path,
+- no `API version 2 or lower` deprecation and no console error from this plugin.
 
-### What F1 turned up on the way
+The one warning left in that run comes from core, not from here:
+`global-styles-css-custom-properties-inline-css was added to the iframe incorrectly`.
+
+Worth knowing for the next round: that check is not part of `php tests/run.php`, which needs
+neither Docker nor a browser. It was a one-off script. If WordPress 7.2 changes the iframe again,
+this is the kind of verification to repeat.
+
+### F1 — dependencies one to two majors behind · resolved
 
 Both of the following were silent — nothing failed, and the test suite stayed green:
 
@@ -218,8 +228,7 @@ the project is happy to live with (see B3).
 2. ~~**E9, D2**~~ and ~~**B3 (reduced)**~~ — done in [#11](https://github.com/PSi86/wp-racemanager/pull/11);
    ~~**E8 remainder**~~ in [#12](https://github.com/PSi86/wp-racemanager/pull/12), where the address became a setting that defaults to the
    site's own domain.
-3. ~~**F1**~~ — done. **A2** in progress: the six hand-written blocks are on `apiVersion: 3`;
-   `race-gallery` is left and needs a manual pass through the editor.
+3. ~~**F1**~~, ~~**A2**~~ — both done. All seven blocks are on `apiVersion: 3`.
 4. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
    becomes a visible regression.
 

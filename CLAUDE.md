@@ -150,17 +150,13 @@ what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read t
 Two lists, and they answer different questions:
 
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
-  updates broke or exposed. 24 findings, 22 resolved. **The maintenance to-do list.**
+  updates broke or exposed. 24 findings, 23 resolved. **The maintenance to-do list.**
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
   could get better, above all its data path. L1–L10, none started, four questions to answer first.
   [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
 
 From the audit, the ones most likely to bite while working here:
 
-- **A2** Six of the seven blocks are on `apiVersion: 3`; `race-gallery` is still on 2 and still
-  logs the deprecation. In WordPress 7.1 there is no non-iframe fallback left, so a version-2
-  block runs inside the iframe regardless — `race-gallery` drives the Backbone media modal, which
-  is why it needs a manual pass through the editor rather than a code change alone.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
   Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
   the list alone makes the selection go blank when a pilot leaves the field, because today the
