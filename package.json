@@ -2,21 +2,20 @@
     "name": "wp-racemanager",
     "version": "1.1.0",
     "scripts": {
-      "test": "php tests/run.php",
-      "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
-      "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
-      "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"
+        "test": "php tests/run.php",
+        "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
+        "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
+        "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"
     },
     "devDependencies": {
-      "@wordpress/block-editor": "^14.17.0",
-      "@wordpress/blocks": "^14.11.0",
-      "@wordpress/components": "^29.8.0",
-      "@wordpress/core-data": "^7.22.0",
-      "@wordpress/data": "^10.22.0",
-      "@wordpress/element": "^6.22.0",
-      "@wordpress/i18n": "^5.22.0",
-      "@wordpress/scripts": "^30.15.0",
-      "copyfiles": "^2.4.1"
+        "@wordpress/block-editor": "^17.0.0",
+        "@wordpress/blocks": "^15.27.0",
+        "@wordpress/components": "^40.0.0",
+        "@wordpress/core-data": "^7.54.0",
+        "@wordpress/data": "^10.54.0",
+        "@wordpress/element": "^8.6.0",
+        "@wordpress/i18n": "^6.27.0",
+        "@wordpress/scripts": "^34.2.0",
+        "copyfiles": "^2.4.1"
     }
-  }
-  
+}

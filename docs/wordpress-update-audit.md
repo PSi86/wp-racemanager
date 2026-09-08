@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 24 — 21 resolved, 3 open |
+| Findings | 24 — 22 resolved, 2 open |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -71,7 +71,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | E6 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | REST | Upload endpoint guarded only by `is_user_logged_in()`; the API key check is dead code | no |
 | E10 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Activation | `create_event_registration_cf7_form()` creates another CF7 form on every activation | no |
 | E7 | P3 | ✅ [#10](https://github.com/PSi86/wp-racemanager/pull/10) | Cleanup | `ABSPATH` guard commented out, dead code, three different version numbers | no |
-| F1 | P3 | **open** | Toolchain | npm and Composer dependencies one to two majors behind | indirectly |
+| F1 | P3 | ✅ | Toolchain | npm and Composer dependencies one to two majors behind | indirectly |
 
 ---
 
@@ -167,9 +167,24 @@ after a selection) is cosmetic — no strict comparison anywhere depends on it.
 - **A2** — all blocks on `apiVersion: 2`. Since 6.9 `registerBlockType` logs a deprecation and
   the post editor drops out of iframe mode for any post containing one. `race-gallery` is the
   risky one to migrate: it uses the old Backbone media library (`wp.media`, `wp.shortcode`).
-- **F1** — `@wordpress/components` is ten majors behind, `@wordpress/scripts` four;
-  `minishlink/web-push` is on 9.x with 11.x current. The devcontainer pins Node 18 (EOL).
-  Needed before A2 can be tackled.
+  No longer blocked — F1 is done.
+
+### What F1 turned up on the way
+
+Both of the following were silent — nothing failed, and the test suite stayed green:
+
+- **web-push 11 dropped its own Guzzle dependency.** It resolves a PSR-18 client through
+  `php-http/discovery` at construction time instead, so upgrading without adding a client leaves
+  `class_exists()` reporting the library as present while every notification throws
+  `Http\Discovery\Exception\NotFoundException`. `composer.json` now requires `guzzlehttp/guzzle`
+  explicitly, and the `vapid` suite constructs a `WebPush` instance so the gap cannot reopen
+  unnoticed.
+- **`@wordpress/scripts` 34 replaced `CleanWebpackPlugin` with webpack's own `output.clean`,**
+  which empties the entire output directory before emit. `blocks/` holds the built `race-gallery`
+  *and* six hand-written blocks, and the old `webpack.config.js` protected them by swapping the
+  plugin instance — a hook that no longer exists. Rebuilt as an `output.clean.keep` rule, derived
+  from the directories under `blocks-src/` rather than naming `race-gallery`. Verified by building
+  once without it: six of the seven block directories were deleted.
 
 ---
 
@@ -183,7 +198,7 @@ the project is happy to live with (see B3).
 2. ~~**E9, D2**~~ and ~~**B3 (reduced)**~~ — done in [#11](https://github.com/PSi86/wp-racemanager/pull/11);
    ~~**E8 remainder**~~ in [#12](https://github.com/PSi86/wp-racemanager/pull/12), where the address became a setting that defaults to the
    site's own domain.
-3. **F1 → A2** — dependencies first, then `apiVersion: 3`. `race-gallery` needs the most care.
+3. ~~**F1**~~ — done. **A2** is next: `apiVersion: 3`, and `race-gallery` needs the most care.
 4. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
    becomes a visible regression.
 

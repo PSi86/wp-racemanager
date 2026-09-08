@@ -501,9 +501,28 @@ npm run start              # watch mode while working on the block
 exactly what `package-lock.json` pins and fails loudly when the lock and `package.json` disagree;
 `npm install` quietly rewrites the lock to make the disagreement go away. Since the built file is
 committed, two people whose installs differ produce different `blocks/race-gallery/index.js` and
-the diff churns for no reason. The toolchain asks for Node ≥ 18.12. The output committed here was
-built in the GitHub environment, whose devcontainer pins Node 18, and a clean `npm ci` plus build
-on Node 22 reproduces it byte for byte — so the exact version is not something to worry about.
+the diff churns for no reason. The toolchain asks for Node ≥ 18.12; the local setup and
+`.devcontainer/devcontainer.json` both run 22.
+
+#### `webpack.config.js` is what keeps the other six blocks alive
+
+`blocks/` is the build output directory *and* the home of the six blocks that are hand-written
+rather than built. wp-scripts empties its output directory before every emit, so left alone a
+build deletes them — no error, just twelve files gone from `git status`. The config narrows the
+clean to the folders that actually have a source, deriving the list from the directories under
+`blocks-src/` so that adding a second source block needs no change to it.
+
+That protection is version-specific and has already had to be rewritten once: up to
+`@wordpress/scripts` 33 the cleaning was a `CleanWebpackPlugin` instance the config replaced,
+and since 34 it is webpack's own `output.clean`, configured with a `keep` predicate. If a future
+major moves it again, the symptom will be deleted files rather than a failing build. The check
+that matters after any toolchain bump is therefore simply:
+
+```bash
+npm run build && git status --short blocks/
+```
+
+Nothing may show up as deleted. Only `blocks/race-gallery/` may show up as modified.
 
 #### Keep node_modules out of the Mutagen sync
 

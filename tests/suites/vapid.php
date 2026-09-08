@@ -62,6 +62,36 @@ rm_test_check( 'import stored', rm_store_vapid_keys( $keys['publicKey'], $keys['
 rm_test_check( 'configured now', rm_vapid_is_configured() );
 rm_test_check( 'subscriptions untouched', rm_has_push_subscriptions() );
 
+// Everything above proves the key handling works, which is not the same as push
+// working. web-push 11 dropped its own Guzzle dependency and now resolves a
+// PSR-18 client through php-http/discovery at construction time, so a vendor/
+// without one throws Http\Discovery\Exception\NotFoundException the first time
+// a notification is sent -- while class_exists() still reports the library as
+// present and this suite still passed. Constructing the client is what catches
+// that, and it makes no network call.
+rm_test_section( 'The push client can actually be built' );
+if ( ! class_exists( '\Minishlink\WebPush\WebPush' ) ) {
+    rm_test_check( 'WebPush class present', false, 'the library is installed but WebPush is missing' );
+} else {
+    $push_error = '';
+    try {
+        new \Minishlink\WebPush\WebPush( array(
+            'VAPID' => array(
+                'subject'    => 'mailto:ops@example.test',
+                'publicKey'  => $keys['publicKey'],
+                'privateKey' => $keys['privateKey'],
+            ),
+        ) );
+    } catch ( \Throwable $e ) {
+        $push_error = get_class( $e ) . ': ' . $e->getMessage();
+    }
+    rm_test_check(
+        'WebPush constructs with a resolvable HTTP client',
+        '' === $push_error,
+        $push_error ? $push_error . ' -- composer.json has to require a PSR-18 client (guzzlehttp/guzzle)' : ''
+    );
+}
+
 rm_test_section( 'Input validation' );
 rm_test_check( 'garbage rejected', '' === rm_sanitize_vapid_key( 'not a key!!' ) );
 rm_test_check( 'too short rejected', '' === rm_sanitize_vapid_key( 'abc' ) );

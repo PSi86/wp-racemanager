@@ -100,6 +100,12 @@ Only `race-gallery` is built from source; the other blocks are hand-written `ind
 in `blocks/`. The build runs on the host, and `blocks/race-gallery/` is committed, so a source
 change has to be committed together with its rebuilt output.
 
+`webpack.config.js` is load-bearing: wp-scripts empties its output directory before every emit,
+and the output directory is `blocks/`, so the config narrows the clean to the folders that have a
+source under `blocks-src/`. Without it a build deletes the six hand-written blocks silently. After
+any `@wordpress/scripts` bump, run `npm run build && git status --short blocks/` — nothing may
+appear as deleted.
+
 `node_modules/` sits inside the DDEV project and the container never reads it, so
 `.ddev/mutagen/mutagen.yml` ignores `/wp-racemanager/node_modules`. That file has to have its
 `#ddev-generated` marker removed to survive, and the marker must not appear anywhere else in it
@@ -144,7 +150,7 @@ what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read t
 Two lists, and they answer different questions:
 
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
-  updates broke or exposed. 24 findings, 21 resolved. **The maintenance to-do list.**
+  updates broke or exposed. 24 findings, 22 resolved. **The maintenance to-do list.**
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
   could get better, above all its data path. L1–L10, none started, four questions to answer first.
   [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
@@ -152,12 +158,11 @@ Two lists, and they answer different questions:
 From the audit, the ones most likely to bite while working here:
 
 - **A2** All blocks are on `apiVersion: 2`. Deprecated since WordPress 6.9; the editor falls
-  out of iframe mode for any post containing one. Needs F1 first.
+  out of iframe mode for any post containing one. Unblocked now that F1 is done.
 - **D1** `js/rm-m-pilotSelector.js` appends options on every data update without clearing.
   Only bites during a live race on a long-open page. The two fixes belong together: rebuilding
   the list alone makes the selection go blank when a pilot leaves the field, because today the
   stale option is what keeps it selected.
-- **F1** npm and Composer dependencies are one to two majors behind.
 
 ## Documentation
 

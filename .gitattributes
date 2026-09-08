@@ -24,3 +24,4 @@
 # copy looking modified when only the line endings differ. Pin both to LF.
 blocks-src/**/block.json    text eol=lf
 blocks/**/block.json        text eol=lf
+blocks/**/index.asset.php   text eol=lf
