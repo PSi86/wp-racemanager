@@ -6,7 +6,7 @@ What the WordPress 6.9–7.1 releases broke, and what else the review turned up.
 |---|---|
 | Baseline commit | `ba41e7c`, 2025-06-03 |
 | WordPress then / now | 6.8.1 → 7.1 |
-| Findings | 24 — 23 resolved, 1 open |
+| Findings | 24 — 24 resolved |
 | Both P0 items | resolved |
 
 Status last verified against `main` on 2026-08-23 by reading the code, not from memory.
@@ -58,7 +58,7 @@ Sorted by priority. IDs are stable and referenced from commit messages and pull 
 | B2 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Performance | `session_start()` on every live page load disabled page caching | no |
 | B3 | P2 | ✅ [#11](https://github.com/PSi86/wp-racemanager/pull/11) | Live / PWA | Two live shortcodes on one page overwrote each other's JS config. The block-theme dependency itself is accepted — see below | no |
 | B4 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | Live / PWA | Session redirect without no-cache headers; `/live/*` not excluded from speculative loading | yes — WP 6.8/7.1 |
-| D1 | P2 | **open** | Frontend JS | Pilot dropdown accumulates duplicates on every data refresh | no |
+| D1 | P2 | ✅ | Frontend JS | Pilot dropdown accumulates duplicates on every data refresh — in two places, not one | no |
 | D3 | P2 | ✅ [#5](https://github.com/PSi86/wp-racemanager/pull/5) | PWA | Manifest and service worker contained `https://domain.com/` and were only written on activation | no |
 | D5 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Frontend JS | `rm-m-pwa-subscribe.js` touched missing DOM nodes unguarded, taking the whole nextup page down | no |
 | E3 | P2 | ✅ [#3](https://github.com/PSi86/wp-racemanager/pull/3) | Robustness | Composer autoload via `../../../../../vendor/`, unguarded and inconsistent | no |
@@ -128,10 +128,18 @@ per module instead of overwriting, so two shortcodes that configure different mo
 what they asked for. Moving to the script module data API (`script_module_data_{$id}`) stays the
 cleaner long-term option, not a prerequisite.
 
-### D1 — pilot dropdown accumulates options · P2
+### D1 — pilot dropdown accumulates options · resolved
 
-`js/rm-m-pilotSelector.js` appends a full set of `<option>` elements on every data update
+`js/rm-m-pilotSelector.js` appended a full set of `<option>` elements on every data update
 without clearing first. Verified against the real module in a real DOM.
+
+**It was in two places.** `js/bracketV25.js` carries the same construction for the older
+`[rm_viewer]` shortcode, where `processRHData()` runs again on every fetch while the mode is
+`live`. That shortcode is legacy — the only reference to it outside its own file is a
+commented-out line in `rest-handler.php`, so new race posts no longer get it — but posts created
+before the live area existed still can, and the accumulation is identical there. Both are fixed
+the same way; the module is the one with test coverage, since `bracketV25.js` is a jQuery script
+built around globals and cannot be exercised in isolation without stubbing most of it.
 
 It only bites on a **live** race: `refreshInterval` is `0` unless `_race_live` is set, so an
 archived race populates exactly once. And the callback fires per *upload*, not per poll —
@@ -229,8 +237,8 @@ the project is happy to live with (see B3).
    ~~**E8 remainder**~~ in [#12](https://github.com/PSi86/wp-racemanager/pull/12), where the address became a setting that defaults to the
    site's own domain.
 3. ~~**F1**~~, ~~**A2**~~ — both done. All seven blocks are on `apiVersion: 3`.
-4. **D1** — last. Never observed in practice, and the fix has to do both halves at once or it
-   becomes a visible regression.
+4. ~~**D1**~~ — done, both halves at once as the entry warned, and in `bracketV25.js` as well as
+   in the module. That closes the audit.
 
 ---
 

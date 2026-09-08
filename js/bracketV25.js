@@ -700,17 +700,36 @@ function processRHData(data) {
     // Sort the pilotsMap alphabetically by callsign
     pilotsMap.sort((a, b) => a.callsign.localeCompare(b.callsign));
 
-    // Example: Populate the pilot selector with data
+    // processRHData runs again on every fetch while mode is "live", so the
+    // options have to be replaced rather than appended -- the same accumulation
+    // the module-based selector had (D1 in docs/wordpress-update-audit.md).
+    // data-pilot-id marks the ones added here; the "-- Select a Pilot --"
+    // placeholder comes from the shortcode markup and has to survive.
     const pilotSelector = document.getElementById('pilotSelector');
+    pilotSelector
+        .querySelectorAll('option[data-pilot-id]')
+        .forEach(option => option.remove());
+
+    const pilotOptions = document.createDocumentFragment();
     pilotsMap.forEach(pilot => {
         const option = document.createElement('option');
         option.value = pilot.id;
         option.textContent = pilot.callsign;
-        pilotSelector.appendChild(option);
+        option.setAttribute('data-pilot-id', pilot.id);
+        pilotOptions.appendChild(option);
     });
+    pilotSelector.appendChild(pilotOptions);
 
-    //TODO: find better place for this
-    pilotSelector.value = selectedPilotId;
+    // Rebuilding drops the stale option that used to hold a selection for a
+    // pilot who left the field, and assigning a value no option carries would
+    // leave selectedIndex at -1 and the control blank. Fall back to the
+    // placeholder and announce it, so the inline onchange handler runs and the
+    // filter stops pointing at a pilot the dropdown no longer offers.
+    pilotSelector.value = String(selectedPilotId);
+    if (pilotSelector.selectedIndex === -1) {
+        pilotSelector.selectedIndex = 0;
+        pilotSelector.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
 
     const currentClass = getCurrentClassName();
