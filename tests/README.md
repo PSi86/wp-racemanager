@@ -63,6 +63,7 @@ in the locations it has historically lived — see `rm_push_library_available()`
 
 ```bash
 npm run test:pilot-selector                         # no WordPress needed, only a browser
+npm run test:live-resume                            # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -88,6 +89,20 @@ page without the control does not take the module down on import.
 
 Run against the module as it was before the fix, five of its eight checks fail — which is the
 point of it.
+
+### `tests/e2e/live-resume.cjs`
+
+`js/rm-live-resume.js`, and what the selection page does with the race it remembers. Needs a
+started site with **at least two races that carry result data**, because the whole question is what
+happens when a visitor comes back; it skips when there are fewer.
+
+The behaviour is a state machine split between the server and `localStorage`, and the two halves
+disagreeing is what it guards. The selection page resolves a race of its own — the header link back
+to it carries `?rm_race=<slug>` — so "the server gave me a race" is a different question from "this
+is a race page". It covers: a race page storing itself; the selection page reached without the
+marker still offering the stored race *and* marking it in the list; the selection page reached
+*with* the marker marking that race and not also offering it; the marker keeping the stored entry
+in step; and `?resume=1` going straight through.
 
 ### `tests/e2e/editor.cjs`
 
