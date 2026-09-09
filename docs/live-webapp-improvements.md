@@ -22,11 +22,11 @@ IDs are stable and referenced from commits and pull requests, the same way the a
 | ID | Prio | Needs | What |
 |---|---|---|---|
 | L1 | P1 | ✅ nothing to do — the host already sends `br` | Serve the race JSON compressed |
-| L5 | P1 | nothing | Freshness indicator: is this current, when was it last checked, is it checking now |
-| L4 | P1 | nothing | Visibility-aware, jittered, backing-off polling |
+| L5 | P1 | ✅ done | Freshness indicator: is this current, when was it last checked, is it checking now |
+| L4 | P1 | ✅ done | Visibility-aware, jittered, backing-off polling |
 | L9 | P1 | the theme's rendered markup | A stylesheet for the mobile navigation |
-| L2 | P2 | nothing | Conditional requests instead of `cache: 'no-store'` |
-| L3 | P2 | nothing | `localStorage` instead of per-tab `sessionStorage` |
+| L2 | P2 | ✅ done — and worth less than this list claimed | Conditional requests alongside `cache: 'no-store'` |
+| L3 | P2 | ✅ done | `localStorage` instead of per-tab `sessionStorage` |
 | L6 | P2 | nothing | A service worker that caches, so the installed PWA survives bad reception |
 | L7 | P2 | nothing | Split the payload into per-section files with an index |
 | L8 | P3 | ~~a change on the RotorHazard side~~ — the uploader is ours | Upload only the sections that changed |
@@ -59,38 +59,121 @@ If the host does not do it, an `.htaccess` in `wp-content/uploads/races/` can:
 **Effort:** minutes. **Effect:** the single largest transfer saving available, on every request,
 for every viewer. Do this before anything else, and measure again afterwards.
 
-### L2 · Let the browser cache, and use conditional requests
+### L2 · Conditional requests — done, and smaller than it looked
 
-Drop `cache: 'no-store'` and send `If-None-Match` instead. The web server already produces `ETag`
-and `Last-Modified` for static files, so an unchanged file answers **304 with no body**. Combined
-with the timestamp gate this mostly protects reloads, second tabs and the PWA cold start — the
-cases that today always cost a full transfer.
+**Done.** The premise held: both files carry `ETag` and `Last-Modified`, and a request with
+`If-None-Match` answers `304` with a zero-byte body (measured, `100,614 B` → `0 B`).
 
-### L3 · Cache across tabs, not per tab
+**But this entry overstated its own value, and the correction matters more than the change.** It
+claimed that reloads, second tabs and the PWA cold start "today always cost a full transfer".
+Measured in a real browser, a reload in the same tab cost **56 bytes** — the timestamp gate and
+`sessionStorage` already covered it. What actually paid the full ~100 KB were the second tab and
+the returning visitor, and both of those are fixed by L3, not by L2. Once the cache survives,
+L2 is the fallback for when storage is unavailable or has been evicted.
 
-`sessionStorage` → `localStorage`, keyed by race and by the data timestamp. A reopened PWA then
-renders the last known standing **immediately**, before the network is even asked, and the first
-request is a cheap timestamp check rather than a full download.
+`cache: 'no-store'` stayed rather than being dropped. Keeping the browser's own cache out of the
+way is what makes a `304` visible to the code instead of being turned back into a `200` from
+cache, and that distinction is what L5 reports on. The conditional header is sent explicitly.
 
-Storage is capacity-limited, so evict other races' entries on write, and treat every read and
-write as failable (private mode, full quota).
+### L3 · Cache across tabs, not per tab — done
 
-### L4 · Poll like a phone, not like a server
+**Done**, and this was the change that carried the saving. Payload under `rm_data_{race_id}`,
+metadata (timestamp, `ETag`, data time) beside it, other races evicted on write, every read and
+write treated as failable — private mode, blocked site data and a full quota all throw, and a
+write that fails twice gives up on storage for the page view rather than failing the page.
 
-Four changes to the same loop:
+Measured against the real payload with a persistent browser profile, because a fresh profile is a
+first-ever visit and would have proved nothing:
 
-- **Pause while hidden.** `document.visibilityState === 'hidden'` → stop the interval; check once
-  immediately on `visibilitychange` back to visible. A phone in a pocket currently polls all day.
-- **Check on reconnect.** Listen for `online`, and on `focus`.
-- **Back off on failure.** 10 s → 20 s → 40 s → capped at ~2 min, reset on the first success.
-  Reception at a race site is bad in bursts; hammering it does not help.
-- **Add jitter.** Everyone opens the page when the heat starts, so everyone polls on the same
-  second. ±20 % random offset spreads that across the interval — this is the difference between a
-  spike of a hundred simultaneous requests and a smooth trickle.
+| | before | after |
+|---|---|---|
+| first ever visit | 100,834 B | 100,834 B |
+| reload, same tab | 56 B | 56 B |
+| second tab | 100,768 B | **56 B** |
+| browser closed and reopened | 100,839 B | **111 B** |
 
-### L5 · The freshness indicator
+The first row does not move and should not: a browser that has never seen the race has to
+download it. The last row is what a viewer coming back to the trackside actually does.
+
+### L4 · Poll like a phone, not like a server — done
+
+**Done**, all four, and `setInterval` gave way to a self-scheduling `setTimeout` because no two
+delays are alike any more:
+
+- **Pause while hidden.** Nothing is scheduled while `document.visibilityState === 'hidden'`; the
+  page checks once on the way back.
+- **Check on reconnect**, on `online` and on `focus`.
+- **Back off on failure.** 10 s → 20 s → 40 s → 80 s, capped at two minutes, reset on the first
+  success.
+- **Jitter of ±20 %** on every delay.
+
+One thing this list did not foresee: `visibilitychange`, `focus` and `online` all fire within
+milliseconds of each other when a tab comes back, so without a floor the fix for "poll less" would
+have produced three requests in one instant. There is a two-second minimum gap between checks.
+
+### L5 · The freshness indicator — done
 
 *(Explicitly wanted, and the one improvement every viewer sees.)*
+
+**Done**, as [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js) plus
+`css/rm-update-status.css`: a **pill floating at the foot of the viewport**, emitted by all four
+live shortcodes through one helper (`rm_update_status_markup()`) so that markup, module and
+stylesheet cannot drift apart. It ships `hidden` and the module reveals it — without JavaScript
+nothing polls, so there is nothing truthful to say and an empty pill would be worse than none.
+
+The first attempt was a text line in the flow above each view. It worked and looked like an
+afterthought, which for the one improvement every viewer sees is not good enough.
+
+What the form is doing:
+
+- **Quiet at rest, loud at the problem.** While things are current the text is grey and says the
+  least it can — `Up to date · 17:18`. Every other state takes a tinted surface, its own colour
+  and a fuller sentence, and is allowed to wrap. Nobody has to tap it to learn something is wrong.
+- **The quiet is in the ink, never in the element's opacity.** Dimming the pill dims its surface
+  with it, and a half-transparent panel over a bracket full of pilot names is illegible — it reads
+  as a rendering fault rather than as restraint. That was the first version of this stylesheet and
+  the screenshot is what caught it.
+- **No `backdrop-filter`.** Unevenly supported, a compositing layer on exactly the phones this has
+  to be cheap on, and leaning on it for legibility makes the fallback the unreadable case.
+- **Bottom centre, not bottom right**, where back-to-top buttons, chat bubbles and cookie banners
+  live. Below 26 rem it spans the width instead, which is easier to hit with a thumb.
+  `env(safe-area-inset-bottom)` keeps it off the iPhone home indicator.
+- **The whole pill is the button.** Tapping forces a check, which is the only honest answer to
+  "is it stuck?".
+- **Emitted once per page, not once per shortcode.** Two live shortcodes on one page is a real
+  configuration — the same one `rm_add_js_module_config()` exists for — and a second element would
+  both duplicate the id and stack a second pill on the first.
+
+Three things about the built version differ from the sketch below:
+
+- **The strings are English**, not German. The rest of the live area already is — "The race log is
+  currently empty.", "There is no saved race data available to view." — and one German line in it
+  would have read as an oversight.
+- **The two times are never subtracted from one another.** The data time is site-local wall clock
+  with no timezone in it (PHP `current_time('mysql')`); the check time is this browser's clock.
+  Each is shown as what it is. The data time is read out of the string and never converted, so a
+  timestamp from another day carries its date rather than showing a bare `17:18` that would look
+  current.
+- **A race that is not flagged live shows nothing at all**, unless the data could not be loaded.
+  There is no next check to promise, the result is final, and a permanent "From 17:18" is
+  furniture rather than information. The rule is deliberately narrower than "something is
+  unusual", and the two exclusions are the interesting part:
+
+  | On a race that is not live | | Why |
+  |---|---|---|
+  | data loaded and confirmed | hidden | the viewer has the final standing; there is nothing to say |
+  | still loading | hidden | a moment, not a problem — appearing and vanishing on every load is noise |
+  | **offline after a successful check** | **hidden** | the race is over and the data is final: being offline now costs the viewer nothing |
+  | a check that failed | shown | we do not know that this is what the timer finished with |
+  | data never confirmed | shown | same reason |
+  | no data at all | shown | there is nothing on the page either |
+
+  This lives in `isRelevant()` next to `describe()`, so it is pure and covered by the same table
+  of states rather than being scattered through the rendering.
+
+The decision table below is what the code implements; the state machine is the pure `describe()`
+function, exported so `tests/e2e/update-status.cjs` can walk every branch without needing a broken
+network to produce one.
 
 The loader currently exposes only "here is new data". It needs to expose its **state**:
 
@@ -217,7 +300,11 @@ Proposed: `css/rm-live-nav.css`, enqueued on live pages only, mobile first —
   the burger menu;
 - tap targets of at least 44 px, and `padding-bottom: env(safe-area-inset-bottom)` so the
   installed PWA does not put controls under the home indicator;
-- the freshness indicator from L5 living in that same bar;
+- ~~the freshness indicator from L5 living in that same bar~~ — **decide this again when L9 is
+  built.** L5 shipped as a pill floating at the foot of the viewport, which is where a sticky view
+  switcher would also want to be. Two floating elements stacked on the bottom edge is worse than
+  either alone, so it is one or the other: either the switcher takes the bottom and the indicator
+  moves into it, or the switcher goes under the header and the indicator stays where it is.
 - the burger overlay's items sized for a thumb rather than a mouse.
 
 **Measured** on 2026-09-09, `https://copterrace.com/live/bracket/?race_id=2402` in headless
@@ -324,18 +411,22 @@ In order, and each one is a self-contained piece of work:
    site that still runs the June 2025 code. See [`deployment.md`](deployment.md). This is now a
    year of accumulated work — the whole audit, the dependency catch-up and `apiVersion: 3`.
 2. ~~**Measure**~~ and ~~**L1**~~ — done, see the answers above.
-3. **L2, L3, L6** as one release — all three are about not re-fetching what is already known, and
-   the measurement moved them up. With `cache: 'no-store'`, every reload, every second tab and
-   every PWA cold start pays the full ~100 KB even when nothing changed; the server already emits
-   `ETag` and `Last-Modified` for these static files, so an unchanged one answers 304 with no
-   body. Plugin side only, no protocol change, no RotorHazard change.
-4. **L5 + L4 together**, in the local environment. They are one state machine, and browser
-   devtools can simulate the bad network they exist for; a live race cannot be paused to test.
-5. **L9** — now unblocked, and the measurement says it is worth more than its P1 rating
+3. ~~**L2, L3**~~ and ~~**L4, L5**~~ — done, in one pass rather than two releases. They were
+   planned as separate steps and turned out to be one: all four touch the same sixty lines of
+   `js/rm-m-dataLoader.js`, and building them apart would have meant rewriting that stretch four
+   times. L5 also needs what L2 and L3 change — a 304 is the "nothing changed" state, and a cache
+   that survives is what produces the "shown but not yet confirmed" state.
+4. **L6 · the service worker.** Now the largest thing missing from the data path, and the one the
+   others cleared the way for: with the payload in `localStorage` and the loader reporting its own
+   state, a `fetch` handler has something coherent to fall back to and something to tell the
+   viewer when it does. Two decisions to make deliberately — a versioned cache name with an
+   eviction step in `activate`, and **not** caching `-timestamp.json`, which must always hit the
+   network or the freshness indicator starts lying.
+5. **L9** — still unblocked, and the measurement says it is worth more than its P1 rating
    suggested: on a phone the live area is effectively a single view unless the visitor knows to
    open the burger.
-6. **L7**, and then **L8** with it. Both are now unblocked, and designing them together is the
-   point: the uploader already speaks in the sections L7 would split the file into.
+6. **L7**, and then **L8** with it. Both are unblocked, and designing them together is the point:
+   the uploader already speaks in the sections L7 would split the file into.
 
 The local environment now carries the three real races from production, so all of this can be
 built against real payloads rather than fixtures.

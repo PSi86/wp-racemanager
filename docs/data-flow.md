@@ -56,10 +56,73 @@ configuration comes from `window.RmJsConfig.dataLoader`, filled in by
 
 The cycle:
 
-1. Every `refreshInterval` ms, fetch the timestamp file with `cache: 'no-store'`.
-2. Compare its **text** against the value in `sessionStorage`.
-3. If it differs, fetch `{race}-data.json` — again `cache: 'no-store'`, so always the whole file.
-4. Store it in `sessionStorage` and hand the parsed object to every subscriber.
+0. On construction, read the cache out of `localStorage`: the payload under `rm_data_{race_id}`
+   and, beside it, `rm_data_{race_id}_meta` with the last timestamp, the last `ETag` and the time
+   the data carried. Anything found there is shown immediately and marked **unconfirmed** — it is
+   on screen before anyone has asked whether it is still current.
+1. Every `refreshInterval` ms, fetch the timestamp file with `cache: 'no-store'`. The delay is
+   jittered by ±20 %, doubles after each failure up to two minutes, and is not scheduled at all
+   while the page is hidden.
+2. Compare its **text** against the cached timestamp. Text, not a parsed value: the comparison
+   must not become sensitive to key order or whitespace.
+3. If it differs, fetch `{race}-data.json`, carrying `If-None-Match` when an `ETag` is known. A
+   `304` means there is nothing to download and, on a phone more to the point, nothing to parse.
+4. Store the response **text** in `localStorage` — storing what came off the wire rather than
+   re-serialising the parsed object — and hand the parsed object to every subscriber.
+
+`storageKey` stays the bare race id because `displayHeats`, `displayStats` and `pilotSelector`
+read it and build their own keys and `data-race-id` attributes out of it. The keys above are
+derived from it separately, and the `rm_data_` prefix is what eviction matches on — deliberately
+distinct from `rm_last_race`, which belongs to [`js/rm-live-resume.js`](../js/rm-live-resume.js)
+and must survive it.
+
+One race's payload is around 1.2 MB as text against an origin budget of a few megabytes, so two
+of them do not both fit: writing evicts every other race's entry first, and a write that still
+fails falls back to running without a cache rather than failing the page.
+
+`onState()` is the second channel out of the loader, alongside `subscribe()`. It reports what the
+loader is doing — checking, downloading, idle, how long since a check succeeded, how many have
+failed — and [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js) is its only consumer, turning
+it into the pill floating at the foot of each view.
+
+### Two orderings that are load-bearing, and why
+
+Both were learned from a failure at a real event, on the pre-2026 code: for some spectators the
+app came up empty and **stayed** empty. Reloading did not help. Reloading again did not help. It
+came back only when the app was killed outright and reopened.
+
+**The timestamp is committed after the payload, never before.** The old loader wrote the new
+timestamp to `sessionStorage` and then downloaded the data it pointed at. When that download
+failed — which on a fading mobile link it does — the version was already marked as seen. Every
+later check found the timestamp unchanged, concluded there was nothing new, and never asked for
+the data again. The note outlived every reload and died only with the tab, which is exactly why
+only a hard kill helped.
+
+Reproduced against the old loader, blocking the payload and then restoring the network:
+
+| | payload requests | standing on screen |
+|---|---|---|
+| first load, payload blocked | 1, fails | — |
+| manual reload | **0** | — |
+| manual reload again | **0** | — |
+| reload with the network healthy again | **0** | **—** |
+| brand new tab | 1 | shown |
+
+**The deadline covers the body, not just the headers.** A fading link usually does not refuse the
+connection: the headers arrive and the body then stops coming. Clearing the abort timer once the
+response object exists — the obvious way to write it — leaves that read running for ever. The
+in-flight flag never clears, every later check returns at the guard that reads it, and the page is
+wedged in the same way, reached from the other side. `request()` therefore awaits the body read
+inside the timeout.
+
+The payload also gets a **longer** deadline than the timestamp check (30 s against 9 s). Thirty
+bytes and a hundred kilobytes do not deserve the same patience, and cutting off a download that
+was about to succeed, over and over, is its own way of never loading anything.
+
+[`tests/e2e/flaky-network.cjs`](../tests/e2e/flaky-network.cjs) holds all of this, including the
+part that matters most to a spectator: with a warm cache, losing the network costs freshness
+rather than the page. That is the difference between "the app is broken" and "the app is behind",
+and the freshness indicator is what makes it legible.
 
 Subscribers get the entire object and pick what they need:
 
@@ -92,22 +155,53 @@ it starts.
 ## What this costs
 
 - **Every change ships the whole file to every viewer.** The stats view needs `result_data`; the
-  race log needs `notifications` and nothing else. Both download everything, every time.
-- **`cache: 'no-store'` on both requests.** No `ETag`, no `If-None-Match`, no 304 — the browser
-  cache is bypassed on purpose, so a reload always costs a full transfer.
-- **`sessionStorage` is per tab.** A second tab, a reopened PWA or a reload after a crash starts
-  from nothing and downloads the file again.
-- **Polling is unconditional.** A hidden tab, a phone in a pocket and a viewer with no reception
-  poll at the same rate as an active one, and they all poll on the same 10-second grid — a hundred
-  phones that opened the page when the heat started ask within the same second.
+  race log needs `notifications` and nothing else. Both download everything, every time. This is
+  the one that is left, and it is what L7 and L8 in
+  [`live-webapp-improvements.md`](live-webapp-improvements.md) are about.
 - **The upload is all-or-nothing.** The timer re-sends pilots, heats and classes with every lap,
   from a field, usually over a phone hotspot.
 - **The service worker does not cache anything.** [`templates/template-pwa-sw.js`](../templates/template-pwa-sw.js)
   handles `push` and `notificationclick` only — there is no `fetch` handler. The installed PWA
   therefore shows nothing at all when reception drops, even though it displayed the data a minute
-  earlier.
-- **Nothing tells the viewer any of this.** There is no indication whether what is on screen is
-  current, when it was last checked, or that a check is running.
+  earlier. That is L6, and it is the largest single thing still missing from this path.
+
+### What this used to cost, and no longer does
+
+Kept because the reasoning is worth more than the conclusion, and because one of these entries
+was wrong for a year before anyone measured it.
+
+- ~~**`sessionStorage` is per tab.**~~ The cache is in `localStorage` now. Measured against the
+  real payload on the local site, with a persistent browser profile — a fresh profile is a
+  first-ever visit and would prove nothing:
+
+  | | before | after |
+  |---|---|---|
+  | first ever visit | 100,834 B | 100,834 B |
+  | reload, same tab | 56 B | 56 B |
+  | second tab | 100,768 B | **56 B** |
+  | browser closed and reopened | 100,839 B | **111 B** |
+
+  **The reload row is the correction.** This document used to say a reload "always costs a full
+  transfer", and the improvement list repeated it. It never did: the timestamp gate plus
+  `sessionStorage` already covered that one case, and only that one. What actually paid were the
+  second tab and the returning visitor.
+
+- ~~**`cache: 'no-store'` on both requests.**~~ Still `no-store`, and deliberately so — but the
+  data request now carries `If-None-Match` itself. Keeping the browser cache out of the way is
+  what makes a `304` arrive as a `304` instead of being turned back into a `200` from cache, and
+  that distinction is what the status line reports on. Since the cache survives, this is the
+  fallback for when storage is unavailable or evicted rather than the main saving.
+
+- ~~**Polling is unconditional.**~~ It stops while the page is hidden and checks again on return,
+  on `focus` and on `online`; the delay carries ±20 % jitter and doubles after each failure up to
+  two minutes. `visibilitychange`, `focus` and `online` all fire within milliseconds of each other
+  when a tab comes back, so a two-second floor keeps that from becoming three requests at once.
+
+- ~~**Nothing tells the viewer any of this.**~~ [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js)
+  renders the loader's state above every live view. Two times are shown and never conflated: when
+  the data was produced (site-local wall clock, straight out of the timestamp file, never
+  converted) and when we last asked (this browser's clock). They come from different clocks, which
+  is exactly why they are displayed separately and never subtracted from one another.
 
 ## Measuring it
 

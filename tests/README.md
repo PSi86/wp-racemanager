@@ -1,13 +1,14 @@
 # Test suites
 
-Two of them, and they answer different questions.
+Two runners, and they answer different questions.
 
 **`php tests/run.php`** is the one to reach for: plain PHP, no framework, no WordPress
 installation required, so it runs anywhere and it is fast.
 
-**`npm run test:e2e`** and **`npm run test:pilot-selector`** use a real browser, because some
-behaviour is what the DOM does rather than what the source says. They are deliberately kept out of
-the PHP runner — see [Browser checks](#browser-checks) at the end.
+**`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`** and
+**`test:update-status`** use a real browser, because some behaviour is what the DOM, the network
+and the browser's own storage do rather than what the source says. They are deliberately kept out
+of the PHP runner — see [Browser checks](#browser-checks) at the end.
 
 ```
 php tests/run.php            # everything
@@ -64,13 +65,15 @@ in the locations it has historically lived — see `rm_push_library_available()`
 ```bash
 npm run test:pilot-selector                         # no WordPress needed, only a browser
 npm run test:live-resume                            # against https://racemanager.ddev.site
+npm run test:update-status                          # against https://racemanager.ddev.site
+npm run test:flaky-network                          # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
 ```
 
-Both run through Playwright, and both skip rather than fail when Playwright or its Chromium is
-missing.
+All four run through Playwright, and all four skip rather than fail when Playwright or its
+Chromium is missing.
 
 ### `tests/e2e/pilot-selector.cjs`
 
@@ -103,6 +106,73 @@ is a race page". It covers: a race page storing itself; the selection page reach
 marker still offering the stored race *and* marking it in the list; the selection page reached
 *with* the marker marking that race and not also offering it; the marker keeping the stored entry
 in step; and `?resume=1` going straight through.
+
+### `tests/e2e/update-status.cjs`
+
+`js/rm-m-dataLoader.js` and `js/rm-m-updateStatus.js` — where the cache goes, how the polling
+loop schedules itself, and what the freshness pill is willing to claim. Needs a started site with
+a race that has result data; the polling half additionally needs that race flagged live
+(`ddev wp post meta update <id> _race_live 1`), and says so rather than failing when it is not.
+
+Its four groups are different kinds of claim, and the difference is the point:
+
+- **The cache** is checked by looking at `localStorage` directly: the payload under its prefixed
+  key, the metadata beside it, nothing left in `sessionStorage`, another race evicted on demand —
+  and `rm_last_race`, which belongs to `js/rm-live-resume.js`, still there afterwards. That last
+  one guards a prefix that is one careless character away from sweeping up the resume entry.
+- **The scheduling** is exercised by calling `scheduleNext()` and `currentDelay()` directly rather
+  than by waiting out real intervals: twelve delays all within ±20 % and not all equal, the
+  backoff doubling to its cap, and a hidden page scheduling nothing at all.
+- **The state machine** runs against the exported, pure `describe()` over a table of states. That
+  is why it is exported: offline, a failing check, unconfirmed data and an overdue check are all
+  states that need a broken network to happen naturally, and every one of them has to fail to say
+  "up to date". The same table covers when the pill appears at all — on a race that is not live it
+  stays hidden, including while it loads and including when the browser goes offline *after* a
+  successful check, and comes back only when the data could not be loaded.
+- **Two things a pure function cannot catch**, both found by looking at a browser rather than at a
+  result line, and both now guarded here: that the `hidden` attribute actually hides the element
+  (the stylesheet sets `display`, which beats the browser's own `[hidden]` rule), and that a load
+  which never succeeds settles on the failure instead of sitting on "Loading race data…" for good.
+- **The saving** is measured in bytes off the wire, with a **persistent browser profile**. A fresh
+  Playwright context is a first-ever visit and would prove nothing; only a profile that survives a
+  browser restart reproduces what a returning viewer does. First visit ~100 KB, coming back ~111
+  bytes.
+
+Run against the loader as it was before the change, the returning-visitor checks fail: it
+downloaded the full payload every time, 100,839 bytes.
+
+### `tests/e2e/flaky-network.cjs`
+
+The live app on a bad mobile link, and the only suite here written in response to something that
+happened at a real event rather than to something found while reading code.
+
+The report: for some spectators the app came up empty and **stayed** empty. Reloading did not
+help, reloading again did not help, and it came back only when the app was killed outright.
+
+The cause was an ordering mistake in the loader. It recorded the timestamp it had just fetched
+*before* downloading the payload that timestamp pointed at. When the download failed — which on a
+fading connection it does — that version was already marked as seen, so every later check found
+the timestamp unchanged and never asked for the data again. The note lived in `sessionStorage`,
+so it survived every reload and died only with the tab.
+
+Run against the pre-2026 loader this suite reports exactly that: `cachedTimestamp` set although
+the payload never arrived, `0` payload requests on each subsequent reload, and no standing on
+screen even with the network fully healthy again.
+
+Five things are covered, and the second was found *by writing this suite* rather than from the
+report:
+
+1. A payload that never arrives leaves nothing behind that suppresses the next attempt.
+2. A response whose body stalls after the headers does not wedge the loader either — a second way
+   into the same dead end, and the one a fading link produces most often. The abort deadline has
+   to cover the body read, not just the headers.
+3. Twelve rapid taps on the refresh control produce at most two requests.
+4. A slow but working link still delivers, and the payload gets a longer deadline than the 30-byte
+   timestamp check so that a download about to succeed is not cut off every time.
+5. With a warm cache, a total outage shows the last known standing rather than an empty page —
+   the difference between "the app is broken" and "the app is behind".
+
+Needs a race flagged live, like `update-status.cjs`.
 
 ### `tests/e2e/editor.cjs`
 

@@ -265,6 +265,28 @@ Also worth a look on the first deployment after a longer break:
   cached `/live/{race}/` 301 from before the change will send visitors to the wrong place.
 - Browsers cache the `/live/{race}/` → `/live/{race}/{view}/` redirect. Test in a private window.
 
+### The JS modules that carry no version, and why they can go stale
+
+WordPress appends `?ver=` to the module it enqueues, but **not** to anything that module imports.
+Every view enqueues one module and reaches the rest through relative `import` statements, so
+`js/rm-m-dataLoader.js` — which every view depends on and which several updates have now
+rewritten — is fetched by a URL with no cache-buster on it at all. Its freshness rests entirely
+on what the web server sends for a static `.js` file.
+
+Check it once per host, not per deploy:
+
+```bash
+curl -sI https://<site>/wp-content/plugins/wp-racemanager/js/rm-m-dataLoader.js \
+  | grep -i -E 'cache-control|expires|etag|last-modified'
+```
+
+`no-cache` or a short `max-age` means the browser revalidates and picks the new file up on the
+next load; that is what the local DDEV nginx sends. A long `max-age` with no revalidation means
+returning visitors keep running the **old** loader against the new PHP until it expires — and
+because a stale loader still works, nothing looks broken, it just behaves like the previous
+release. If the header is long-lived, purge the optimisation plugin's asset cache as well as its
+page cache, and verify in a private window rather than a reloaded tab.
+
 ---
 
 ## 8 · Rollback
