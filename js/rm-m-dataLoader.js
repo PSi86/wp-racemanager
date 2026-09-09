@@ -32,6 +32,7 @@
 // prefix, and that is deliberate rather than luck.
 const STORAGE_PREFIX = 'rm_data_';
 
+const DATA_TIMEOUT_MS = 30000;  // the payload's own deadline; see this.dataTimeout below
 const MAX_BACKOFF_MS = 120000;  // ~2 min; past that a viewer taps rather than waits
 const MIN_CHECK_GAP_MS = 2000;  // visibilitychange, focus and online can all fire at once
 const JITTER = 0.2;             // +/- 20 % around the nominal interval
@@ -51,6 +52,10 @@ export class DataLoader {
         // Optional
         this.refreshInterval = configData.refreshInterval || 0; // in ms; 0 = the race is not live
         this.timeout = configData.timeout || 9000;
+        // The payload gets its own, larger deadline: 30 bytes and 100 KB do not deserve the same
+        // patience, and trackside reception is exactly where the difference decides whether the
+        // page ever fills.
+        this.dataTimeout = configData.dataTimeout || DATA_TIMEOUT_MS;
         this.maxInterval = configData.maxInterval || MAX_BACKOFF_MS;
 
         // Stays the bare race id: displayHeats, displayStats and pilotSelector read this and build
@@ -368,23 +373,31 @@ export class DataLoader {
 
     // ------------------------------------------------------------------ network
 
-    // cache: 'no-store' stays, and it does not contradict the If-None-Match below. It keeps the
-    // browser's own cache out of the way so that a 304 arrives here as a 304, instead of being
-    // turned back into a 200 from cache -- which is the distinction the freshness indicator needs.
-    async fetchWithTimeout( url, options = {} ) {
+    // One request, start to finish, under one deadline.
+    //
+    // `consume` reads the response, and it is awaited **inside** the timeout rather than after it.
+    // That is the whole point of this shape. A fading mobile link does not usually refuse the
+    // connection outright: the headers arrive and the body then stops coming. Clearing the timer
+    // once the response object exists -- the obvious way to write this, and how it was written --
+    // leaves that read running for ever. The abort never fires, the in-flight flag never clears,
+    // every later check returns at the guard that reads it, and the page is wedged until it is
+    // closed. That is the same dead end the timestamp used to create, reached from the other side.
+    //
+    // cache: 'no-store' stays, and it does not contradict the If-None-Match sent below. It keeps
+    // the browser's own cache out of the way so that a 304 arrives here as a 304, instead of being
+    // turned back into a 200 from cache -- the distinction the freshness indicator needs.
+    async request( url, options, consume, budget ) {
         const controller = new AbortController();
-        const id = setTimeout( () => controller.abort(), this.timeout );
+        const id = setTimeout( () => controller.abort(), budget || this.timeout );
         try {
             const response = await fetch( url, {
                 ...options,
                 cache: 'no-store',
                 signal: controller.signal
             } );
+            return await consume( response );
+        } finally {
             clearTimeout( id );
-            return response;
-        } catch ( error ) {
-            clearTimeout( id );
-            throw error;
         }
     }
 
@@ -426,11 +439,12 @@ export class DataLoader {
         this.setPhase( 'checking' );
 
         try {
-            const response = await this.fetchWithTimeout( this.timestampUrl );
-            if ( ! response.ok ) {
-                throw new Error( `Timestamp fetch failed: ${ response.status } ${ response.statusText }` );
-            }
-            const newTimestamp = await response.text();
+            const newTimestamp = await this.request( this.timestampUrl, {}, async ( response ) => {
+                if ( ! response.ok ) {
+                    throw new Error( `Timestamp fetch failed: ${ response.status } ${ response.statusText }` );
+                }
+                return response.text();
+            } );
 
             this.lastCheckedAt = Date.now();
             this.lastError = null;
@@ -470,10 +484,26 @@ export class DataLoader {
             if ( this.cachedEtag && this.data ) {
                 options.headers = { 'If-None-Match': this.cachedEtag };
             }
-            const response = await this.fetchWithTimeout( this.dataUrl, options );
 
-            // 304 is not response.ok, so it has to be recognised before the error branch below.
-            if ( response.status === 304 && this.data ) {
+            // A longer deadline than the timestamp check gets. That one is 30 bytes and either
+            // arrives at once or not at all; this is ~100 KB, and over the kind of link this
+            // whole change exists for it can legitimately take much longer than nine seconds.
+            // Aborting a download that was about to succeed, over and over, is its own way of
+            // never loading anything.
+            const outcome = await this.request( this.dataUrl, options, async ( response ) => {
+                // 304 is not response.ok, so it has to be recognised before the error branch.
+                if ( response.status === 304 && this.data ) {
+                    return { notModified: true };
+                }
+                if ( ! response.ok ) {
+                    throw new Error( `Data fetch failed: ${ response.status } ${ response.statusText }` );
+                }
+                // text() and then parse, rather than json(): the text is what gets cached, so
+                // taking it this way avoids stringifying 1.2 MB again on every update.
+                return { text: await response.text(), etag: response.headers.get( 'ETag' ) };
+            }, this.dataTimeout );
+
+            if ( outcome.notModified ) {
                 this.cachedTimestamp = newTimestamp;
                 this.dataTime = this.parseTime( newTimestamp );
                 this.unconfirmed = false;
@@ -482,23 +512,21 @@ export class DataLoader {
                 return;
             }
 
-            if ( ! response.ok ) {
-                throw new Error( `Data fetch failed: ${ response.status } ${ response.statusText }` );
-            }
+            const newData = JSON.parse( outcome.text );
 
-            // text() and then parse, rather than json(): the text is what gets cached, so taking
-            // it this way avoids stringifying 1.2 MB again on every update.
-            const text = await response.text();
-            const newData = JSON.parse( text );
-
+            // The timestamp is committed here and nowhere earlier, and that ordering is the whole
+            // defence against the failure this was reported for. Recording it before the payload
+            // arrives marks a version as seen that was never received: every later check then
+            // finds the timestamp unchanged, skips the download, and the page stays empty for
+            // good -- through reload after reload, because the note outlives them.
             this.data = newData;
-            this.cachedEtag = response.headers.get( 'ETag' );
+            this.cachedEtag = outcome.etag;
             this.cachedTimestamp = newTimestamp;
             this.dataTime = this.parseTime( newTimestamp );
             this.lastChangedAt = Date.now();
             this.unconfirmed = false;
 
-            this.writeCache( text );
+            this.writeCache( outcome.text );
             // Notify subscribers only when new data is successfully loaded.
             this.notifySubscribers( this.data );
         } catch ( error ) {

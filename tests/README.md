@@ -66,6 +66,7 @@ in the locations it has historically lived — see `rm_push_library_available()`
 npm run test:pilot-selector                         # no WordPress needed, only a browser
 npm run test:live-resume                            # against https://racemanager.ddev.site
 npm run test:update-status                          # against https://racemanager.ddev.site
+npm run test:flaky-network                          # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -139,6 +140,39 @@ Its four groups are different kinds of claim, and the difference is the point:
 
 Run against the loader as it was before the change, the returning-visitor checks fail: it
 downloaded the full payload every time, 100,839 bytes.
+
+### `tests/e2e/flaky-network.cjs`
+
+The live app on a bad mobile link, and the only suite here written in response to something that
+happened at a real event rather than to something found while reading code.
+
+The report: for some spectators the app came up empty and **stayed** empty. Reloading did not
+help, reloading again did not help, and it came back only when the app was killed outright.
+
+The cause was an ordering mistake in the loader. It recorded the timestamp it had just fetched
+*before* downloading the payload that timestamp pointed at. When the download failed — which on a
+fading connection it does — that version was already marked as seen, so every later check found
+the timestamp unchanged and never asked for the data again. The note lived in `sessionStorage`,
+so it survived every reload and died only with the tab.
+
+Run against the pre-2026 loader this suite reports exactly that: `cachedTimestamp` set although
+the payload never arrived, `0` payload requests on each subsequent reload, and no standing on
+screen even with the network fully healthy again.
+
+Five things are covered, and the second was found *by writing this suite* rather than from the
+report:
+
+1. A payload that never arrives leaves nothing behind that suppresses the next attempt.
+2. A response whose body stalls after the headers does not wedge the loader either — a second way
+   into the same dead end, and the one a fading link produces most often. The abort deadline has
+   to cover the body read, not just the headers.
+3. Twelve rapid taps on the refresh control produce at most two requests.
+4. A slow but working link still delivers, and the payload gets a longer deadline than the 30-byte
+   timestamp check so that a download about to succeed is not cut off every time.
+5. With a warm cache, a total outage shows the last known standing rather than an empty page —
+   the difference between "the app is broken" and "the app is behind".
+
+Needs a race flagged live, like `update-status.cjs`.
 
 ### `tests/e2e/editor.cjs`
 

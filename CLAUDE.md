@@ -97,7 +97,8 @@ when any of that is missing.
 | `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, and that the console stays clean |
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback |
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
-| `npm run test:update-status` | the data path and the freshness line — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the line never claims freshness it does not have |
+| `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have |
+| `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |
 
 `test:update-status` needs a race that is flagged live (`ddev wp post meta update <id> _race_live
 1`), or the polling half of it has nothing to watch; it says so and carries on with the rest.
@@ -167,6 +168,19 @@ RotorHazard uploads the **whole** result JSON; the plugin writes it to two files
 browser polls the small one to decide whether to download the big one. The contract, its costs and
 what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read that before changing
 `js/rm-m-dataLoader.js`, `rm_write_files()` or the upload endpoint.
+
+**Two orderings in `js/rm-m-dataLoader.js` are load-bearing, and both were learned from a failure
+at a real event** — the app came up empty and stayed empty through reload after reload, and came
+back only when it was killed outright. Do not reorder either without reading the reasoning in
+`docs/data-flow.md`:
+
+- **The timestamp is committed only after the payload has arrived.** Recording it first marks a
+  version as seen that was never received, and every later check then skips the download.
+- **The abort deadline covers the body read, not just the headers.** A fading link delivers
+  headers and then stalls; a timer cleared too early leaves an in-flight flag set for ever, and
+  every later check returns at the guard that reads it.
+
+`tests/e2e/flaky-network.cjs` covers both, and fails against the pre-2026 loader.
 
 The browser cache lives in `localStorage` under `rm_data_{race_id}` with `rm_data_{race_id}_meta`
 beside it, and a write evicts every other race first — one payload is ~1.2 MB against an origin

@@ -85,6 +85,45 @@ loader is doing — checking, downloading, idle, how long since a check succeede
 failed — and [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js) is its only consumer, turning
 it into the pill floating at the foot of each view.
 
+### Two orderings that are load-bearing, and why
+
+Both were learned from a failure at a real event, on the pre-2026 code: for some spectators the
+app came up empty and **stayed** empty. Reloading did not help. Reloading again did not help. It
+came back only when the app was killed outright and reopened.
+
+**The timestamp is committed after the payload, never before.** The old loader wrote the new
+timestamp to `sessionStorage` and then downloaded the data it pointed at. When that download
+failed — which on a fading mobile link it does — the version was already marked as seen. Every
+later check found the timestamp unchanged, concluded there was nothing new, and never asked for
+the data again. The note outlived every reload and died only with the tab, which is exactly why
+only a hard kill helped.
+
+Reproduced against the old loader, blocking the payload and then restoring the network:
+
+| | payload requests | standing on screen |
+|---|---|---|
+| first load, payload blocked | 1, fails | — |
+| manual reload | **0** | — |
+| manual reload again | **0** | — |
+| reload with the network healthy again | **0** | **—** |
+| brand new tab | 1 | shown |
+
+**The deadline covers the body, not just the headers.** A fading link usually does not refuse the
+connection: the headers arrive and the body then stops coming. Clearing the abort timer once the
+response object exists — the obvious way to write it — leaves that read running for ever. The
+in-flight flag never clears, every later check returns at the guard that reads it, and the page is
+wedged in the same way, reached from the other side. `request()` therefore awaits the body read
+inside the timeout.
+
+The payload also gets a **longer** deadline than the timestamp check (30 s against 9 s). Thirty
+bytes and a hundred kilobytes do not deserve the same patience, and cutting off a download that
+was about to succeed, over and over, is its own way of never loading anything.
+
+[`tests/e2e/flaky-network.cjs`](../tests/e2e/flaky-network.cjs) holds all of this, including the
+part that matters most to a spectator: with a warm cache, losing the network costs freshness
+rather than the page. That is the difference between "the app is broken" and "the app is behind",
+and the freshness indicator is what makes it legible.
+
 Subscribers get the entire object and pick what they need:
 
 | Module | View | Reads |
