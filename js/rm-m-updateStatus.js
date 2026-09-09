@@ -89,7 +89,8 @@ class UpdateStatus {
 
         this.container.appendChild( this.dotEl );
         this.container.appendChild( this.textEl );
-        this.container.hidden = false;
+        // Left hidden. render() decides, because on a race that is not live the answer is
+        // usually "not at all" -- see isRelevant().
 
         dataLoaderInstance.onState( ( state ) => {
             this.noticeChange( state );
@@ -149,6 +150,12 @@ class UpdateStatus {
         if ( document.visibilityState === 'hidden' ) {
             return;
         }
+        // Nothing on screen has a relative time in it, so there is nothing to keep current. On a
+        // race that is not live this is the normal case, and a timer running all afternoon to
+        // re-render a hidden element would be the same waste L4 took out of the loader.
+        if ( this.container && this.container.hidden ) {
+            return;
+        }
         const busy = this.state && this.state.phase !== 'idle';
         const since = this.state && this.state.lastCheckedAt ? Date.now() - this.state.lastCheckedAt : 0;
         const every = busy || since < 60000 ? 1000 : 15000;
@@ -164,11 +171,16 @@ class UpdateStatus {
         }
         const view = describe( this.state, Date.now() );
         // Writing an unchanged string into a live region makes some screen readers announce it
-        // again, so nothing is touched unless it actually changed.
-        if ( this.lastRendered === view.text && this.container.dataset.tone === view.tone ) {
+        // again, so nothing is touched unless it actually changed. Visibility is part of that
+        // signature: the text can stay identical while the pill appears or disappears.
+        const signature = `${ view.visible }|${ view.tone }|${ view.text }`;
+        if ( this.lastRendered === signature ) {
             return;
         }
-        this.lastRendered = view.text;
+        this.lastRendered = signature;
+        // Revealed before the text is written, so the live region is already exposed when its
+        // content changes and a screen reader announces the arrival rather than missing it.
+        this.container.hidden = ! view.visible;
         this.container.dataset.tone = view.tone;
         this.textEl.textContent = view.text;
         if ( view.title ) {
@@ -216,14 +228,44 @@ export function formatElapsed( ms ) {
     return `${ hours } h ago`;
 }
 
+// Whether the pill belongs on screen at all.
+//
+// A live race is being watched, and reporting that watch is the whole job -- so it is always
+// there. A race that is not live is a different situation: the data is final, the loader will
+// not check again, and a permanent "From 17:18" is furniture rather than information.
+//
+// So for those it stays out of the way, and comes back only when the viewer might not be
+// looking at the newest state. That is a narrower condition than "something is unusual":
+//
+//   - A check that failed, or data that was never confirmed -- we do not know that what is on
+//     screen is what the timer finished with. Show it.
+//   - Being offline *after* a successful check is not a problem: the race is over, the data is
+//     final, and the viewer has it. Staying quiet there is the point of the rule.
+//   - Still loading is not a problem either, only a moment. A pill that appears and vanishes on
+//     every page load would be noise; if the load actually fails, the failure branch catches it.
+function isRelevant( state ) {
+    if ( state.refreshInterval ) {
+        return true;
+    }
+    if ( state.phase !== 'idle' ) {
+        return false;
+    }
+    return state.consecutiveFailures > 0 || ! state.hasData || state.unconfirmed;
+}
+
 // The whole state machine in one place, and pure, so it can be exercised without a browser.
-// Order matters: every branch below assumes the ones above it did not apply.
+// Returns what the pill says, and whether it is shown at all.
+export function describe( state, nowMs ) {
+    return Object.assign( classify( state, nowMs || Date.now() ), { visible: isRelevant( state ) } );
+}
+
+// What the pill says. Order matters: every branch below assumes the ones above it did not apply.
 //
 // The shape of each answer follows the design of the pill: while things are fine it says the
 // least it can and shows the data's own time, because that is what a viewer glances at. The
 // moment anything is wrong it spells the situation out and the check time moves into the text,
 // because that is then the number that answers the question being asked.
-export function describe( state, nowMs ) {
+function classify( state, nowMs ) {
     const now = nowMs || Date.now();
     const dataAt = formatDataTime( state.dataTime, new Date( now ) );
     const checked = state.lastCheckedAt ? formatElapsed( now - state.lastCheckedAt ) : null;

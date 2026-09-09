@@ -509,6 +509,12 @@ export class DataLoader {
             }
         } finally {
             this.isFetchingData = false;
+            // checkForUpdates() clears the phase in its own finally, but this method is also
+            // called straight from initialize() when the timestamp check left us with nothing.
+            // Without this, a failure on that path left the phase reading 'updating' for good --
+            // and on a race that is not live nothing ever runs again to correct it, so the
+            // indicator sat on "Loading race data..." instead of reporting the failure.
+            this.setPhase( 'idle' );
         }
     }
 }

@@ -162,6 +162,21 @@ const statusLine = ( page ) =>
 		line.tone === 'live' && /Up to date/.test( line.text || '' ),
 		`tone ${ line.tone }, text ${ line.text }` );
 
+	// The stylesheet sets display on the element, and an author style beats the browser's own
+	// [hidden] { display: none }. Without a rule restoring it, everything that hides the pill --
+	// which is how it ships from PHP, and how it spends its life on a race that is not live --
+	// silently does nothing.
+	const hiddenHeight = await page.evaluate( () => {
+		const container = document.getElementById( 'rm-update-status' );
+		const was = container.hidden;
+		container.hidden = true;
+		const height = container.getBoundingClientRect().height;
+		container.hidden = was;
+		return height;
+	} );
+	check( 'the hidden attribute really hides it', hiddenHeight === 0,
+		`${ hiddenHeight }px tall while hidden` );
+
 	const config = await page.evaluate( () => window.RmJsConfig && window.RmJsConfig.dataLoader );
 	if ( ! config || ! config.refreshInterval ) {
 		process.stdout.write(
@@ -305,6 +320,15 @@ const statusLine = ( page ) =>
 			sameDay: mod.formatDataTime( '2026-03-01 11:58:00', new Date( now ) ),
 			otherDay: mod.formatDataTime( '2026-02-24 11:58:00', new Date( now ) ),
 			nonsense: mod.formatDataTime( 'not a timestamp', new Date( now ) ),
+
+			// A race that is not live: refreshInterval 0, and nothing left to watch.
+			doneQuiet: at( { refreshInterval: 0 } ),
+			doneLoading: at( { refreshInterval: 0, phase: 'updating', hasData: false, lastCheckedAt: null } ),
+			doneChecking: at( { refreshInterval: 0, phase: 'checking' } ),
+			doneOffline: at( { refreshInterval: 0, online: false } ),
+			doneFailing: at( { refreshInterval: 0, consecutiveFailures: 2 } ),
+			doneUnconfirmed: at( { refreshInterval: 0, unconfirmed: true } ),
+			doneEmpty: at( { refreshInterval: 0, hasData: false, dataTime: null } ),
 		};
 	} );
 
@@ -339,6 +363,47 @@ const statusLine = ( page ) =>
 		table.otherDay === '2026-02-24 11:58', table.otherDay );
 	check( 'an unparseable timestamp yields nothing rather than a guess', table.nonsense === null,
 		String( table.nonsense ) );
+
+	// ------------------------------ 4b · a race that is not live shows nothing to say nothing
+	section( 'A finished race keeps quiet unless the data could not be loaded' );
+	check( 'while a race is live the pill is always there',
+		table.fresh.visible === true && table.checking.visible === true && table.stale.visible === true,
+		JSON.stringify( [ table.fresh.visible, table.checking.visible, table.stale.visible ] ) );
+	check( 'a finished race with confirmed data shows nothing',
+		table.doneQuiet.visible === false, JSON.stringify( table.doneQuiet ) );
+	check( 'nor while it is still loading -- that is a moment, not a problem',
+		table.doneLoading.visible === false && table.doneChecking.visible === false,
+		JSON.stringify( [ table.doneLoading, table.doneChecking ] ) );
+	// The narrow part of the rule: after a successful check the data is final, so having gone
+	// offline since does not mean the viewer is missing anything.
+	check( 'nor when the browser went offline after a successful check',
+		table.doneOffline.visible === false, JSON.stringify( table.doneOffline ) );
+	check( 'but a failed check brings it back',
+		table.doneFailing.visible === true && table.doneFailing.tone === 'error',
+		JSON.stringify( table.doneFailing ) );
+	check( 'so does data that was never confirmed',
+		table.doneUnconfirmed.visible === true, JSON.stringify( table.doneUnconfirmed ) );
+	check( 'and so does having no data at all',
+		table.doneEmpty.visible === true, JSON.stringify( table.doneEmpty ) );
+
+	// ------------------------------------- 4c · a load that never succeeds, end to end
+	section( 'A load that fails settles on the failure' );
+	// The phase used to be left reading 'updating' when the fetch inside initialize() threw,
+	// because only checkForUpdates() cleared it. The pill then sat on "Loading race data..."
+	// for good -- and on a race that is not live nothing ever runs again to correct it, so the
+	// one state a viewer most needs to see was the one state that never arrived.
+	const blockedCtx = await browser.newContext( { ignoreHTTPSErrors: true } );
+	const blocked = await blockedCtx.newPage();
+	await blocked.route( '**/uploads/races/**', ( route ) => route.abort() );
+	await blocked.goto( raceUrl, { waitUntil: 'networkidle' } );
+	await blocked.waitForTimeout( 1200 );
+	const blockedLine = await statusLine( blocked );
+	await blockedCtx.close();
+	check( 'it does not sit on "loading" forever',
+		blockedLine.tone !== 'busy', JSON.stringify( blockedLine ) );
+	check( 'it says the data could not be loaded',
+		blockedLine.tone === 'error' && blockedLine.hidden === false,
+		JSON.stringify( blockedLine ) );
 
 	// Taken before the offline section below, which makes the browser fail a request on purpose
 	// and so is meant to produce console output.

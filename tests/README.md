@@ -125,7 +125,13 @@ Its four groups are different kinds of claim, and the difference is the point:
 - **The state machine** runs against the exported, pure `describe()` over a table of states. That
   is why it is exported: offline, a failing check, unconfirmed data and an overdue check are all
   states that need a broken network to happen naturally, and every one of them has to fail to say
-  "up to date".
+  "up to date". The same table covers when the pill appears at all — on a race that is not live it
+  stays hidden, including while it loads and including when the browser goes offline *after* a
+  successful check, and comes back only when the data could not be loaded.
+- **Two things a pure function cannot catch**, both found by looking at a browser rather than at a
+  result line, and both now guarded here: that the `hidden` attribute actually hides the element
+  (the stylesheet sets `display`, which beats the browser's own `[hidden]` rule), and that a load
+  which never succeeds settles on the failure instead of sitting on "Loading race data…" for good.
 - **The saving** is measured in bytes off the wire, with a **persistent browser profile**. A fresh
   Playwright context is a first-ever visit and would prove nothing; only a profile that survives a
   browser restart reproduces what a returning viewer does. First visit ~100 KB, coming back ~111

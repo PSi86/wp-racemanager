@@ -154,8 +154,22 @@ Three things about the built version differ from the sketch below:
   Each is shown as what it is. The data time is read out of the string and never converted, so a
   timestamp from another day carries its date rather than showing a bare `17:18` that would look
   current.
-- **A race that is not flagged live makes no freshness claim at all.** There is no next check to
-  promise, so the line says when the data was made and stops there.
+- **A race that is not flagged live shows nothing at all**, unless the data could not be loaded.
+  There is no next check to promise, the result is final, and a permanent "From 17:18" is
+  furniture rather than information. The rule is deliberately narrower than "something is
+  unusual", and the two exclusions are the interesting part:
+
+  | On a race that is not live | | Why |
+  |---|---|---|
+  | data loaded and confirmed | hidden | the viewer has the final standing; there is nothing to say |
+  | still loading | hidden | a moment, not a problem — appearing and vanishing on every load is noise |
+  | **offline after a successful check** | **hidden** | the race is over and the data is final: being offline now costs the viewer nothing |
+  | a check that failed | shown | we do not know that this is what the timer finished with |
+  | data never confirmed | shown | same reason |
+  | no data at all | shown | there is nothing on the page either |
+
+  This lives in `isRelevant()` next to `describe()`, so it is pure and covered by the same table
+  of states rather than being scattered through the rendering.
 
 The decision table below is what the code implements; the state machine is the pure `describe()`
 function, exported so `tests/e2e/update-status.cjs` can walk every branch without needing a broken

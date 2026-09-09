@@ -33,6 +33,16 @@
  * which is right, because without JavaScript nothing polls.
  */
 
+/**
+ * Must come first, and must be here at all: the display below is an author style and
+ * therefore beats the browser's own `[hidden] { display: none }`. Without this the
+ * element stays on screen while carrying the attribute -- which is how it ships from
+ * PHP, and how it spends most of its life on a race that is not live.
+ */
+.rm-update-status[ hidden ] {
+	display: none;
+}
+
 .rm-update-status {
 	/* Custom properties so a tone only has to restate what it changes. */
 	--rm-status-ink: #57606a;

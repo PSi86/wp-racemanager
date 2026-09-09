@@ -32,7 +32,7 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
 | `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. Two channels out: `subscribe()` for the data, `onState()` for what the loader is doing. |
-| `js/rm-m-updateStatus.js` | The freshness pill floating at the foot of every live view — the only consumer of `onState()`. Its `describe()` is pure and exported so the state machine can be tested without a broken network. `rm_update_status_markup()` emits it **once per page**, not once per shortcode. |
+| `js/rm-m-updateStatus.js` | The freshness pill floating at the foot of every live view — the only consumer of `onState()`. `describe()` is pure and exported so the state machine can be tested without a broken network, and `isRelevant()` beside it decides whether the pill appears at all: on a race that is **not** flagged live it stays hidden unless the data could not be loaded. `rm_update_status_markup()` emits it **once per page**, not once per shortcode. |
 
 ## How the live area works
 
