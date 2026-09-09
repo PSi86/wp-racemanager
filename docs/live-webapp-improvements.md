@@ -220,9 +220,41 @@ Proposed: `css/rm-live-nav.css`, enqueued on live pages only, mobile first —
 - the freshness indicator from L5 living in that same bar;
 - the burger overlay's items sized for a thumb rather than a mouse.
 
-**To do this properly I need the rendered markup**, since the classes come from the theme: the
-navigation block's HTML on a live page at phone width, or a screenshot. I could not fetch
-copterrace.com from this session — the sandbox blocks it.
+**Measured** on 2026-09-09, `https://copterrace.com/live/bracket/?race_id=2402` in headless
+Chromium at 390 × 844 CSS pixels, `isMobile`, `hasTouch`. Production runs the **Frost** theme; the
+local environment runs Twenty Twenty-Five, so the local site is not a proving ground for this.
+
+What is actually there:
+
+| | |
+|---|---|
+| Navigation container | `<nav class="is-responsive items-justified-right no-wrap nav-live-area wp-block-navigation">` — there is already a `nav-live-area` class to hang a rule on |
+| The four view links | in the DOM, **0 × 0 px, not visible**. Every view switch goes through the burger |
+| Burger overlay | six items — Home, Select Race, Pilots, Bracket, Stats, Next up — right-aligned, **32 px tall**, 18 px font, no marking of the current view, and roughly the lower 60 % of the overlay empty |
+| Header | 88 px tall, `position: static` — it scrolls away, so nothing is reachable once you are down in the bracket |
+| Page width | 390 px document against a 390 px viewport: no horizontal page scroll, the bracket has its own scroll container |
+
+And the plugin's own controls on that page, which the entry above did not account for:
+
+| Element | Size | |
+|---|---|---|
+| `.web-controls` | 380 × 73 px | the row holding both controls |
+| `#pilotSelector` | 165 × 29 px | below the 44 px minimum |
+| `#filterCheckbox` | **13 × 13 px** | far below it, and the label is not wired as a tap target |
+
+So the concrete problems, in the order they hurt:
+
+1. **Switching views costs three taps** — burger, item, close — because the links collapse to
+   nothing. This is the one the proposed segment row fixes.
+2. **Nothing is sticky.** The bracket is long; once scrolled, there is no way back to the
+   navigation or to the pilot filter without scrolling to the top.
+3. **Three tap targets are under 44 px**, the checkbox drastically so at 13 px.
+4. **The current view is not marked** anywhere, in the overlay or outside it.
+
+A note found on the way: production still serves the **old** URL form. `/live/bracket/?race_id=2402`
+answers 200 while `/live/winter-whooprace-2025/bracket/` answers 404, so the path-based router
+(finding B1) has never been deployed there. That is direct evidence for step 1 of the next-steps
+list below, not an assumption.
 
 ### Pilot dropdown (D1) · resolved
 
@@ -270,9 +302,12 @@ now in the local environment (see [`development-setup.md`](development-setup.md)
 
    That plugin is a project of its own and wants its own review pass.
 
-3. **What does the live navigation actually render on a phone?** — **still open**, but no longer
-   unanswerable: production is reachable now and the Playwright setup in `tests/e2e/` can load it
-   at a phone viewport. L9 needs someone to do that and read the theme's classes off it.
+3. **What does the live navigation actually render on a phone?** — **answered**, measured at
+   390 × 844 against production. The four view links collapse to 0 × 0 and every view switch goes
+   through the burger; the overlay's items are 32 px tall with no current-view marking; the header
+   does not stick; and the plugin's own `#filterCheckbox` is a 13 × 13 px tap target. The full
+   measurement is in the L9 entry above, including the theme (**Frost**, against Twenty
+   Twenty-Five locally) and the class names to write against.
 
 4. **How many people watch a race at once?** — **up to 32 pilots take part**, so viewers are that
    order of magnitude plus spectators: tens, not thousands. At ~100 KB per viewer per heat that is
@@ -296,7 +331,9 @@ In order, and each one is a self-contained piece of work:
    body. Plugin side only, no protocol change, no RotorHazard change.
 4. **L5 + L4 together**, in the local environment. They are one state machine, and browser
    devtools can simulate the bad network they exist for; a live race cannot be paused to test.
-5. **L9**, once someone has looked at the phone-width markup — question 3.
+5. **L9** — now unblocked, and the measurement says it is worth more than its P1 rating
+   suggested: on a phone the live area is effectively a single view unless the visitor knows to
+   open the burger.
 6. **L7**, and then **L8** with it. Both are now unblocked, and designing them together is the
    point: the uploader already speaks in the sections L7 would split the file into.
 
