@@ -1,13 +1,14 @@
 # Test suites
 
-Two of them, and they answer different questions.
+Two runners, and they answer different questions.
 
 **`php tests/run.php`** is the one to reach for: plain PHP, no framework, no WordPress
 installation required, so it runs anywhere and it is fast.
 
-**`npm run test:e2e`** and **`npm run test:pilot-selector`** use a real browser, because some
-behaviour is what the DOM does rather than what the source says. They are deliberately kept out of
-the PHP runner — see [Browser checks](#browser-checks) at the end.
+**`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`** and
+**`test:update-status`** use a real browser, because some behaviour is what the DOM, the network
+and the browser's own storage do rather than what the source says. They are deliberately kept out
+of the PHP runner — see [Browser checks](#browser-checks) at the end.
 
 ```
 php tests/run.php            # everything
@@ -64,13 +65,14 @@ in the locations it has historically lived — see `rm_push_library_available()`
 ```bash
 npm run test:pilot-selector                         # no WordPress needed, only a browser
 npm run test:live-resume                            # against https://racemanager.ddev.site
+npm run test:update-status                          # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
 ```
 
-Both run through Playwright, and both skip rather than fail when Playwright or its Chromium is
-missing.
+All four run through Playwright, and all four skip rather than fail when Playwright or its
+Chromium is missing.
 
 ### `tests/e2e/pilot-selector.cjs`
 
@@ -103,6 +105,34 @@ is a race page". It covers: a race page storing itself; the selection page reach
 marker still offering the stored race *and* marking it in the list; the selection page reached
 *with* the marker marking that race and not also offering it; the marker keeping the stored entry
 in step; and `?resume=1` going straight through.
+
+### `tests/e2e/update-status.cjs`
+
+`js/rm-m-dataLoader.js` and `js/rm-m-updateStatus.js` — where the cache goes, how the polling
+loop schedules itself, and what the freshness line is willing to claim. Needs a started site with
+a race that has result data; the polling half additionally needs that race flagged live
+(`ddev wp post meta update <id> _race_live 1`), and says so rather than failing when it is not.
+
+Its four groups are different kinds of claim, and the difference is the point:
+
+- **The cache** is checked by looking at `localStorage` directly: the payload under its prefixed
+  key, the metadata beside it, nothing left in `sessionStorage`, another race evicted on demand —
+  and `rm_last_race`, which belongs to `js/rm-live-resume.js`, still there afterwards. That last
+  one guards a prefix that is one careless character away from sweeping up the resume entry.
+- **The scheduling** is exercised by calling `scheduleNext()` and `currentDelay()` directly rather
+  than by waiting out real intervals: twelve delays all within ±20 % and not all equal, the
+  backoff doubling to its cap, and a hidden page scheduling nothing at all.
+- **The state machine** runs against the exported, pure `describe()` over a table of states. That
+  is why it is exported: offline, a failing check, unconfirmed data and an overdue check are all
+  states that need a broken network to happen naturally, and every one of them has to fail to say
+  "up to date".
+- **The saving** is measured in bytes off the wire, with a **persistent browser profile**. A fresh
+  Playwright context is a first-ever visit and would prove nothing; only a profile that survives a
+  browser restart reproduces what a returning viewer does. First visit ~100 KB, coming back ~111
+  bytes.
+
+Run against the loader as it was before the change, the returning-visitor checks fail: it
+downloaded the full payload every time, 100,839 bytes.
 
 ### `tests/e2e/editor.cjs`
 

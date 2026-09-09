@@ -1,0 +1,230 @@
+// rm-m-updateStatus.js
+// The line that answers "am I looking at the current standing, or is my phone stuck?".
+//
+// It renders nothing of the race itself. It reports what js/rm-m-dataLoader.js is doing, which is
+// the one thing no table on the page can show: a stale ranking looks exactly like a current one.
+//
+// Two different times matter and both are shown wherever both are known:
+//
+//   - when the data was produced -- the wall clock the timer wrote into the timestamp file
+//   - when we last asked         -- a clock reading from this browser
+//
+// Conflating those is what makes a status line untrustworthy. "Updated 3 seconds ago" is a lie
+// when it means "we asked 3 seconds ago and got the same half-hour-old file back".
+//
+// The times are also not comparable, and that is why they are never subtracted from one another:
+// the data time is site-local wall clock with no timezone in it (PHP current_time('mysql')), while
+// the check time comes from the visitor's own clock. Displaying each as what it is stays honest
+// even when the two clocks disagree; arithmetic across them would not.
+
+import { dataLoaderInstance } from './rm-m-dataLoader.js';
+
+const DEFAULT_CONTAINER_ID = 'rm-update-status';
+
+// After three missed intervals the data is old enough that saying "up to date" would be a claim
+// rather than an observation.
+const STALE_AFTER_INTERVALS = 3;
+
+class UpdateStatus {
+    constructor() {
+        const config = ( window.RmJsConfig && window.RmJsConfig[ 'updateStatus' ] ) || {};
+        this.containerId = config.containerId || DEFAULT_CONTAINER_ID;
+
+        this.container = null;
+        this.textEl = null;
+        this.dotEl = null;
+        this.tickTimer = null;
+        this.state = null;
+        this.lastRendered = null;
+
+        if ( document.readyState === 'loading' ) {
+            document.addEventListener( 'DOMContentLoaded', () => this.mount() );
+        } else {
+            this.mount();
+        }
+    }
+
+    mount() {
+        this.container = document.getElementById( this.containerId );
+        if ( ! this.container ) {
+            // The shortcodes emit the container. A page without one simply has no status line,
+            // which is a fine outcome and not worth an error.
+            return;
+        }
+
+        this.dotEl = document.createElement( 'span' );
+        this.dotEl.className = 'rm-update-status__dot';
+        this.dotEl.setAttribute( 'aria-hidden', 'true' );
+
+        this.textEl = document.createElement( 'span' );
+        this.textEl.className = 'rm-update-status__text';
+        // polite, not assertive: the standing updating is worth announcing, but never worth
+        // interrupting whatever the visitor is reading at that moment.
+        this.textEl.setAttribute( 'role', 'status' );
+        this.textEl.setAttribute( 'aria-live', 'polite' );
+
+        // A separate button rather than a clickable line: the line is a live region, and making a
+        // live region also the control muddles both. The button is what a keyboard reaches.
+        this.buttonEl = document.createElement( 'button' );
+        this.buttonEl.type = 'button';
+        this.buttonEl.className = 'rm-update-status__refresh';
+        this.buttonEl.textContent = 'Refresh';
+        this.buttonEl.setAttribute( 'aria-label', 'Check for new race data now' );
+        this.buttonEl.addEventListener( 'click', () => dataLoaderInstance.checkNow() );
+
+        this.container.appendChild( this.dotEl );
+        this.container.appendChild( this.textEl );
+        this.container.appendChild( this.buttonEl );
+        this.container.hidden = false;
+
+        dataLoaderInstance.onState( ( state ) => {
+            this.state = state;
+            this.render();
+            this.scheduleTick();
+        } );
+
+        // The relative time keeps moving while nothing else does, so it needs its own tick -- but
+        // only while anyone can see it.
+        document.addEventListener( 'visibilitychange', () => {
+            if ( document.visibilityState === 'visible' ) {
+                this.render();
+                this.scheduleTick();
+            } else {
+                this.clearTick();
+            }
+        } );
+
+        this.scheduleTick();
+    }
+
+    clearTick() {
+        if ( this.tickTimer ) {
+            clearTimeout( this.tickTimer );
+            this.tickTimer = null;
+        }
+    }
+
+    // One timer, and a slow one once the numbers stop moving quickly. A second-by-second interval
+    // running all afternoon on a phone is exactly the kind of thing L4 removed from the loader.
+    scheduleTick() {
+        this.clearTick();
+        if ( document.visibilityState === 'hidden' ) {
+            return;
+        }
+        const busy = this.state && this.state.phase !== 'idle';
+        const since = this.state && this.state.lastCheckedAt ? Date.now() - this.state.lastCheckedAt : 0;
+        const every = busy || since < 60000 ? 1000 : 15000;
+        this.tickTimer = setTimeout( () => {
+            this.render();
+            this.scheduleTick();
+        }, every );
+    }
+
+    render() {
+        if ( ! this.textEl || ! this.state ) {
+            return;
+        }
+        const view = describe( this.state, Date.now() );
+        // Writing an unchanged string into a live region makes some screen readers announce it
+        // again, so nothing is touched unless it actually changed.
+        if ( this.lastRendered === view.text && this.container.dataset.tone === view.tone ) {
+            return;
+        }
+        this.lastRendered = view.text;
+        this.container.dataset.tone = view.tone;
+        this.textEl.textContent = view.text;
+        if ( view.title ) {
+            this.container.setAttribute( 'title', view.title );
+        } else {
+            this.container.removeAttribute( 'title' );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------- formatting
+
+// Site-local wall clock, "2025-12-14 17:18:16", with no timezone in it -- so it is read, never
+// converted. Same calendar day as the viewer's: just the time. Another day: the date as well,
+// because "17:18" on its own would look current when it is a week old.
+export function formatDataTime( raw, now ) {
+    if ( typeof raw !== 'string' ) {
+        return null;
+    }
+    const match = raw.match( /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/ );
+    if ( ! match ) {
+        return null;
+    }
+    const [ , year, month, day, hour, minute ] = match;
+    const today = now || new Date();
+    const sameDay = today.getFullYear() === Number( year ) &&
+        today.getMonth() + 1 === Number( month ) &&
+        today.getDate() === Number( day );
+    return sameDay ? `${ hour }:${ minute }` : `${ year }-${ month }-${ day } ${ hour }:${ minute }`;
+}
+
+export function formatElapsed( ms ) {
+    const seconds = Math.max( 0, Math.round( ms / 1000 ) );
+    if ( seconds < 10 ) {
+        return 'just now';
+    }
+    if ( seconds < 60 ) {
+        return `${ seconds } s ago`;
+    }
+    const minutes = Math.round( seconds / 60 );
+    if ( minutes < 60 ) {
+        return `${ minutes } min ago`;
+    }
+    const hours = Math.round( minutes / 60 );
+    return `${ hours } h ago`;
+}
+
+// The whole state machine in one place, and pure, so it can be exercised without a browser.
+// Order matters: every branch above assumes the ones before it did not apply.
+export function describe( state, nowMs ) {
+    const now = nowMs || Date.now();
+    const dataAt = formatDataTime( state.dataTime, new Date( now ) );
+    const from = dataAt ? `Data from ${ dataAt }` : 'No data yet';
+    const checked = state.lastCheckedAt ? formatElapsed( now - state.lastCheckedAt ) : null;
+    const title = dataAt && state.dataTime ? `Race data produced ${ state.dataTime }` : null;
+
+    // In flight. These beat everything below because they describe right now, not a moment ago.
+    if ( state.phase === 'updating' ) {
+        return { tone: 'busy', text: state.hasData ? 'Loading new data...' : 'Loading race data...', title };
+    }
+    if ( state.phase === 'checking' ) {
+        return { tone: 'busy', text: state.hasData ? `${ from } - checking...` : 'Checking...', title };
+    }
+
+    // Known-bad. Never show a freshness claim on top of a failing check.
+    if ( ! state.online ) {
+        return { tone: 'error', text: state.hasData ? `Offline - ${ from.toLowerCase() }` : 'Offline', title };
+    }
+    if ( state.consecutiveFailures > 0 ) {
+        const detail = checked ? `last reached ${ checked }` : 'not reachable';
+        return { tone: 'error', text: state.hasData ? `${ from } - ${ detail }` : `Cannot load data - ${ detail }`, title };
+    }
+
+    if ( ! state.hasData ) {
+        return { tone: 'idle', text: 'No data yet', title: null };
+    }
+
+    // On screen, but nobody has confirmed it yet -- this is what a cold start out of the cache
+    // looks like for the moment before the first check answers.
+    if ( state.unconfirmed ) {
+        return { tone: 'warn', text: `${ from } - not checked yet`, title };
+    }
+
+    // The race is over, or was never flagged live: there is no next check to promise, so no
+    // freshness is claimed either. What is shown is when the data was made.
+    if ( ! state.refreshInterval ) {
+        return { tone: 'idle', text: checked ? `${ from } - checked ${ checked }` : from, title };
+    }
+
+    if ( state.lastCheckedAt && now - state.lastCheckedAt > state.refreshInterval * STALE_AFTER_INTERVALS ) {
+        return { tone: 'warn', text: `${ from } - last checked ${ checked }`, title };
+    }
+
+    return { tone: 'live', text: `Up to date - checked ${ checked || 'just now' }`, title };
+}
+
+export const updateStatusInstance = new UpdateStatus();

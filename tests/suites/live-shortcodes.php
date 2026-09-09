@@ -16,6 +16,12 @@ function wp_register_script_module( string $id, string $src, array $deps = array
 function wp_enqueue_script_module( string $id, string $src = '', array $deps = array(), $version = false, array $args = array() ) {
     $GLOBALS['rm_modules_enqueued'][] = $id;
 }
+// Recording rather than the no-op in stubs/wordpress.php: the status line's markup and its
+// stylesheet have to travel together, and this suite is where that is checked. Defined here on
+// purpose -- the stubs guard every definition with function_exists(), so this one wins.
+function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
+    $GLOBALS['rm_styles_enqueued'][ $handle ] = $src;
+}
 
 function get_post_meta( $id, $key, $single = false ) { return '_race_live' === $key ? '1' : ''; }
 function wp_upload_dir() {
@@ -29,6 +35,7 @@ function rm_get_vapid() { return array( 'publicKey' => 'TESTPUBKEY', 'privateKey
 
 $GLOBALS['rm_modules_registered'] = array();
 $GLOBALS['rm_modules_enqueued']   = array();
+$GLOBALS['rm_styles_enqueued']    = array();
 $GLOBALS['rm_options'] = array( 'rm_live_page_id' => 7, 'admin_email' => 'race@example.test' );
 
 require_once RM_TEST_DIR . '/stubs/wordpress.php';
@@ -47,6 +54,7 @@ require_once RM_PLUGIN_DIR . '/includes/livepage-handler.php';
 $GLOBALS['rm_query_vars']['rm_race'] = 'spring-cup-2026';
 
 rm_test_section( 'Every shortcode renders without a fatal' );
+$rendered = array();
 foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortcode', 'rm_nextup_shortcode' ) as $fn ) {
     $html  = '';
     $error = '';
@@ -55,6 +63,7 @@ foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortc
     } catch ( \Throwable $e ) {
         $error = get_class( $e ) . ': ' . $e->getMessage();
     }
+    $rendered[ $fn ] = $html;
     rm_test_check(
         $fn,
         '' === $error && is_string( $html ) && '' !== $html && ! str_contains( $html, 'No race selected' ),
@@ -63,15 +72,42 @@ foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortc
 }
 
 rm_test_section( 'Modules registered and enqueued' );
-$expected = array( 'rm-pilot-stats', 'rm-displayHeats', 'rm-stats', 'rm-nextUp' );
-rm_test_check( 'all four registered',
+// One view module per shortcode, plus rm-updateStatus, which every shortcode asks for and which
+// is therefore registered once, when the first of them renders. The list is compared in order so
+// that a module quietly appearing or disappearing shows up here rather than in a browser.
+$expected = array( 'rm-pilot-stats', 'rm-updateStatus', 'rm-displayHeats', 'rm-stats', 'rm-nextUp' );
+rm_test_check( 'the five view modules are registered, in order',
     $expected === array_keys( $GLOBALS['rm_modules_registered'] ),
     implode( ', ', array_keys( $GLOBALS['rm_modules_registered'] ) ) );
-rm_test_check( 'all four enqueued', $expected === $GLOBALS['rm_modules_enqueued'] );
+// Enqueued once per shortcode that wants it: the four view modules once each, rm-updateStatus
+// four times. WordPress deduplicates that; what matters here is that no shortcode skips it.
+rm_test_check( 'and every one of them is enqueued',
+    $expected === array_values( array_unique( $GLOBALS['rm_modules_enqueued'] ) ),
+    implode( ', ', $GLOBALS['rm_modules_enqueued'] ) );
+rm_test_check( 'all four shortcodes enqueue the status module',
+    4 === count( array_keys( $GLOBALS['rm_modules_enqueued'], 'rm-updateStatus', true ) ),
+    implode( ', ', $GLOBALS['rm_modules_enqueued'] ) );
 foreach ( $GLOBALS['rm_modules_registered'] as $id => $module ) {
     rm_test_check( "$id passes no classic script handles as module deps", array() === $module['deps'],
         implode( ',', array_map( 'strval', $module['deps'] ) ) );
 }
+
+rm_test_section( 'The freshness line is wired into every live view' );
+// The container, the module and the stylesheet come from one helper precisely so that they
+// cannot drift apart. A view that emits the container without the stylesheet would show an
+// unstyled bar; one that emits it without the module would show an empty one forever.
+foreach ( $rendered as $fn => $html ) {
+    rm_test_check( "$fn emits the status container",
+        str_contains( $html, 'id="rm-update-status"' ), substr( $html, 0, 120 ) );
+}
+rm_test_check( 'the container starts hidden, for the no-JavaScript case',
+    str_contains( $rendered['rm_bracket_shortcode'], 'id="rm-update-status"' ) &&
+    preg_match( '/<div id="rm-update-status"[^>]*\shidden\b/', $rendered['rm_bracket_shortcode'] ) === 1,
+    $rendered['rm_bracket_shortcode'] );
+rm_test_check( 'the stylesheet travels with it',
+    isset( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'] ) &&
+    str_contains( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'], 'css/rm-update-status.css' ),
+    implode( ', ', array_keys( $GLOBALS['rm_styles_enqueued'] ) ) );
 
 rm_test_section( 'JS configuration reaches the head' );
 ob_start();

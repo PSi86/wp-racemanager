@@ -1,0 +1,114 @@
+/**
+ * The freshness line above the live views.
+ *
+ * js/rm-m-updateStatus.js fills the container the four live shortcodes emit and sets
+ * data-tone on it. Everything here hangs off that attribute, so the module decides what
+ * the state is and this file only decides what it looks like.
+ *
+ * Deliberately restrained: this sits above someone else's theme on both production
+ * (Frost) and locally (Twenty Twenty-Five). It borrows the theme's font and colour and
+ * adds nothing but a dot and a size, so it cannot clash with a theme it has never seen.
+ *
+ * The container carries the `hidden` attribute in the markup and the module removes it.
+ * Without JavaScript there is no polling and so nothing truthful to say, and an empty
+ * bar would be worse than none.
+ */
+
+.rm-update-status {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	flex-wrap: wrap;
+	margin: 0 0 0.75em;
+	font-size: 0.8125rem;
+	line-height: 1.4;
+	opacity: 0.85;
+}
+
+.rm-update-status__dot {
+	flex: 0 0 auto;
+	width: 0.55em;
+	height: 0.55em;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.rm-update-status__text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.rm-update-status__refresh {
+	flex: 0 0 auto;
+	padding: 0.15em 0.7em;
+	font: inherit;
+	font-size: 0.95em;
+	color: inherit;
+	background: transparent;
+	border: 1px solid currentColor;
+	border-radius: 999px;
+	opacity: 0.75;
+	cursor: pointer;
+}
+
+.rm-update-status__refresh:hover,
+.rm-update-status__refresh:focus-visible {
+	opacity: 1;
+}
+
+/*
+ * Colour is the secondary signal, never the only one: each tone also reads differently in
+ * words, so the line still works in greyscale and for a red-green colour deficiency.
+ */
+
+.rm-update-status[data-tone="live"] {
+	color: #1a7f37;
+}
+
+.rm-update-status[data-tone="busy"] {
+	color: #57606a;
+}
+
+.rm-update-status[data-tone="busy"] .rm-update-status__dot {
+	animation: rm-update-status-pulse 1.2s ease-in-out infinite;
+}
+
+.rm-update-status[data-tone="warn"] {
+	color: #9a6700;
+}
+
+.rm-update-status[data-tone="error"] {
+	color: #b3261e;
+}
+
+.rm-update-status[data-tone="idle"] {
+	color: inherit;
+	opacity: 0.7;
+}
+
+@keyframes rm-update-status-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.25; }
+}
+
+/* A pulsing dot is decoration; for anyone who asked not to see motion it is just a dot. */
+@media (prefers-reduced-motion: reduce) {
+	.rm-update-status[data-tone="busy"] .rm-update-status__dot {
+		animation: none;
+	}
+}
+
+/* Dark themes: the light-background tones lose their contrast, so lift them. */
+@media (prefers-color-scheme: dark) {
+	.rm-update-status[data-tone="live"] {
+		color: #4ac26b;
+	}
+
+	.rm-update-status[data-tone="warn"] {
+		color: #e3b341;
+	}
+
+	.rm-update-status[data-tone="error"] {
+		color: #ff8a80;
+	}
+}

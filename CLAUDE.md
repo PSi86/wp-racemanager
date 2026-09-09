@@ -31,7 +31,8 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/rest-handler.php` | The REST endpoints RotorHazard talks to. |
 | `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
-| `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. |
+| `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. Two channels out: `subscribe()` for the data, `onState()` for what the loader is doing. |
+| `js/rm-m-updateStatus.js` | The freshness line above every live view — the only consumer of `onState()`. Its `describe()` is pure and exported so the state machine can be tested without a broken network. |
 
 ## How the live area works
 
@@ -87,10 +88,19 @@ npm run test:e2e       # the block editor, in a real browser
 dependencies and skip themselves cleanly — see `tests/README.md`. Add a suite by dropping a file
 in `tests/suites/`.
 
-`tests/e2e/editor.cjs` is separate on purpose: it needs a started DDEV site, `node_modules` and a
-Chromium, and it covers what PHP cannot reach — that the blocks survive the editor's iframe, that
-`race-gallery`'s media modal still opens, and that the console stays clean. It skips rather than
-fails when any of that is missing.
+The `tests/e2e/*.cjs` suites are separate on purpose: they need a started DDEV site,
+`node_modules` and a Chromium, and they cover what PHP cannot reach. Each skips rather than fails
+when any of that is missing.
+
+| Suite | Covers |
+|---|---|
+| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, and that the console stays clean |
+| `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback |
+| `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
+| `npm run test:update-status` | the data path and the freshness line — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the line never claims freshness it does not have |
+
+`test:update-status` needs a race that is flagged live (`ddev wp post meta update <id> _race_live
+1`), or the polling half of it has nothing to watch; it says so and carries on with the rest.
 
 **When changing the live routing, run `php tests/run.php live` and make sure `live-links` does
 not skip** — that suite needs a WordPress checkout, and it is the one that would catch a
@@ -157,6 +167,12 @@ RotorHazard uploads the **whole** result JSON; the plugin writes it to two files
 browser polls the small one to decide whether to download the big one. The contract, its costs and
 what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read that before changing
 `js/rm-m-dataLoader.js`, `rm_write_files()` or the upload endpoint.
+
+The browser cache lives in `localStorage` under `rm_data_{race_id}` with `rm_data_{race_id}_meta`
+beside it, and a write evicts every other race first — one payload is ~1.2 MB against an origin
+budget of a few megabytes. The `rm_data_` prefix is what eviction matches; `rm_last_race` belongs
+to `js/rm-live-resume.js` and must survive it. `storageKey` in the config stays the **bare race
+id** because three view modules build their own keys and `data-race-id` attributes out of it.
 
 ## Known open items
 

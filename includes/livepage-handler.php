@@ -80,6 +80,50 @@ function rm_add_js_module_config( array $config ) {
 }
 
 /**
+ * The freshness line the four live views share.
+ *
+ * Returns the container js/rm-m-updateStatus.js fills, and enqueues that module together with
+ * its stylesheet. Markup, script and styles travel together on purpose: three of the four live
+ * shortcodes load css/rm_viewer.css and rm_stats does not, so hanging the styles off an existing
+ * sheet would have left one view unstyled.
+ *
+ * The container is emitted `hidden` and the module removes that once it has something to say.
+ * Without JavaScript nothing polls, so there is no honest status to report, and an empty bar
+ * would be worse than no bar.
+ *
+ * Both this module and the view's own module import js/rm-m-dataLoader.js relatively. The two
+ * specifiers resolve to the same URL, so the browser instantiates the loader once and the
+ * singleton stays a singleton -- which is what lets the status line report on the very same
+ * loader the tables are fed by.
+ *
+ * @return string Markup, ready to be echoed inside a shortcode's output buffer.
+ */
+function rm_update_status_markup() {
+    wp_enqueue_style(
+        'rm-update-status-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-update-status.css',
+        array(),
+        '1.0.0'
+    );
+
+    wp_register_script_module(
+        'rm-updateStatus',
+        plugin_dir_url( __DIR__ ) . 'js/rm-m-updateStatus.js',
+        array(), // the loader is a relative import inside the module, as in every other view
+        '1.0.0'
+    );
+    wp_enqueue_script_module( 'rm-updateStatus' );
+
+    rm_add_js_module_config( array(
+        'updateStatus' => [
+            'containerId' => 'rm-update-status',
+        ],
+    ) );
+
+    return '<div id="rm-update-status" class="rm-update-status" hidden></div>';
+}
+
+/**
  * Shortcode to display pilots data.
  * Usage: [rm_pilots]
  */
@@ -122,6 +166,7 @@ function rm_pilots_shortcode( $atts ) {
 
     ob_start();
     ?>
+        <?php echo rm_update_status_markup(); ?>
         <!-- <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
             <select id="pilotSelector">
@@ -183,6 +228,7 @@ function rm_bracket_shortcode( $atts ) {
 
   ob_start();
   ?>
+        <?php echo rm_update_status_markup(); ?>
         <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
             <select id="pilotSelector">
@@ -239,6 +285,7 @@ function rm_stats_shortcode( $atts ) {
 
     ob_start();
     ?>
+        <?php echo rm_update_status_markup(); ?>
         <!-- <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
             <select id="pilotSelector">
@@ -310,6 +357,7 @@ function rm_nextup_shortcode( $atts ) {
 
     ob_start();
     ?>
+    <?php echo rm_update_status_markup(); ?>
     <div id="nextup-display" class="raceclass-container"></div>
     <div id="ranking-container"></div>
     <div id="pilot-push-container">
