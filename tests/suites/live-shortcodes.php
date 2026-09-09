@@ -116,6 +116,32 @@ rm_test_check( 'the stylesheet travels with it',
     str_contains( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'], 'css/rm-update-status.css' ),
     implode( ', ', array_keys( $GLOBALS['rm_styles_enqueued'] ) ) );
 
+rm_test_section( 'The pilot filter, on the bracket view and now on the stats view' );
+// Both halves have to be present for either to be useful: the dropdown marks a pilot, the
+// checkbox drops the rest. js/rm-m-displayStats.js reads both by the ids below.
+foreach ( array( 'rm_bracket_shortcode', 'rm_stats_shortcode' ) as $fn ) {
+    rm_test_check( "$fn offers the pilot dropdown",
+        str_contains( $rendered[ $fn ], 'id="pilotSelector"' ), substr( $rendered[ $fn ], 0, 200 ) );
+    rm_test_check( "$fn offers the filter checkbox",
+        str_contains( $rendered[ $fn ], 'id="filterCheckbox"' ), substr( $rendered[ $fn ], 0, 200 ) );
+}
+// The controls sit in .web-controls, which is styled in rm_viewer.css. The stats view was the
+// only live view not loading that sheet, which is why the markup could not simply be uncommented
+// -- the controls would have rendered unstyled. The row marking lives in the same file.
+rm_test_check( 'the stats view loads the stylesheet those controls need',
+    isset( $GLOBALS['rm_styles_enqueued']['rm-sc-viewer-css'] ) &&
+    str_contains( $GLOBALS['rm_styles_enqueued']['rm-sc-viewer-css'], 'css/rm_viewer.css' ),
+    implode( ', ', array_keys( $GLOBALS['rm_styles_enqueued'] ) ) );
+// The pilots view deliberately has neither: displayPilotStats never imported pilotSelector, and
+// its own table is already one row per pilot. Its markup for the controls is still there but
+// commented out, so the comments have to come off before asking -- checking the raw string finds
+// the ids inside the comment and passes for the wrong reason.
+$pilots_live = preg_replace( '/<!--.*?-->/s', '', $rendered['rm_pilots_shortcode'] );
+rm_test_check( 'the pilots view still has no active filter, which is deliberate',
+    ! str_contains( $pilots_live, 'id="filterCheckbox"' ) &&
+    ! str_contains( $pilots_live, 'id="pilotSelector"' ),
+    $pilots_live );
+
 // Two live shortcodes on one page is a real configuration -- the pilot stats above the bracket --
 // and it is the same case rm_add_js_module_config() exists for. A second element would duplicate
 // the id and, because the indicator is positioned fixed, stack a second pill on the first.

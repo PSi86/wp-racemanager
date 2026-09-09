@@ -297,3 +297,42 @@ input:disabled {
         position: static;
     }
 }
+
+/*
+ * The pilot filter on the stats view.
+ *
+ * Two levels, the same two the bracket view offers. Choosing a pilot in the dropdown marks
+ * their row in every leaderboard they appear in; ticking "Filter by Selected Pilot" drops
+ * everyone else. js/rm-m-displayStats.js sets .selected-pilot on the matching row.
+ *
+ * Marking rather than dimming everyone else, which is what the bracket does to its race
+ * nodes. There, several of many nodes are relevant and greying the rest works. In a
+ * leaderboard exactly one row in twenty is relevant, so dimming would turn the table grey
+ * to pick out a single line -- and a position only means anything read against the ones
+ * around it, which is precisely what a grey table takes away.
+ */
+
+.leaderboard tr.selected-pilot {
+    background-color: #fff4cc;
+    font-weight: 700;
+}
+
+.leaderboard tr.selected-pilot td:first-child {
+    box-shadow: inset 0.2em 0 0 0 #bf8700;
+}
+
+.rm-no-filter-results {
+    margin: 1em 0;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard tr.selected-pilot {
+        background-color: #3a2f10;
+    }
+
+    .leaderboard tr.selected-pilot td:first-child {
+        box-shadow: inset 0.2em 0 0 0 #d29922;
+    }
+}

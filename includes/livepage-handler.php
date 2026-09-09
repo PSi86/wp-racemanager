@@ -273,8 +273,15 @@ function rm_stats_shortcode( $atts ) {
     }
 
     wp_enqueue_style(
-        'rm-sc-rotorhazard-css', 
+        'rm-sc-rotorhazard-css',
         plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css'
+    );
+    // The pilot filter's controls are styled in rm_viewer.css (.web-controls), along with the
+    // marking of the selected pilot's row. This view was the only live one not loading that
+    // sheet, which is why the controls could not simply be uncommented.
+    wp_enqueue_style(
+        'rm-sc-viewer-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
     );
     wp_register_script_module(
         'rm-stats',
@@ -300,7 +307,7 @@ function rm_stats_shortcode( $atts ) {
     ob_start();
     ?>
         <?php echo rm_update_status_markup(); ?>
-        <!-- <div class="web-controls">
+        <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
             <select id="pilotSelector">
                 <option value="0">-- Select a Pilot --</option>
@@ -308,7 +315,7 @@ function rm_stats_shortcode( $atts ) {
             <label>
                 <input type="checkbox" id="filterCheckbox"> Filter by Selected Pilot
             </label>
-        </div> -->
+        </div>
         <div id="results" class="js-container"></div>
     <?php
     return ob_get_clean();
