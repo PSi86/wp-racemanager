@@ -6,9 +6,10 @@
 //
 // Two jobs:
 //   1. On a race page, store that race.
-//   2. On the selection page opened with ?resume=1 (the PWA start URL), go straight back to
-//      the stored race. Without a stored race, or without JavaScript, the selection list is
-//      shown -- which is the correct fallback either way.
+//   2. On the selection page, mark the race the visitor was on and offer to go back to it --
+//      or go straight there when opened with ?resume=1 (the PWA start URL). Without a stored
+//      race, or without JavaScript, the plain selection list is shown, which is the correct
+//      fallback either way.
 
 ( function () {
     var STORAGE_KEY = 'rm_last_race';
@@ -33,21 +34,60 @@
         }
     }
 
-    // 1. On a race page: remember it.
-    if ( config.raceUrl && config.raceSlug ) {
+    // The server fills these in whenever it can resolve a race at all, so having them does not
+    // mean this is a race page.
+    function remember() {
+        if ( ! config.raceUrl || ! config.raceSlug ) {
+            return;
+        }
         write( {
             url: config.raceUrl,
             slug: config.raceSlug,
             title: config.raceTitle || '',
             seen: Date.now()
         } );
+    }
+
+    // Add the marking the server puts on the entry when the URL names a race, for the case where
+    // it could not: the list links to each race's default view, while the visitor may have been
+    // on another one, so the race slug is what gets compared and not the whole URL.
+    function markCurrent( list, slug ) {
+        if ( ! slug ) {
+            return;
+        }
+        var items = list.querySelectorAll( '.race-select-item' );
+        for ( var i = 0; i < items.length; i++ ) {
+            var link = items[ i ].querySelector( 'a[href]' );
+            if ( ! link ) {
+                continue;
+            }
+            var path;
+            try {
+                path = new URL( link.href, window.location.origin ).pathname;
+            } catch ( e ) {
+                continue;
+            }
+            if ( path.split( '/' ).indexOf( slug ) !== -1 ) {
+                items[ i ].classList.add( 'is-current' );
+                link.setAttribute( 'aria-current', 'true' );
+                return;
+            }
+        }
+    }
+
+    // Which page is this? isSelection is the authoritative answer. Asking "did the server give me
+    // a race?" first was the bug: the header's link back to the selection page carries the race as
+    // ?rm_race=<slug>, so the selection page resolves one too. It therefore took the race-page
+    // branch, stored the race, returned -- and never offered to resume, which is why arriving with
+    // the marker and arriving without it behaved like two different features.
+    if ( ! config.isSelection ) {
+        remember();
         return;
     }
 
-    // 2. On the selection page: resume if asked to.
-    if ( ! config.isSelection ) {
-        return;
-    }
+    // On the selection page the marker still says where the visitor came from, so the stored
+    // entry is kept in step with it before anything is offered.
+    remember();
 
     var stored = read();
     if ( ! stored || ! stored.url ) {
@@ -63,10 +103,19 @@
         return;
     }
 
-    // Otherwise offer it, rather than redirecting behind the visitor's back.
     document.addEventListener( 'DOMContentLoaded', function () {
         var list = document.querySelector( '.race-select-list' );
-        if ( ! list || ! stored.title ) {
+        if ( ! list ) {
+            return;
+        }
+
+        // The page must look the same whether the race came from the URL or from storage, so
+        // nothing here is conditional on the source. Marking an entry the server already marked
+        // is a no-op, and the offer is made in both cases rather than only when the URL was
+        // silent -- suppressing it in one of the two was itself an inconsistency.
+        markCurrent( list, stored.slug );
+
+        if ( ! stored.title ) {
             return;
         }
 

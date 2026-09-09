@@ -1,0 +1,20 @@
+/**
+ * Race list — marking the race the visitor came from.
+ *
+ * includes/block-render-race-select.php sets .is-current on that entry and
+ * aria-current="true" on its link, and js/rm-live-resume.js sets the same pair
+ * when only the browser knows which race it was. Either way the entry looks the
+ * same, which is the point: the presentation must not depend on where the
+ * information came from.
+ *
+ * Weight only. An earlier version put a filled dot in front of the name, which
+ * read as a second bullet next to the list's own marker rather than as emphasis.
+ *
+ * Deliberately narrow: nothing but the current entry is touched, so the list
+ * keeps whatever the active theme gives it. This has to hold under Frost on
+ * production and Twenty Twenty-Five locally, and under whatever comes next.
+ */
+
+.race-select-item.is-current {
+	font-weight: 700;
+}
