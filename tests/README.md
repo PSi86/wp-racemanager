@@ -109,7 +109,7 @@ in step; and `?resume=1` going straight through.
 ### `tests/e2e/update-status.cjs`
 
 `js/rm-m-dataLoader.js` and `js/rm-m-updateStatus.js` — where the cache goes, how the polling
-loop schedules itself, and what the freshness line is willing to claim. Needs a started site with
+loop schedules itself, and what the freshness pill is willing to claim. Needs a started site with
 a race that has result data; the polling half additionally needs that race flagged live
 (`ddev wp post meta update <id> _race_live 1`), and says so rather than failing when it is not.
 

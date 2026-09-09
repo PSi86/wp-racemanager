@@ -58,6 +58,10 @@ $rendered = array();
 foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortcode', 'rm_nextup_shortcode' ) as $fn ) {
     $html  = '';
     $error = '';
+    // Each shortcode here stands for its own page request, so the once-per-request flag on the
+    // status indicator is reset between them. Rendering four in one process is an artefact of
+    // this suite; on a real site each of these is a separate load.
+    $GLOBALS['rm_update_status_emitted'] = false;
     try {
         $html = $fn( array() );
     } catch ( \Throwable $e ) {
@@ -92,22 +96,37 @@ foreach ( $GLOBALS['rm_modules_registered'] as $id => $module ) {
         implode( ',', array_map( 'strval', $module['deps'] ) ) );
 }
 
-rm_test_section( 'The freshness line is wired into every live view' );
-// The container, the module and the stylesheet come from one helper precisely so that they
-// cannot drift apart. A view that emits the container without the stylesheet would show an
-// unstyled bar; one that emits it without the module would show an empty one forever.
+rm_test_section( 'The freshness indicator is wired into every live view' );
+// The element, the module and the stylesheet come from one helper precisely so that they cannot
+// drift apart. A view that emits the element without the stylesheet would show an unstyled
+// button in the middle of the page; one that emits it without the module would show an empty
+// pill forever.
 foreach ( $rendered as $fn => $html ) {
-    rm_test_check( "$fn emits the status container",
+    rm_test_check( "$fn emits the indicator",
         str_contains( $html, 'id="rm-update-status"' ), substr( $html, 0, 120 ) );
 }
-rm_test_check( 'the container starts hidden, for the no-JavaScript case',
-    str_contains( $rendered['rm_bracket_shortcode'], 'id="rm-update-status"' ) &&
-    preg_match( '/<div id="rm-update-status"[^>]*\shidden\b/', $rendered['rm_bracket_shortcode'] ) === 1,
+rm_test_check( 'it is a button, so the whole pill can force a check',
+    preg_match( '/<button[^>]+id="rm-update-status"/', $rendered['rm_bracket_shortcode'] ) === 1,
+    $rendered['rm_bracket_shortcode'] );
+rm_test_check( 'and it starts hidden, for the no-JavaScript case',
+    preg_match( '/<button[^>]+id="rm-update-status"[^>]*\shidden\b/', $rendered['rm_bracket_shortcode'] ) === 1,
     $rendered['rm_bracket_shortcode'] );
 rm_test_check( 'the stylesheet travels with it',
     isset( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'] ) &&
     str_contains( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'], 'css/rm-update-status.css' ),
     implode( ', ', array_keys( $GLOBALS['rm_styles_enqueued'] ) ) );
+
+// Two live shortcodes on one page is a real configuration -- the pilot stats above the bracket --
+// and it is the same case rm_add_js_module_config() exists for. A second element would duplicate
+// the id and, because the indicator is positioned fixed, stack a second pill on the first.
+$GLOBALS['rm_update_status_emitted'] = false;
+$one_page = rm_pilots_shortcode( array() ) . rm_bracket_shortcode( array() );
+rm_test_check( 'two shortcodes on one page emit exactly one indicator',
+    1 === substr_count( $one_page, 'id="rm-update-status"' ),
+    substr_count( $one_page, 'id="rm-update-status"' ) . ' found' );
+rm_test_check( 'and the second shortcode still asks for the module',
+    in_array( 'rm-updateStatus', $GLOBALS['rm_modules_enqueued'], true ),
+    implode( ', ', $GLOBALS['rm_modules_enqueued'] ) );
 
 rm_test_section( 'JS configuration reaches the head' );
 ob_start();

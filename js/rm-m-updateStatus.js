@@ -1,21 +1,27 @@
 // rm-m-updateStatus.js
-// The line that answers "am I looking at the current standing, or is my phone stuck?".
+// The pill at the foot of the live views, answering "am I looking at the current standing, or is
+// my phone stuck?".
 //
 // It renders nothing of the race itself. It reports what js/rm-m-dataLoader.js is doing, which is
 // the one thing no table on the page can show: a stale ranking looks exactly like a current one.
 //
-// Two different times matter and both are shown wherever both are known:
+// Two different times matter and both are kept, but only one is ever in the pill:
 //
 //   - when the data was produced -- the wall clock the timer wrote into the timestamp file
 //   - when we last asked         -- a clock reading from this browser
 //
 // Conflating those is what makes a status line untrustworthy. "Updated 3 seconds ago" is a lie
-// when it means "we asked 3 seconds ago and got the same half-hour-old file back".
+// when it means "we asked 3 seconds ago and got the same half-hour-old file back". So the pill
+// shows whichever one the current state makes relevant -- the data time while things are fine,
+// the check time as soon as they are not -- and the other one lives in the title attribute.
 //
 // The times are also not comparable, and that is why they are never subtracted from one another:
-// the data time is site-local wall clock with no timezone in it (PHP current_time('mysql')), while
-// the check time comes from the visitor's own clock. Displaying each as what it is stays honest
-// even when the two clocks disagree; arithmetic across them would not.
+// the data time is site-local wall clock with no timezone in it (PHP current_time('mysql')),
+// while the check time comes from the visitor's own clock. Displaying each as what it is stays
+// honest even when the two clocks disagree; arithmetic across them would not.
+//
+// The element is a <button> and the whole pill is the control: tapping it forces a check, which
+// is the only honest answer to "is it stuck?".
 
 import { dataLoaderInstance } from './rm-m-dataLoader.js';
 
@@ -24,6 +30,10 @@ const DEFAULT_CONTAINER_ID = 'rm-update-status';
 // After three missed intervals the data is old enough that saying "up to date" would be a claim
 // rather than an observation.
 const STALE_AFTER_INTERVALS = 3;
+
+// Long enough to notice out of the corner of an eye, short enough not to be a distraction while
+// a heat is running. Must match the animation in css/rm-update-status.css.
+const CHANGED_FLASH_MS = 1600;
 
 class UpdateStatus {
     constructor() {
@@ -34,8 +44,10 @@ class UpdateStatus {
         this.textEl = null;
         this.dotEl = null;
         this.tickTimer = null;
+        this.flashTimer = null;
         this.state = null;
         this.lastRendered = null;
+        this.seenChangeAt = null;
 
         if ( document.readyState === 'loading' ) {
             document.addEventListener( 'DOMContentLoaded', () => this.mount() );
@@ -47,10 +59,16 @@ class UpdateStatus {
     mount() {
         this.container = document.getElementById( this.containerId );
         if ( ! this.container ) {
-            // The shortcodes emit the container. A page without one simply has no status line,
+            // The shortcodes emit it, once per page. A page without one simply has no indicator,
             // which is a fine outcome and not worth an error.
             return;
         }
+
+        // Emptied rather than appended to. A module evaluated twice -- two URLs for the same file
+        // that differ only in a query string is enough, and that is exactly what a version
+        // parameter is -- would otherwise stack a second dot and a second sentence inside the
+        // same pill, each rendered by its own instance.
+        this.container.textContent = '';
 
         this.dotEl = document.createElement( 'span' );
         this.dotEl.className = 'rm-update-status__dot';
@@ -63,28 +81,25 @@ class UpdateStatus {
         this.textEl.setAttribute( 'role', 'status' );
         this.textEl.setAttribute( 'aria-live', 'polite' );
 
-        // A separate button rather than a clickable line: the line is a live region, and making a
-        // live region also the control muddles both. The button is what a keyboard reaches.
-        this.buttonEl = document.createElement( 'button' );
-        this.buttonEl.type = 'button';
-        this.buttonEl.className = 'rm-update-status__refresh';
-        this.buttonEl.textContent = 'Refresh';
-        this.buttonEl.setAttribute( 'aria-label', 'Check for new race data now' );
-        this.buttonEl.addEventListener( 'click', () => dataLoaderInstance.checkNow() );
+        // A fixed label rather than the changing text: the button's job does not change even
+        // though its contents do. The state itself is announced through the live region above,
+        // so a screen reader hears both without hearing either twice.
+        this.container.setAttribute( 'aria-label', 'Check for new race data now' );
+        this.container.addEventListener( 'click', () => dataLoaderInstance.checkNow() );
 
         this.container.appendChild( this.dotEl );
         this.container.appendChild( this.textEl );
-        this.container.appendChild( this.buttonEl );
         this.container.hidden = false;
 
         dataLoaderInstance.onState( ( state ) => {
+            this.noticeChange( state );
             this.state = state;
             this.render();
             this.scheduleTick();
         } );
 
-        // The relative time keeps moving while nothing else does, so it needs its own tick -- but
-        // only while anyone can see it.
+        // The relative time keeps moving while nothing else does, so it needs its own tick --
+        // but only while anyone can see it.
         document.addEventListener( 'visibilitychange', () => {
             if ( document.visibilityState === 'visible' ) {
                 this.render();
@@ -95,6 +110,29 @@ class UpdateStatus {
         } );
 
         this.scheduleTick();
+    }
+
+    // New data landed. Not the first load -- arriving at a page is not an update, and flashing at
+    // someone the moment they get there would train them to ignore it.
+    noticeChange( state ) {
+        const previous = this.seenChangeAt;
+        this.seenChangeAt = state.lastChangedAt;
+        if ( previous === null || previous === undefined || state.lastChangedAt === previous ) {
+            return;
+        }
+        if ( ! this.container ) {
+            return;
+        }
+        this.container.classList.remove( 'is-changed' );
+        // Reading offsetWidth restarts the animation; without it a second change inside the
+        // window would not replay it.
+        void this.container.offsetWidth;
+        this.container.classList.add( 'is-changed' );
+        clearTimeout( this.flashTimer );
+        this.flashTimer = setTimeout(
+            () => this.container.classList.remove( 'is-changed' ),
+            CHANGED_FLASH_MS
+        );
     }
 
     clearTick() {
@@ -179,29 +217,46 @@ export function formatElapsed( ms ) {
 }
 
 // The whole state machine in one place, and pure, so it can be exercised without a browser.
-// Order matters: every branch above assumes the ones before it did not apply.
+// Order matters: every branch below assumes the ones above it did not apply.
+//
+// The shape of each answer follows the design of the pill: while things are fine it says the
+// least it can and shows the data's own time, because that is what a viewer glances at. The
+// moment anything is wrong it spells the situation out and the check time moves into the text,
+// because that is then the number that answers the question being asked.
 export function describe( state, nowMs ) {
     const now = nowMs || Date.now();
     const dataAt = formatDataTime( state.dataTime, new Date( now ) );
-    const from = dataAt ? `Data from ${ dataAt }` : 'No data yet';
     const checked = state.lastCheckedAt ? formatElapsed( now - state.lastCheckedAt ) : null;
-    const title = dataAt && state.dataTime ? `Race data produced ${ state.dataTime }` : null;
+
+    // Whichever time is not in the text ends up here, so nothing is ever lost -- only demoted.
+    const title = [
+        state.dataTime ? `Race data produced ${ state.dataTime }` : null,
+        checked ? `last successful check ${ checked }` : null,
+    ].filter( Boolean ).join( ' · ' ) || null;
 
     // In flight. These beat everything below because they describe right now, not a moment ago.
     if ( state.phase === 'updating' ) {
-        return { tone: 'busy', text: state.hasData ? 'Loading new data...' : 'Loading race data...', title };
+        return { tone: 'busy', text: state.hasData ? 'Loading new data…' : 'Loading race data…', title };
     }
     if ( state.phase === 'checking' ) {
-        return { tone: 'busy', text: state.hasData ? `${ from } - checking...` : 'Checking...', title };
+        return { tone: 'busy', text: 'Checking…', title };
     }
 
     // Known-bad. Never show a freshness claim on top of a failing check.
     if ( ! state.online ) {
-        return { tone: 'error', text: state.hasData ? `Offline - ${ from.toLowerCase() }` : 'Offline', title };
+        return {
+            tone: 'error',
+            text: dataAt ? `Offline · data from ${ dataAt }` : 'Offline',
+            title,
+        };
     }
     if ( state.consecutiveFailures > 0 ) {
         const detail = checked ? `last reached ${ checked }` : 'not reachable';
-        return { tone: 'error', text: state.hasData ? `${ from } - ${ detail }` : `Cannot load data - ${ detail }`, title };
+        return {
+            tone: 'error',
+            text: dataAt ? `From ${ dataAt } · ${ detail }` : `Cannot load data · ${ detail }`,
+            title,
+        };
     }
 
     if ( ! state.hasData ) {
@@ -211,20 +266,20 @@ export function describe( state, nowMs ) {
     // On screen, but nobody has confirmed it yet -- this is what a cold start out of the cache
     // looks like for the moment before the first check answers.
     if ( state.unconfirmed ) {
-        return { tone: 'warn', text: `${ from } - not checked yet`, title };
+        return { tone: 'warn', text: `From ${ dataAt } · not checked yet`, title };
     }
 
     // The race is over, or was never flagged live: there is no next check to promise, so no
     // freshness is claimed either. What is shown is when the data was made.
     if ( ! state.refreshInterval ) {
-        return { tone: 'idle', text: checked ? `${ from } - checked ${ checked }` : from, title };
+        return { tone: 'idle', text: `From ${ dataAt }`, title };
     }
 
     if ( state.lastCheckedAt && now - state.lastCheckedAt > state.refreshInterval * STALE_AFTER_INTERVALS ) {
-        return { tone: 'warn', text: `${ from } - last checked ${ checked }`, title };
+        return { tone: 'warn', text: `From ${ dataAt } · last checked ${ checked }`, title };
     }
 
-    return { tone: 'live', text: `Up to date - checked ${ checked || 'just now' }`, title };
+    return { tone: 'live', text: `Up to date · ${ dataAt }`, title };
 }
 
 export const updateStatusInstance = new UpdateStatus();

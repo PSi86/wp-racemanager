@@ -81,14 +81,23 @@ const statusLine = ( page ) =>
 			return { present: false };
 		}
 		const text = container.querySelector( '.rm-update-status__text' );
-		const button = container.querySelector( '.rm-update-status__refresh' );
+		const style = getComputedStyle( container );
+		const box = container.getBoundingClientRect();
 		return {
 			present: true,
 			hidden: container.hidden,
 			tone: container.dataset.tone || null,
 			text: text ? text.textContent : null,
 			live: text ? text.getAttribute( 'aria-live' ) : null,
-			hasButton: !! button,
+			// The whole pill is the control, so there is no separate button to look for.
+			tag: container.tagName,
+			label: container.getAttribute( 'aria-label' ),
+			position: style.position,
+			// Distance from the pill's bottom edge to the bottom of the viewport.
+			fromBottom: Math.round( window.innerHeight - box.bottom ),
+			duplicates: document.querySelectorAll( '#rm-update-status, .rm-update-status' ).length,
+			dots: container.querySelectorAll( '.rm-update-status__dot' ).length,
+			texts: container.querySelectorAll( '.rm-update-status__text' ).length,
 		};
 	} );
 
@@ -131,14 +140,24 @@ const statusLine = ( page ) =>
 	await page.goto( raceUrl, { waitUntil: 'networkidle' } );
 	await page.waitForTimeout( 500 );
 
-	// ---------------------------------------------------------- 1 · the line is there
-	section( 'The freshness line' );
+	// ------------------------------------------------------- 1 · the indicator is there
+	section( 'The freshness indicator' );
 	const line = await statusLine( page );
-	check( 'the container is rendered and revealed', line.present && line.hidden === false,
+	check( 'it is rendered and revealed', line.present && line.hidden === false,
 		JSON.stringify( line ) );
 	check( 'it says something', !! line.text, JSON.stringify( line ) );
 	check( 'it is a polite live region', line.live === 'polite', `aria-live: ${ line.live }` );
-	check( 'it offers a way to force a check', line.hasButton === true );
+	check( 'the whole pill is the control', line.tag === 'BUTTON' && !! line.label,
+		`<${ line.tag }> aria-label: ${ line.label }` );
+	check( 'it floats at the foot of the viewport rather than sitting in the flow',
+		line.position === 'fixed' && line.fromBottom >= 0 && line.fromBottom < 80,
+		`position ${ line.position }, ${ line.fromBottom }px from the bottom` );
+	check( 'there is exactly one of it', line.duplicates === 1, `${ line.duplicates } found` );
+	// A second evaluation of the module -- two URLs for the same file differing only by a query
+	// string is enough -- used to stack a second dot and sentence inside the same pill. It read
+	// as a rendering bug and was invisible to every check that only counted elements.
+	check( 'and it holds one dot and one sentence, not two',
+		line.dots === 1 && line.texts === 1, `${ line.dots } dots, ${ line.texts } texts` );
 	check( 'after a successful check it reads as current',
 		line.tone === 'live' && /Up to date/.test( line.text || '' ),
 		`tone ${ line.tone }, text ${ line.text }` );
@@ -258,8 +277,13 @@ const statusLine = ( page ) =>
 	// ------------------------------------------- 4 · what the line says, over every state
 	section( 'What the line says (the pure state machine)' );
 	const table = await page.evaluate( async () => {
-		const tag = document.querySelector( 'script[type="module"][src*="rm-m-"]' );
-		const mod = await import( new URL( './rm-m-updateStatus.js', tag.src ).href );
+		// Its own script tag, query string and all. WordPress appends ?ver= to what it enqueues,
+		// and a URL that differs only by a query is a different module to the browser -- importing
+		// the bare path here would construct a second UpdateStatus that mounts into the same
+		// element. (The loader is a different case: the modules import it relatively, so the
+		// unversioned path really is the URL the page used.)
+		const tag = document.querySelector( 'script[type="module"][src*="rm-m-updateStatus"]' );
+		const mod = await import( tag.src );
 		const now = new Date( '2026-03-01T12:00:00' ).getTime();
 		const base = {
 			phase: 'idle', online: true, hasData: true, unconfirmed: false,

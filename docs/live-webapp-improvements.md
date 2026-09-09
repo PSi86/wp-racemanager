@@ -116,10 +116,33 @@ have produced three requests in one instant. There is a two-second minimum gap b
 *(Explicitly wanted, and the one improvement every viewer sees.)*
 
 **Done**, as [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js) plus
-`css/rm-update-status.css`, rendered into a container all four live shortcodes emit through one
-helper (`rm_update_status_markup()`) so that markup, module and stylesheet cannot drift apart.
-The container ships `hidden` and the module reveals it: without JavaScript nothing polls, so
-there is nothing truthful to say and an empty bar would be worse than none.
+`css/rm-update-status.css`: a **pill floating at the foot of the viewport**, emitted by all four
+live shortcodes through one helper (`rm_update_status_markup()`) so that markup, module and
+stylesheet cannot drift apart. It ships `hidden` and the module reveals it — without JavaScript
+nothing polls, so there is nothing truthful to say and an empty pill would be worse than none.
+
+The first attempt was a text line in the flow above each view. It worked and looked like an
+afterthought, which for the one improvement every viewer sees is not good enough.
+
+What the form is doing:
+
+- **Quiet at rest, loud at the problem.** While things are current the text is grey and says the
+  least it can — `Up to date · 17:18`. Every other state takes a tinted surface, its own colour
+  and a fuller sentence, and is allowed to wrap. Nobody has to tap it to learn something is wrong.
+- **The quiet is in the ink, never in the element's opacity.** Dimming the pill dims its surface
+  with it, and a half-transparent panel over a bracket full of pilot names is illegible — it reads
+  as a rendering fault rather than as restraint. That was the first version of this stylesheet and
+  the screenshot is what caught it.
+- **No `backdrop-filter`.** Unevenly supported, a compositing layer on exactly the phones this has
+  to be cheap on, and leaning on it for legibility makes the fallback the unreadable case.
+- **Bottom centre, not bottom right**, where back-to-top buttons, chat bubbles and cookie banners
+  live. Below 26 rem it spans the width instead, which is easier to hit with a thumb.
+  `env(safe-area-inset-bottom)` keeps it off the iPhone home indicator.
+- **The whole pill is the button.** Tapping forces a check, which is the only honest answer to
+  "is it stuck?".
+- **Emitted once per page, not once per shortcode.** Two live shortcodes on one page is a real
+  configuration — the same one `rm_add_js_module_config()` exists for — and a second element would
+  both duplicate the id and stack a second pill on the first.
 
 Three things about the built version differ from the sketch below:
 
@@ -263,7 +286,11 @@ Proposed: `css/rm-live-nav.css`, enqueued on live pages only, mobile first —
   the burger menu;
 - tap targets of at least 44 px, and `padding-bottom: env(safe-area-inset-bottom)` so the
   installed PWA does not put controls under the home indicator;
-- the freshness indicator from L5 living in that same bar;
+- ~~the freshness indicator from L5 living in that same bar~~ — **decide this again when L9 is
+  built.** L5 shipped as a pill floating at the foot of the viewport, which is where a sticky view
+  switcher would also want to be. Two floating elements stacked on the bottom edge is worse than
+  either alone, so it is one or the other: either the switcher takes the bottom and the indicator
+  moves into it, or the switcher goes under the header and the indicator stays where it is.
 - the burger overlay's items sized for a thumb rather than a mouse.
 
 **Measured** on 2026-09-09, `https://copterrace.com/live/bracket/?race_id=2402` in headless

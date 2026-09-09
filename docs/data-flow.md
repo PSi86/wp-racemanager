@@ -83,7 +83,7 @@ fails falls back to running without a cache rather than failing the page.
 `onState()` is the second channel out of the loader, alongside `subscribe()`. It reports what the
 loader is doing — checking, downloading, idle, how long since a check succeeded, how many have
 failed — and [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js) is its only consumer, turning
-it into the line above each view.
+it into the pill floating at the foot of each view.
 
 Subscribers get the entire object and pick what they need:
 

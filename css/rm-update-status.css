@@ -1,89 +1,159 @@
 /**
- * The freshness line above the live views.
+ * The freshness indicator: a pill floating at the foot of the live views.
  *
- * js/rm-m-updateStatus.js fills the container the four live shortcodes emit and sets
- * data-tone on it. Everything here hangs off that attribute, so the module decides what
- * the state is and this file only decides what it looks like.
+ * js/rm-m-updateStatus.js fills the element the shortcodes emit and sets data-tone on
+ * it. Everything here hangs off that attribute, so the module decides what the state is
+ * and this file only decides what it looks like.
  *
- * Deliberately restrained: this sits above someone else's theme on both production
- * (Frost) and locally (Twenty Twenty-Five). It borrows the theme's font and colour and
- * adds nothing but a dot and a size, so it cannot clash with a theme it has never seen.
+ * Two ideas carry the design, and both are about attention rather than decoration:
  *
- * The container carries the `hidden` attribute in the markup and the module removes it.
- * Without JavaScript there is no polling and so nothing truthful to say, and an empty
- * bar would be worse than none.
+ *   - **Quiet when it has nothing to report.** At rest the text is grey and says the
+ *     least it can. It is ambient information, not a notice.
+ *   - **It grows into the problem.** Every state that is not "current" takes a tinted
+ *     surface, its own colour and a fuller sentence. Nothing has to be tapped to find
+ *     out that something is wrong -- which is the entire reason the indicator exists.
+ *
+ * **The quiet is in the ink, never in the element's opacity.** Dimming the whole pill
+ * dims its background with it, and a half-transparent surface over a bracket full of
+ * pilot names is illegible -- it reads as a rendering fault rather than as restraint.
+ * The surface therefore stays opaque and only the text colour changes.
+ *
+ * There is deliberately no backdrop-filter. It is unevenly supported, it costs a
+ * compositing layer on exactly the phones this has to be cheap on, and leaning on it
+ * for legibility means the fallback is the unreadable case. A solid surface and a real
+ * shadow do the same job everywhere.
+ *
+ * Bottom centre, not bottom right: back-to-top buttons, chat bubbles and cookie banners
+ * all live in the right corner, and this has to survive a theme it has never seen. It
+ * floats rather than reserving a row, so it never pushes a theme's layout around, and
+ * it clears the iPhone home indicator via env(safe-area-inset-bottom).
+ *
+ * The element is a <button>: the whole pill is the control. It ships with the `hidden`
+ * attribute and the module removes it, so without JavaScript there is nothing at all --
+ * which is right, because without JavaScript nothing polls.
  */
 
 .rm-update-status {
-	display: flex;
+	/* Custom properties so a tone only has to restate what it changes. */
+	--rm-status-ink: #57606a;
+	--rm-status-dot: #8c959f;
+	--rm-status-surface: #fff;
+	--rm-status-edge: rgba( 0, 0, 0, 0.14 );
+	--rm-status-shadow: 0 1px 2px rgba( 0, 0, 0, 0.07 ), 0 6px 18px rgba( 0, 0, 0, 0.13 );
+
+	position: fixed;
+	left: 50%;
+	bottom: calc( 0.9rem + env( safe-area-inset-bottom, 0px ) );
+	transform: translateX( -50% );
+	z-index: 1200;
+
+	display: inline-flex;
 	align-items: center;
 	gap: 0.5em;
-	flex-wrap: wrap;
-	margin: 0 0 0.75em;
+	max-width: min( 92vw, 32rem );
+	margin: 0;
+	padding: 0.45em 1em 0.45em 0.85em;
+
+	font: inherit;
 	font-size: 0.8125rem;
-	line-height: 1.4;
-	opacity: 0.85;
+	line-height: 1.35;
+	text-align: left;
+	color: var( --rm-status-ink );
+
+	background: var( --rm-status-surface );
+	border: 1px solid var( --rm-status-edge );
+	border-radius: 999px;
+	box-shadow: var( --rm-status-shadow );
+	cursor: pointer;
+
+	transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease,
+		box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Reaching for it darkens the text rather than revealing a hidden surface. */
+.rm-update-status:hover,
+.rm-update-status:focus-visible {
+	--rm-status-ink: #1f2328;
+	--rm-status-shadow: 0 1px 2px rgba( 0, 0, 0, 0.07 ), 0 10px 24px rgba( 0, 0, 0, 0.18 );
+}
+
+.rm-update-status:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.rm-update-status:active {
+	transform: translateX( -50% ) scale( 0.97 );
 }
 
 .rm-update-status__dot {
 	flex: 0 0 auto;
-	width: 0.55em;
-	height: 0.55em;
+	width: 0.5rem;
+	height: 0.5rem;
 	border-radius: 50%;
-	background: currentColor;
+	background: var( --rm-status-dot );
 }
 
 .rm-update-status__text {
 	flex: 1 1 auto;
 	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.rm-update-status__refresh {
-	flex: 0 0 auto;
-	padding: 0.15em 0.7em;
-	font: inherit;
-	font-size: 0.95em;
-	color: inherit;
-	background: transparent;
-	border: 1px solid currentColor;
-	border-radius: 999px;
-	opacity: 0.75;
-	cursor: pointer;
+/* ---------------------------------------------------------------------------
+ * Tones. Colour is never the only signal -- each state also reads differently in
+ * words, so the pill still works in greyscale and with a red-green deficiency.
+ * ------------------------------------------------------------------------- */
+
+.rm-update-status[ data-tone="live" ] {
+	--rm-status-dot: #1a7f37;
 }
 
-.rm-update-status__refresh:hover,
-.rm-update-status__refresh:focus-visible {
-	opacity: 1;
+.rm-update-status[ data-tone="idle" ] {
+	--rm-status-dot: #8c959f;
 }
 
-/*
- * Colour is the secondary signal, never the only one: each tone also reads differently in
- * words, so the line still works in greyscale and for a red-green colour deficiency.
- */
-
-.rm-update-status[data-tone="live"] {
-	color: #1a7f37;
+.rm-update-status[ data-tone="busy" ] {
+	--rm-status-dot: #0969da;
+	--rm-status-ink: #424a53;
 }
 
-.rm-update-status[data-tone="busy"] {
-	color: #57606a;
+/* Anything wrong takes the quiet away: its own colour throughout, a tinted surface, and
+   permission to wrap onto a second line rather than be cut off mid-sentence. */
+.rm-update-status[ data-tone="warn" ],
+.rm-update-status[ data-tone="error" ] {
+	border-radius: 1.1rem;
 }
 
-.rm-update-status[data-tone="busy"] .rm-update-status__dot {
-	animation: rm-update-status-pulse 1.2s ease-in-out infinite;
+.rm-update-status[ data-tone="warn" ] {
+	--rm-status-dot: #bf8700;
+	--rm-status-ink: #6b4900;
+	--rm-status-surface: #fff8e6;
+	--rm-status-edge: rgba( 191, 135, 0, 0.55 );
 }
 
-.rm-update-status[data-tone="warn"] {
-	color: #9a6700;
+.rm-update-status[ data-tone="error" ] {
+	--rm-status-dot: #cf222e;
+	--rm-status-ink: #8f0d16;
+	--rm-status-surface: #fff2f1;
+	--rm-status-edge: rgba( 207, 34, 46, 0.55 );
 }
 
-.rm-update-status[data-tone="error"] {
-	color: #b3261e;
+.rm-update-status[ data-tone="warn" ] .rm-update-status__text,
+.rm-update-status[ data-tone="error" ] .rm-update-status__text {
+	white-space: normal;
 }
 
-.rm-update-status[data-tone="idle"] {
-	color: inherit;
-	opacity: 0.7;
+.rm-update-status[ data-tone="busy" ] .rm-update-status__dot {
+	animation: rm-update-status-pulse 1.1s ease-in-out infinite;
+}
+
+/* New data landed. A short, quiet acknowledgement -- the standing on screen just
+   changed, and nothing else on the page says so. */
+.rm-update-status.is-changed {
+	animation: rm-update-status-nudge 1.6s ease-out;
 }
 
 @keyframes rm-update-status-pulse {
@@ -91,24 +161,88 @@
 	50% { opacity: 0.25; }
 }
 
-/* A pulsing dot is decoration; for anyone who asked not to see motion it is just a dot. */
-@media (prefers-reduced-motion: reduce) {
-	.rm-update-status[data-tone="busy"] .rm-update-status__dot {
+@keyframes rm-update-status-nudge {
+	0% { transform: translateX( -50% ) translateY( 0.4rem ); }
+	22% { transform: translateX( -50% ) translateY( 0 ); }
+	100% { transform: translateX( -50% ); }
+}
+
+/* Motion here is decoration; the information is in the words and the colour. */
+@media ( prefers-reduced-motion: reduce ) {
+	.rm-update-status,
+	.rm-update-status[ data-tone="busy" ] .rm-update-status__dot,
+	.rm-update-status.is-changed {
 		animation: none;
+	}
+
+	.rm-update-status:active {
+		transform: translateX( -50% );
 	}
 }
 
-/* Dark themes: the light-background tones lose their contrast, so lift them. */
-@media (prefers-color-scheme: dark) {
-	.rm-update-status[data-tone="live"] {
-		color: #4ac26b;
+/* Narrow phones: stop pretending to be a pill and span the width, which is easier to hit
+   with a thumb and leaves room for a wrapped sentence. */
+@media ( max-width: 26rem ) {
+	.rm-update-status {
+		left: 0.5rem;
+		right: 0.5rem;
+		max-width: none;
+		transform: none;
+		border-radius: 1.1rem;
 	}
 
-	.rm-update-status[data-tone="warn"] {
-		color: #e3b341;
+	.rm-update-status:active {
+		transform: scale( 0.99 );
 	}
 
-	.rm-update-status[data-tone="error"] {
-		color: #ff8a80;
+	@keyframes rm-update-status-nudge {
+		0% { transform: translateY( 0.4rem ); }
+		22% { transform: translateY( 0 ); }
+		100% { transform: none; }
+	}
+}
+
+@media ( prefers-color-scheme: dark ) {
+	.rm-update-status {
+		--rm-status-ink: #9198a1;
+		--rm-status-dot: #6e7681;
+		--rm-status-surface: #1c2128;
+		--rm-status-edge: rgba( 255, 255, 255, 0.18 );
+		--rm-status-shadow: 0 1px 2px rgba( 0, 0, 0, 0.35 ), 0 6px 22px rgba( 0, 0, 0, 0.5 );
+	}
+
+	.rm-update-status:hover,
+	.rm-update-status:focus-visible {
+		--rm-status-ink: #e6edf3;
+	}
+
+	.rm-update-status[ data-tone="live" ] {
+		--rm-status-dot: #3fb950;
+	}
+
+	.rm-update-status[ data-tone="busy" ] {
+		--rm-status-dot: #58a6ff;
+		--rm-status-ink: #c9d1d9;
+	}
+
+	.rm-update-status[ data-tone="warn" ] {
+		--rm-status-dot: #d29922;
+		--rm-status-ink: #e3b341;
+		--rm-status-surface: #2b2109;
+		--rm-status-edge: rgba( 210, 153, 34, 0.5 );
+	}
+
+	.rm-update-status[ data-tone="error" ] {
+		--rm-status-dot: #f85149;
+		--rm-status-ink: #ff9d97;
+		--rm-status-surface: #2d1112;
+		--rm-status-edge: rgba( 248, 81, 73, 0.5 );
+	}
+}
+
+/* Printing a standing is printing a snapshot; a floating control has no meaning on paper. */
+@media print {
+	.rm-update-status {
+		display: none;
 	}
 }
