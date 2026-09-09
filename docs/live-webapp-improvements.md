@@ -18,11 +18,10 @@ Three things drive the ordering:
 ## The list
 
 IDs are stable and referenced from commits and pull requests, the same way the audit's are.
-Nothing here is started yet.
 
 | ID | Prio | Needs | What |
 |---|---|---|---|
-| L1 | P1 | nothing — measure first | Serve the race JSON compressed |
+| L1 | P1 | ✅ nothing to do — the host already sends `br` | Serve the race JSON compressed |
 | L5 | P1 | nothing | Freshness indicator: is this current, when was it last checked, is it checking now |
 | L4 | P1 | nothing | Visibility-aware, jittered, backing-off polling |
 | L9 | P1 | the theme's rendered markup | A stylesheet for the mobile navigation |
@@ -30,11 +29,12 @@ Nothing here is started yet.
 | L3 | P2 | nothing | `localStorage` instead of per-tab `sessionStorage` |
 | L6 | P2 | nothing | A service worker that caches, so the installed PWA survives bad reception |
 | L7 | P2 | nothing | Split the payload into per-section files with an index |
-| L8 | P3 | a change on the RotorHazard side | Upload only the sections that changed |
-| L10 | P3 | numbers from a real event | A CDN in front of the JSON |
+| L8 | P3 | ~~a change on the RotorHazard side~~ — the uploader is ours | Upload only the sections that changed |
+| L10 | P3 | — not needed at this audience size | A CDN in front of the JSON |
 
-`D1` (the pilot dropdown) stays in [`wordpress-update-audit.md`](wordpress-update-audit.md) but
-belongs to whichever of L4/L5 touches the loader first — see below.
+`D1` (the pilot dropdown) is **resolved** — [#15](https://github.com/PSi86/wp-racemanager/pull/15),
+rebuilt list plus placeholder fallback, with `tests/e2e/pilot-selector.cjs` covering both halves.
+It no longer constrains when L4/L5 get built.
 
 ---
 
@@ -220,41 +220,99 @@ Proposed: `css/rm-live-nav.css`, enqueued on live pages only, mobile first —
 - the freshness indicator from L5 living in that same bar;
 - the burger overlay's items sized for a thumb rather than a mouse.
 
-**To do this properly I need the rendered markup**, since the classes come from the theme: the
-navigation block's HTML on a live page at phone width, or a screenshot. I could not fetch
-copterrace.com from this session — the sandbox blocks it.
+**Measured** on 2026-09-09, `https://copterrace.com/live/bracket/?race_id=2402` in headless
+Chromium at 390 × 844 CSS pixels, `isMobile`, `hasTouch`. Production runs the **Frost** theme; the
+local environment runs Twenty Twenty-Five, so the local site is not a proving ground for this.
 
-### Pilot dropdown (D1, still open)
+What is actually there:
 
-`rm-m-pilotSelector.js` rebuilding its list is part of the same event flow and belongs to whichever
-stage touches the loader. Both halves have to land together: clearing the list without preserving
-the selection makes the selection go blank when a pilot leaves the field.
+| | |
+|---|---|
+| Navigation container | `<nav class="is-responsive items-justified-right no-wrap nav-live-area wp-block-navigation">` — there is already a `nav-live-area` class to hang a rule on |
+| The four view links | in the DOM, **0 × 0 px, not visible**. Every view switch goes through the burger |
+| Burger overlay | six items — Home, Select Race, Pilots, Bracket, Stats, Next up — right-aligned, **32 px tall**, 18 px font, no marking of the current view, and roughly the lower 60 % of the overlay empty |
+| Header | 88 px tall, `position: static` — it scrolls away, so nothing is reachable once you are down in the bracket |
+| Page width | 390 px document against a 390 px viewport: no horizontal page scroll, the bracket has its own scroll container |
+
+And the plugin's own controls on that page, which the entry above did not account for:
+
+| Element | Size | |
+|---|---|---|
+| `.web-controls` | 380 × 73 px | the row holding both controls |
+| `#pilotSelector` | 165 × 29 px | below the 44 px minimum |
+| `#filterCheckbox` | **13 × 13 px** | far below it, and the label is not wired as a tap target |
+
+So the concrete problems, in the order they hurt:
+
+1. **Switching views costs three taps** — burger, item, close — because the links collapse to
+   nothing. This is the one the proposed segment row fixes.
+2. **Nothing is sticky.** The bracket is long; once scrolled, there is no way back to the
+   navigation or to the pilot filter without scrolling to the top.
+3. **Three tap targets are under 44 px**, the checkbox drastically so at 13 px.
+4. **The current view is not marked** anywhere, in the overlay or outside it.
+
+A note found on the way: production still serves the **old** URL form. `/live/bracket/?race_id=2402`
+answers 200 while `/live/winter-whooprace-2025/bracket/` answers 404, so the path-based router
+(finding B1) has never been deployed there. That is direct evidence for step 1 of the next-steps
+list below, not an assumption.
+
+### Pilot dropdown (D1) · resolved
+
+`rm-m-pilotSelector.js` now rebuilds its list instead of appending to it, and falls back to the
+placeholder when the selected pilot has left the field — both halves together, because clearing
+the list alone made the selection go blank. It no longer waits on whichever stage touches the
+loader. `tests/e2e/pilot-selector.cjs` covers it; five of its eight checks fail against the
+pre-fix module.
+
+Worth keeping in mind while building L4/L5 anyway: the selector subscribes to the same loader, so
+a change to how subscribers are notified reaches it too.
 
 ---
 
-## What has to be answered before some of this can start
+## What had to be answered first — three of four are answered
 
-These are not rhetorical — each one changes what gets built, and none of them can be answered
-from inside the repository.
+Each one changes what gets built. They were measured on 2026-09-09 against the three real races
+now in the local environment (see [`development-setup.md`](development-setup.md)).
 
-1. **How big is a real `-data.json`, and is it already compressed?**
-   ```bash
-   curl -sI  https://<site>/wp-content/uploads/races/<id>-data.json | grep -i -E 'content-length|content-encoding'
-   curl -s   https://<site>/wp-content/uploads/races/<id>-data.json | gzip -c | wc -c
-   ```
-   At 30 KB already gzipped, L7 may never be worth building. At 300 KB uncompressed it is the most
-   valuable item on the list. **Everything below L5 waits on this number.**
+1. **How big is a real `-data.json`, and is it already compressed?** — **answered.**
 
-2. **Is the uploader on the RotorHazard side yours to change?** If yes, L8 becomes realistic and
-   L7 should be designed with it in mind. If no, the plan ends at L7 and the upload stays
-   all-or-nothing.
+   | Race | raw | gzip -9 | served as |
+   |---|---|---|---|
+   | Galaxy Cup 2025 | 1299 KB | 96 KB (7 %) | `content-encoding: br` |
+   | Fall Whooprace 2025 | 1614 KB | 120 KB (7 %) | `br` |
+   | Winter Whooprace 2025 | 1177 KB | 89 KB (7 %) | `br` |
 
-3. **What does the live navigation actually render on a phone?** The classes come from the theme,
-   so L9 needs the markup or a screenshot at phone width. (This session cannot fetch the
-   production site — the sandbox blocks outbound access to it.)
+   **L1 is therefore already done** — copterrace.com serves Brotli, and the `.htaccess` snippet
+   below is moot. The file is 1.2–1.6 MB of highly repetitive JSON that compresses to roughly a
+   fourteenth of itself. Against the threshold this question set — "at 30 KB gzipped L7 may never
+   be worth building" — 90–120 KB is above it, but not by the margin that would make L7 urgent,
+   especially since the big file is fetched only when the timestamp changes.
 
-4. **How many people watch a race at once?** Ten and fifty are different systems. It decides
-   whether L10 is ever needed and how much L7 is worth.
+2. **Is the uploader on the RotorHazard side ours to change?** — **yes.** It is
+   `src/server/plugins/teamrace_manager/__init__.py` in the RotorHazard checkout, ~1100 lines, and
+   it is Peter's own code. Two things about it matter here:
+
+   - The payload is already assembled as **named sections** — `pilot_data`, `heat_data`,
+     `class_data`, `result_data`, `current_heat`, `format_data`, `frequency_data`, plus the
+     `msg_*` notification fields. L7's per-section split lines up with keys that already exist,
+     and L8 becomes a matter of omitting unchanged ones rather than restructuring anything.
+   - The upload fires on **`Evt.RACE_SCHEDULE`** and from a manual *Upload Results* button. Every
+     other event hook in the file is commented out, so it is once per heat scheduling, not per
+     lap. The per-viewer cost is therefore one ~100 KB transfer per heat, not a stream.
+
+   That plugin is a project of its own and wants its own review pass.
+
+3. **What does the live navigation actually render on a phone?** — **answered**, measured at
+   390 × 844 against production. The four view links collapse to 0 × 0 and every view switch goes
+   through the burger; the overlay's items are 32 px tall with no current-view marking; the header
+   does not stick; and the plugin's own `#filterCheckbox` is a 13 × 13 px tap target. The full
+   measurement is in the L9 entry above, including the theme (**Frost**, against Twenty
+   Twenty-Five locally) and the class names to write against.
+
+4. **How many people watch a race at once?** — **up to 32 pilots take part**, so viewers are that
+   order of magnitude plus spectators: tens, not thousands. At ~100 KB per viewer per heat that is
+   single-digit megabytes per upload event, which no origin will notice. **L10 is not needed**,
+   and L7's value is about phone data and latency rather than about protecting the server.
 
 ---
 
@@ -263,17 +321,24 @@ from inside the repository.
 In order, and each one is a self-contained piece of work:
 
 1. **Deploy what is already merged.** Nothing on this list should be built on top of a production
-   site that still runs the June 2025 code. See [`deployment.md`](deployment.md).
-2. **Measure** — question 1 above, plus a look at how often the timer uploads during a heat.
-3. **L1**, if the measurement says compression is missing. Minutes of work, and it changes what
-   every other item is worth.
+   site that still runs the June 2025 code. See [`deployment.md`](deployment.md). This is now a
+   year of accumulated work — the whole audit, the dependency catch-up and `apiVersion: 3`.
+2. ~~**Measure**~~ and ~~**L1**~~ — done, see the answers above.
+3. **L2, L3, L6** as one release — all three are about not re-fetching what is already known, and
+   the measurement moved them up. With `cache: 'no-store'`, every reload, every second tab and
+   every PWA cold start pays the full ~100 KB even when nothing changed; the server already emits
+   `ETag` and `Last-Modified` for these static files, so an unchanged one answers 304 with no
+   body. Plugin side only, no protocol change, no RotorHazard change.
 4. **L5 + L4 together**, in the local environment. They are one state machine, and browser
    devtools can simulate the bad network they exist for; a live race cannot be paused to test.
-   Take D1 along, since it subscribes to the same loader.
-5. **L9**, once the markup is available.
-6. **L2, L3, L6** as one release — all three are about not re-fetching what is already known.
-7. **L7**, if the numbers justify it.
-8. **L8**, if question 2 is a yes.
+5. **L9** — now unblocked, and the measurement says it is worth more than its P1 rating
+   suggested: on a phone the live area is effectively a single view unless the visitor knows to
+   open the burger.
+6. **L7**, and then **L8** with it. Both are now unblocked, and designing them together is the
+   point: the uploader already speaks in the sections L7 would split the file into.
+
+The local environment now carries the three real races from production, so all of this can be
+built against real payloads rather than fixtures.
 
 ---
 
