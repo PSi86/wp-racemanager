@@ -209,12 +209,20 @@ function rm_bracket_shortcode( $atts ) {
 
     // Enqueue custom CSS and JS
     wp_enqueue_style(
-        'rm-sc-viewer-css', 
+        'rm-sc-viewer-css',
         plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+    );
+    // The filter's own styles, shared with the stats view, which cannot load rm_viewer.css --
+    // see the note there.
+    wp_enqueue_style(
+        'rm-pilot-filter-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-pilot-filter.css',
+        array(),
+        '1.0.0'
     );
 
     wp_enqueue_script(
-        'rm-bracket-template', 
+        'rm-bracket-template',
         plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', 
         ['jquery'], 
         '1.0.3', 
@@ -276,12 +284,14 @@ function rm_stats_shortcode( $atts ) {
         'rm-sc-rotorhazard-css',
         plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css'
     );
-    // The pilot filter's controls are styled in rm_viewer.css (.web-controls), along with the
-    // marking of the selected pilot's row. This view was the only live one not loading that
-    // sheet, which is why the controls could not simply be uncommented.
+    // The pilot filter only. Deliberately NOT rm_viewer.css, which is the bracket's stylesheet:
+    // it redefines .node as a bracket race box, while here .node is RotorHazard's own class for
+    // a lap-results column. Loading it in this view mangles the round detail under every heat.
     wp_enqueue_style(
-        'rm-sc-viewer-css',
-        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+        'rm-pilot-filter-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-pilot-filter.css',
+        array(),
+        '1.0.0'
     );
     wp_register_script_module(
         'rm-stats',
