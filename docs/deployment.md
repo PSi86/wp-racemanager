@@ -265,6 +265,16 @@ Also worth a look on the first deployment after a longer break:
   cached `/live/{race}/` 301 from before the change will send visitors to the wrong place.
 - Browsers cache the `/live/{race}/` → `/live/{race}/{view}/` redirect. Test in a private window.
 
+### Assets, and which of them a release actually refreshes
+
+Everything the plugin **enqueues** — every stylesheet, every script module — carries
+`WP_RACEMANAGER_VERSION`, so bumping the plugin version refreshes all of them at once and the
+`live-shortcodes` suite fails if a hand-written literal creeps back in. That is why the version
+bump is not optional for a release: without it, returning visitors keep the cached assets and run
+the previous release against the new PHP.
+
+The exception is below, and it is the one to check by hand.
+
 ### The JS modules that carry no version, and why they can go stale
 
 WordPress appends `?ver=` to the module it enqueues, but **not** to anything that module imports.
