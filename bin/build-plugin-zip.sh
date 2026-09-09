@@ -104,7 +104,14 @@ else
         exit 1
     }
     echo "  no zip command -- using $PY"
-    "$PY" - "$STAGE" "$SLUG" "$(pwd)/$ZIP" <<'PYZIP'
+    # Git Bash normally rewrites POSIX paths on the way to a native executable,
+    # but MSYS_NO_PATHCONV=1 turns that off -- and the docs tell people to export
+    # it, because ddev needs it. So a Windows Python would be handed /c/Users/...
+    # and fail. Convert explicitly rather than depending on the shell's mood.
+    to_native() {
+        if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
+    }
+    "$PY" - "$(to_native "$STAGE")" "$SLUG" "$(to_native "$(pwd)/$ZIP")" <<'PYZIP'
 import os, sys, zipfile
 
 stage, slug, target = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -131,7 +138,7 @@ echo "$ZIP"
 if command -v unzip >/dev/null 2>&1; then
     unzip -l "$ZIP" | tail -1
 elif [ -n "${PY:-}" ]; then
-    "$PY" - "$ZIP" "$SLUG" <<'PYCHECK'
+    "$PY" - "$(to_native "$(pwd)/$ZIP")" "$SLUG" <<'PYCHECK'
 import sys, zipfile
 
 path, slug = sys.argv[1], sys.argv[2]
