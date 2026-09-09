@@ -1,33 +1,20 @@
 /**
  * Race list — marking the race the visitor came from.
  *
- * includes/block-render-race-select.php already sets .is-current on that entry
- * and aria-current="true" on its link, so assistive technology announced it from
- * the start. Nothing ever showed it on screen: the entry rendered exactly like
- * the others, which made the selection page look as if it had not understood
- * which race the visitor was in.
+ * includes/block-render-race-select.php sets .is-current on that entry and
+ * aria-current="true" on its link, and js/rm-live-resume.js sets the same pair
+ * when only the browser knows which race it was. Either way the entry looks the
+ * same, which is the point: the presentation must not depend on where the
+ * information came from.
  *
- * Deliberately narrow. Only the current entry is touched, so the list keeps
- * whatever the active theme gives it — this has to hold under Frost on
+ * Weight only. An earlier version put a filled dot in front of the name, which
+ * read as a second bullet next to the list's own marker rather than as emphasis.
+ *
+ * Deliberately narrow: nothing but the current entry is touched, so the list
+ * keeps whatever the active theme gives it. This has to hold under Frost on
  * production and Twenty Twenty-Five locally, and under whatever comes next.
  */
 
 .race-select-item.is-current {
 	font-weight: 700;
-}
-
-/* A filled dot rather than a word, so nothing here needs translating, and
- * currentColor rather than a fixed value, so it inherits the theme's text
- * colour in light and dark alike. inline-block keeps it out of the text flow,
- * so the other entries do not shift.
- */
-.race-select-item.is-current > a::before {
-	content: "";
-	display: inline-block;
-	width: 0.5em;
-	height: 0.5em;
-	margin-inline-end: 0.45em;
-	border-radius: 50%;
-	background: currentColor;
-	vertical-align: 0.08em;
 }

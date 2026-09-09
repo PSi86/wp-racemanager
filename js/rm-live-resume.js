@@ -109,14 +109,10 @@
             return;
         }
 
-        // When the URL named the race, the server has already marked the entry, and an offer to
-        // continue with the race the visitor is plainly looking at would be noise. When it did
-        // not -- a bookmark, the main menu, the PWA icon -- only the client knows, so the same
-        // marking is applied here and the offer is made. Either route ends up looking the same.
-        if ( config.raceSlug ) {
-            return;
-        }
-
+        // The page must look the same whether the race came from the URL or from storage, so
+        // nothing here is conditional on the source. Marking an entry the server already marked
+        // is a no-op, and the offer is made in both cases rather than only when the URL was
+        // silent -- suppressing it in one of the two was itself an inconsistency.
         markCurrent( list, stored.slug );
 
         if ( ! stored.title ) {

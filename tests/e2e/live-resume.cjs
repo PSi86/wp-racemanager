@@ -107,32 +107,40 @@ const selectionState = ( page ) =>
 		storedAfterRace ? `stored ${ storedAfterRace.slug }` : 'nothing stored'
 	);
 
-	// -------------------------- 2 · the selection page without the marker: offer + mark
+	// -------------- 2 · the same race, reached both ways, must present identically
+	// This is the requirement the whole file exists for: where the information came from --
+	// the URL or localStorage -- must not be visible in the result.
 	await page.goto( `${ BASE }/live/`, { waitUntil: 'networkidle' } );
-	let state = await selectionState( page );
+	const fromStorage = await selectionState( page );
 	check(
-		'arriving at the selection page with no marker still offers the stored race',
-		!! state.resumeText && state.resumeHref === second.path,
-		`link: ${ state.resumeText || '(none)' } -> ${ state.resumeHref || '-' }`
+		'with no marker in the URL, the stored race is marked',
+		fromStorage.marked === second.path && fromStorage.ariaCurrent === 'true',
+		`marked: ${ fromStorage.marked || '(none)' }, aria-current: ${ fromStorage.ariaCurrent || '(none)' }`
 	);
 	check(
-		'and marks it in the list, so the page reads the same either way',
-		state.marked === second.path && state.ariaCurrent === 'true',
-		`marked: ${ state.marked || '(none)' }, aria-current: ${ state.ariaCurrent || '(none)' }`
+		'and offered',
+		!! fromStorage.resumeText && fromStorage.resumeHref === second.path,
+		`link: ${ fromStorage.resumeText || '(none)' } -> ${ fromStorage.resumeHref || '-' }`
 	);
 
-	// ------------------------- 3 · the selection page with the marker: mark, do not offer
+	await page.goto( `${ BASE }/live/?rm_race=${ second.slug }`, { waitUntil: 'networkidle' } );
+	const fromUrl = await selectionState( page );
+	check(
+		'the same race named in the URL presents identically',
+		fromUrl.marked === fromStorage.marked &&
+			fromUrl.ariaCurrent === fromStorage.ariaCurrent &&
+			fromUrl.resumeText === fromStorage.resumeText &&
+			fromUrl.resumeHref === fromStorage.resumeHref,
+		`from storage: ${ JSON.stringify( fromStorage ) }\n          from URL:     ${ JSON.stringify( fromUrl ) }`
+	);
+
+	// ----------------------------- 3 · the marker also updates what is remembered
 	await page.goto( `${ BASE }/live/?rm_race=${ first.slug }`, { waitUntil: 'networkidle' } );
-	state = await selectionState( page );
+	const state = await selectionState( page );
 	check(
 		'arriving with ?rm_race= marks the race the visitor came from',
 		state.marked === first.path && state.ariaCurrent === 'true',
 		`marked: ${ state.marked || '(none)' }`
-	);
-	check(
-		'and does not also offer to continue with the race already shown as current',
-		state.resumeText === null,
-		state.resumeText ? `offered anyway: ${ state.resumeText }` : ''
 	);
 	const storedAfterMarker = await page.evaluate( () => {
 		try {
