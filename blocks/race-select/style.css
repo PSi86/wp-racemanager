@@ -1,0 +1,33 @@
+/**
+ * Race list — marking the race the visitor came from.
+ *
+ * includes/block-render-race-select.php already sets .is-current on that entry
+ * and aria-current="true" on its link, so assistive technology announced it from
+ * the start. Nothing ever showed it on screen: the entry rendered exactly like
+ * the others, which made the selection page look as if it had not understood
+ * which race the visitor was in.
+ *
+ * Deliberately narrow. Only the current entry is touched, so the list keeps
+ * whatever the active theme gives it — this has to hold under Frost on
+ * production and Twenty Twenty-Five locally, and under whatever comes next.
+ */
+
+.race-select-item.is-current {
+	font-weight: 700;
+}
+
+/* A filled dot rather than a word, so nothing here needs translating, and
+ * currentColor rather than a fixed value, so it inherits the theme's text
+ * colour in light and dark alike. inline-block keeps it out of the text flow,
+ * so the other entries do not shift.
+ */
+.race-select-item.is-current > a::before {
+	content: "";
+	display: inline-block;
+	width: 0.5em;
+	height: 0.5em;
+	margin-inline-end: 0.45em;
+	border-radius: 50%;
+	background: currentColor;
+	vertical-align: 0.08em;
+}
