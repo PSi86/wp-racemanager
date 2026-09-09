@@ -18,11 +18,10 @@ Three things drive the ordering:
 ## The list
 
 IDs are stable and referenced from commits and pull requests, the same way the audit's are.
-Nothing here is started yet.
 
 | ID | Prio | Needs | What |
 |---|---|---|---|
-| L1 | P1 | nothing — measure first | Serve the race JSON compressed |
+| L1 | P1 | ✅ nothing to do — the host already sends `br` | Serve the race JSON compressed |
 | L5 | P1 | nothing | Freshness indicator: is this current, when was it last checked, is it checking now |
 | L4 | P1 | nothing | Visibility-aware, jittered, backing-off polling |
 | L9 | P1 | the theme's rendered markup | A stylesheet for the mobile navigation |
@@ -30,11 +29,12 @@ Nothing here is started yet.
 | L3 | P2 | nothing | `localStorage` instead of per-tab `sessionStorage` |
 | L6 | P2 | nothing | A service worker that caches, so the installed PWA survives bad reception |
 | L7 | P2 | nothing | Split the payload into per-section files with an index |
-| L8 | P3 | a change on the RotorHazard side | Upload only the sections that changed |
-| L10 | P3 | numbers from a real event | A CDN in front of the JSON |
+| L8 | P3 | ~~a change on the RotorHazard side~~ — the uploader is ours | Upload only the sections that changed |
+| L10 | P3 | — not needed at this audience size | A CDN in front of the JSON |
 
-`D1` (the pilot dropdown) stays in [`wordpress-update-audit.md`](wordpress-update-audit.md) but
-belongs to whichever of L4/L5 touches the loader first — see below.
+`D1` (the pilot dropdown) is **resolved** — [#15](https://github.com/PSi86/wp-racemanager/pull/15),
+rebuilt list plus placeholder fallback, with `tests/e2e/pilot-selector.cjs` covering both halves.
+It no longer constrains when L4/L5 get built.
 
 ---
 
@@ -224,37 +224,60 @@ Proposed: `css/rm-live-nav.css`, enqueued on live pages only, mobile first —
 navigation block's HTML on a live page at phone width, or a screenshot. I could not fetch
 copterrace.com from this session — the sandbox blocks it.
 
-### Pilot dropdown (D1, still open)
+### Pilot dropdown (D1) · resolved
 
-`rm-m-pilotSelector.js` rebuilding its list is part of the same event flow and belongs to whichever
-stage touches the loader. Both halves have to land together: clearing the list without preserving
-the selection makes the selection go blank when a pilot leaves the field.
+`rm-m-pilotSelector.js` now rebuilds its list instead of appending to it, and falls back to the
+placeholder when the selected pilot has left the field — both halves together, because clearing
+the list alone made the selection go blank. It no longer waits on whichever stage touches the
+loader. `tests/e2e/pilot-selector.cjs` covers it; five of its eight checks fail against the
+pre-fix module.
+
+Worth keeping in mind while building L4/L5 anyway: the selector subscribes to the same loader, so
+a change to how subscribers are notified reaches it too.
 
 ---
 
-## What has to be answered before some of this can start
+## What had to be answered first — three of four are answered
 
-These are not rhetorical — each one changes what gets built, and none of them can be answered
-from inside the repository.
+Each one changes what gets built. They were measured on 2026-09-09 against the three real races
+now in the local environment (see [`development-setup.md`](development-setup.md)).
 
-1. **How big is a real `-data.json`, and is it already compressed?**
-   ```bash
-   curl -sI  https://<site>/wp-content/uploads/races/<id>-data.json | grep -i -E 'content-length|content-encoding'
-   curl -s   https://<site>/wp-content/uploads/races/<id>-data.json | gzip -c | wc -c
-   ```
-   At 30 KB already gzipped, L7 may never be worth building. At 300 KB uncompressed it is the most
-   valuable item on the list. **Everything below L5 waits on this number.**
+1. **How big is a real `-data.json`, and is it already compressed?** — **answered.**
 
-2. **Is the uploader on the RotorHazard side yours to change?** If yes, L8 becomes realistic and
-   L7 should be designed with it in mind. If no, the plan ends at L7 and the upload stays
-   all-or-nothing.
+   | Race | raw | gzip -9 | served as |
+   |---|---|---|---|
+   | Galaxy Cup 2025 | 1299 KB | 96 KB (7 %) | `content-encoding: br` |
+   | Fall Whooprace 2025 | 1614 KB | 120 KB (7 %) | `br` |
+   | Winter Whooprace 2025 | 1177 KB | 89 KB (7 %) | `br` |
 
-3. **What does the live navigation actually render on a phone?** The classes come from the theme,
-   so L9 needs the markup or a screenshot at phone width. (This session cannot fetch the
-   production site — the sandbox blocks outbound access to it.)
+   **L1 is therefore already done** — copterrace.com serves Brotli, and the `.htaccess` snippet
+   below is moot. The file is 1.2–1.6 MB of highly repetitive JSON that compresses to roughly a
+   fourteenth of itself. Against the threshold this question set — "at 30 KB gzipped L7 may never
+   be worth building" — 90–120 KB is above it, but not by the margin that would make L7 urgent,
+   especially since the big file is fetched only when the timestamp changes.
 
-4. **How many people watch a race at once?** Ten and fifty are different systems. It decides
-   whether L10 is ever needed and how much L7 is worth.
+2. **Is the uploader on the RotorHazard side ours to change?** — **yes.** It is
+   `src/server/plugins/teamrace_manager/__init__.py` in the RotorHazard checkout, ~1100 lines, and
+   it is Peter's own code. Two things about it matter here:
+
+   - The payload is already assembled as **named sections** — `pilot_data`, `heat_data`,
+     `class_data`, `result_data`, `current_heat`, `format_data`, `frequency_data`, plus the
+     `msg_*` notification fields. L7's per-section split lines up with keys that already exist,
+     and L8 becomes a matter of omitting unchanged ones rather than restructuring anything.
+   - The upload fires on **`Evt.RACE_SCHEDULE`** and from a manual *Upload Results* button. Every
+     other event hook in the file is commented out, so it is once per heat scheduling, not per
+     lap. The per-viewer cost is therefore one ~100 KB transfer per heat, not a stream.
+
+   That plugin is a project of its own and wants its own review pass.
+
+3. **What does the live navigation actually render on a phone?** — **still open**, but no longer
+   unanswerable: production is reachable now and the Playwright setup in `tests/e2e/` can load it
+   at a phone viewport. L9 needs someone to do that and read the theme's classes off it.
+
+4. **How many people watch a race at once?** — **up to 32 pilots take part**, so viewers are that
+   order of magnitude plus spectators: tens, not thousands. At ~100 KB per viewer per heat that is
+   single-digit megabytes per upload event, which no origin will notice. **L10 is not needed**,
+   and L7's value is about phone data and latency rather than about protecting the server.
 
 ---
 
@@ -263,17 +286,22 @@ from inside the repository.
 In order, and each one is a self-contained piece of work:
 
 1. **Deploy what is already merged.** Nothing on this list should be built on top of a production
-   site that still runs the June 2025 code. See [`deployment.md`](deployment.md).
-2. **Measure** — question 1 above, plus a look at how often the timer uploads during a heat.
-3. **L1**, if the measurement says compression is missing. Minutes of work, and it changes what
-   every other item is worth.
+   site that still runs the June 2025 code. See [`deployment.md`](deployment.md). This is now a
+   year of accumulated work — the whole audit, the dependency catch-up and `apiVersion: 3`.
+2. ~~**Measure**~~ and ~~**L1**~~ — done, see the answers above.
+3. **L2, L3, L6** as one release — all three are about not re-fetching what is already known, and
+   the measurement moved them up. With `cache: 'no-store'`, every reload, every second tab and
+   every PWA cold start pays the full ~100 KB even when nothing changed; the server already emits
+   `ETag` and `Last-Modified` for these static files, so an unchanged one answers 304 with no
+   body. Plugin side only, no protocol change, no RotorHazard change.
 4. **L5 + L4 together**, in the local environment. They are one state machine, and browser
    devtools can simulate the bad network they exist for; a live race cannot be paused to test.
-   Take D1 along, since it subscribes to the same loader.
-5. **L9**, once the markup is available.
-6. **L2, L3, L6** as one release — all three are about not re-fetching what is already known.
-7. **L7**, if the numbers justify it.
-8. **L8**, if question 2 is a yes.
+5. **L9**, once someone has looked at the phone-width markup — question 3.
+6. **L7**, and then **L8** with it. Both are now unblocked, and designing them together is the
+   point: the uploader already speaks in the sections L7 would split the file into.
+
+The local environment now carries the three real races from production, so all of this can be
+built against real payloads rather than fixtures.
 
 ---
 
