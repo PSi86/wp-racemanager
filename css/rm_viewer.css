@@ -14,42 +14,14 @@
     list-style-position: inside;
 }
 
-/* For bracketview */
-.web-controls {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    white-space: nowrap;
-    gap: 10px;
-    /* padding: 5px; */
-    /* background: rgba(20, 20, 20, .2); */
-    /* color: white; */
-    /* margin-bottom: 1.2em; */
-}
-
-.web-controls a {
-    margin-left: 1em;
-    margin-right: 10px;
-    /* color: #ffffff; */
-    display: block;
-    transition: 0.1s linear all;
-    padding: 1px;
-}
-
-.web-controls a:hover {
-    color: #0050a0;
-}
-
-.web-controls #pilotSelector {
-    /* margin-left: 1em; */
-    margin-right: 10px;
-    /* color: #ffffff; */
-    display: block;
-    transition: 0.1s linear all;
-    padding: 1px;
-    width: auto;
-}
+/*
+ * .web-controls moved to css/rm-pilot-filter.css.
+ *
+ * The stats view offers the same pilot filter and must not load this sheet: `.node` is
+ * redefined below as a bracket race box, while in the stats view `.node` is RotorHazard's own
+ * class for a lap-results column. Loading this file there laid the two on top of each other.
+ * The filter's styles therefore live in a file both views can load safely.
+ */
 
 .raceclass-container {
     position: relative;
@@ -297,3 +269,4 @@ input:disabled {
         position: static;
     }
 }
+

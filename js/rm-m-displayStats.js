@@ -4,7 +4,7 @@
 // https://github.com/RotorHazard/RotorHazard/blob/main/src/server/static/rotorhazard.js
 
 import { dataLoaderInstance } from './rm-m-dataLoader.js';
-//import { pilotSelectInstance } from './rm-m-pilotSelector.js';
+import { pilotSelectInstance } from './rm-m-pilotSelector.js';
 
 const RACING_MODE_INDV = 0;   // INDIVIDUAL
 const RACING_MODE_TEAM = 1;   // TEAM_ENABLED
@@ -123,16 +123,17 @@ class DisplayStats {
         // Read dependency configuration
         this.raceId = dataLoaderInstance.storageKey; // Load storageKey from dataLoader
         
-        this.pilotSelectorId = null;
-        this.pilotSelectorElement = null;
-        this.selectedPilotId = null;
+        // The dropdown and the checkbox are part of the shortcode markup, so either can be absent
+        // on a page that does not render them. pilotSelector already degrades to "inactive"
+        // rather than throwing in that case, and everything below tolerates a null element.
+        this.pilotSelectorId = pilotSelectInstance.pilotSelectorId;
+        this.pilotSelectorElement = document.getElementById(`${this.pilotSelectorId}`);
+        this.selectedPilotId = pilotSelectInstance.selectedPilotId || 0;
 
-        if(typeof pilotSelectInstance !== 'undefined') {
-            this.pilotSelectorId = pilotSelectInstance.pilotSelectorId; // Load pilotSelectorId from pilotSelector
-            this.pilotSelectorElement = document.getElementById(`${this.pilotSelectorId}`);
-            this.selectedPilotId = pilotSelectInstance.selectedPilotId;
-            console.log("displayStats: initialized with selected pilot ID:", typeof(this.selectedPilotId), this.selectedPilotId);
-        }
+        // The last payload, kept so that changing the filter can re-render without waiting for
+        // the next upload. On a finished race there is no next upload at all, and even during a
+        // live one the wait would be up to ten seconds -- long enough to read as broken.
+        this.lastData = null;
         // Required properties
         // none
 
@@ -174,21 +175,25 @@ class DisplayStats {
         dataLoaderInstance.subscribe(this.displayStats.bind(this));
     }
 
+    // The two guards used to be crossed over: the pilot was read under `if (filterCheckboxElement)`
+    // and the checkbox under `if (pilotSelectorElement)`. With both controls present that happens
+    // to work, which is why it went unnoticed; with only one of them it read the wrong element and
+    // threw. Each control is now consulted under its own guard.
     handleFilterChange() {
-        //this.selectedPilotId = event.target.value;
-        if (this.filterCheckboxElement) {
-            this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
-        }
         if (this.pilotSelectorElement) {
+            this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0;
+        }
+        if (this.filterCheckboxElement) {
             this.filterCheckboxState = this.filterCheckboxElement.checked;
             sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
         }
 
-        console.log('displayStats: Filter changed:', this.selectedPilotId, this.filterCheckboxState);
-        // Filter and display heats for the selected pilot
-        // filterBracketData calls calculateClassLayout and renderGrid
-        //filterBracketData();
-        //this.displayStats();
+        // Re-render from what we already have. The bracket recalculates its layout here; the
+        // leaderboards are cheap enough to rebuild outright, and rebuilding is what keeps the
+        // filtered and unfiltered views from drifting apart.
+        if (this.lastData) {
+            this.displayStats(this.lastData);
+        }
     }
 
     /**
@@ -196,7 +201,13 @@ class DisplayStats {
      * @param {Object} msg - The message object containing race data.
      */
     displayStats(rhdata) {
+        this.lastData = rhdata;
         const msg = rhdata.result_data;
+
+        // Read once for the whole render, so every part of the page agrees about who is selected
+        // even if the dropdown changes while this is running.
+        const filterPilotId = this.selectedPilotId || 0;
+        const filterActive = filterPilotId > 0 && this.filterCheckboxState;
         // Helper function to order leaderboard boards
         const orderBoards = (primary) => {
             const boards = ['by_race_time', 'by_fastest_lap', 'by_consecutives'];
@@ -467,6 +478,14 @@ class DisplayStats {
 
                                 // Process each node (racer) in the round
                                 round.nodes.forEach((node) => {
+                                    // Round detail is per pilot too, and it carries the same
+                                    // pilot_id the leaderboards do. Filtering the standings but
+                                    // leaving everyone else's lap times underneath them would be
+                                    // the sort of half-applied filter that makes people distrust
+                                    // the control.
+                                    if (filterActive && node.pilot_id !== filterPilotId) {
+                                        return;
+                                    }
                                     if (node.callsign !== null) {
                                         const nodeDiv = document.createElement('div');
                                         nodeDiv.className = 'node';
@@ -611,6 +630,10 @@ class DisplayStats {
             eventPanel.appendChild(eventPanelContent);
             page.appendChild(eventPanel);
 
+            if (filterActive) {
+                this.pruneEmptySections(page, filterPilotId);
+            }
+
             // Restore panel state (using rotorhazard.panelstates, assumed global)
             for (const panelId in rotorhazard.panelstates) {
                 const panelObj = document.getElementById(panelId);
@@ -632,6 +655,50 @@ class DisplayStats {
             page.appendChild(p);
         }
     }
+    /**
+     * Remove what the filter emptied.
+     *
+     * With one pilot selected most leaderboards have nothing to say -- a class they did not enter,
+     * a heat they were not in. Left alone that is a page of table headers with no rows under them,
+     * which reads as a fault rather than as an answer.
+     *
+     * Done as one pass over the finished output rather than at each of the eight places a
+     * leaderboard is built: one rule in one place beats eight call sites that each have to
+     * remember to check. It runs only when the filter is on, so the unfiltered page is untouched.
+     *
+     * @param {HTMLElement} page          The results container.
+     * @param {Number}      filterPilotId The pilot everything was filtered down to.
+     */
+    pruneEmptySections(page, filterPilotId) {
+        page.querySelectorAll('table.leaderboard').forEach((table) => {
+            const body = table.querySelector('tbody');
+            if (!body || body.rows.length === 0) {
+                const wrap = table.closest('.responsive-wrap');
+                (wrap || table).remove();
+            }
+        });
+
+        // A panel with no table left in it held nothing but the emptied leaderboards.
+        page.querySelectorAll('.panel').forEach((panel) => {
+            if (!panel.querySelector('table')) {
+                panel.remove();
+            }
+        });
+
+        // Everything gone means the pilot appears nowhere in this event -- a legitimate answer,
+        // and one worth stating rather than leaving as a blank page that looks like a failure.
+        if (!page.querySelector('.panel')) {
+            const selected = this.pilotSelectorElement
+                ? this.pilotSelectorElement.options[this.pilotSelectorElement.selectedIndex]
+                : null;
+            const who = selected && selected.dataset.pilotId ? selected.textContent : `pilot ${filterPilotId}`;
+            const p = document.createElement('p');
+            p.className = 'rm-no-filter-results';
+            p.textContent = `No results for ${who} in this event.`;
+            page.appendChild(p);
+        }
+    }
+
     formatTimeMillis(s, timeformat = '{m}:{s}.{d}') {
         s = Math.round(s);
         var ms = s % 1000;
@@ -766,10 +833,30 @@ class DisplayStats {
         table.appendChild(header);
 
         // Build table body
+        //
+        // The pilot filter lives here because this is the one place every leaderboard on the page
+        // passes through -- class summaries, per-heat, per-round and the event totals all come
+        // out of this method -- and because every entry carries a pilot_id. Matching on the
+        // callsign instead would look equivalent and break on the first duplicate or rename.
+        //
+        // Two levels, the same two the bracket view offers: choosing a pilot marks their row
+        // wherever it appears, and ticking the box drops everyone else. Marking without filtering
+        // is the more useful of the two on a leaderboard, because a position only means anything
+        // next to the positions around it.
+        const filterPilotId = this.selectedPilotId || 0;
+        const filterActive = filterPilotId > 0 && this.filterCheckboxState;
+
         const body = document.createElement('tbody');
         for (const i in leaderboard) {
             const data = leaderboard[i];
+            const isSelected = filterPilotId > 0 && data.pilot_id === filterPilotId;
+            if (filterActive && !isSelected) {
+                continue;
+            }
             const row = document.createElement('tr');
+            if (isSelected) {
+                row.classList.add('selected-pilot');
+            }
 
             // Position
             let td = document.createElement('td');

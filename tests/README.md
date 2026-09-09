@@ -67,6 +67,7 @@ npm run test:pilot-selector                         # no WordPress needed, only 
 npm run test:live-resume                            # against https://racemanager.ddev.site
 npm run test:update-status                          # against https://racemanager.ddev.site
 npm run test:flaky-network                          # against https://racemanager.ddev.site
+npm run test:stats-filter                           # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -173,6 +174,24 @@ report:
    the difference between "the app is broken" and "the app is behind".
 
 Needs a race flagged live, like `update-status.cjs`.
+
+### `tests/e2e/stats-filter.cjs`
+
+The pilot filter on the stats view: a dropdown that marks one pilot in every leaderboard they
+appear in, and a checkbox that drops everyone else. The same two levels the bracket view has
+always offered.
+
+What makes it worth its own suite is how far the filter has to reach. Every leaderboard on the
+page comes out of one method — class summaries, per heat, per round, event totals — and underneath
+them sit the per-round lap tables, which carry the same `pilot_id`. Filtering the standings while
+leaving everyone else's lap times under them is the kind of half-applied filter that makes people
+stop trusting the control, so that is checked by counting both. A page of table headers with no
+rows beneath them is the other failure it guards against, which is what the pruning pass exists
+for; a pilot who appears nowhere gets a stated answer rather than a blank page.
+
+The last group re-checks the **bracket** view. `displayStats` now imports `pilotSelector`, which
+the bracket has always imported, and both views share one selection — so the bracket's own dimming
+and structural filtering are re-measured here to make sure nothing moved.
 
 ### `tests/e2e/editor.cjs`
 

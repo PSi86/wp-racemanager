@@ -55,6 +55,7 @@ $GLOBALS['rm_query_vars']['rm_race'] = 'spring-cup-2026';
 
 rm_test_section( 'Every shortcode renders without a fatal' );
 $rendered = array();
+$styles   = array();
 foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortcode', 'rm_nextup_shortcode' ) as $fn ) {
     $html  = '';
     $error = '';
@@ -62,12 +63,19 @@ foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortc
     // status indicator is reset between them. Rendering four in one process is an artefact of
     // this suite; on a real site each of these is a separate load.
     $GLOBALS['rm_update_status_emitted'] = false;
+    // Which sheets *this* shortcode asked for, and only this one. Reading the shared list would
+    // let one view's enqueue answer for another's -- which is exactly how a check that the stats
+    // view loads the right stylesheet passed while it was loading the wrong one. Emptied rather
+    // than diffed, because two views legitimately enqueue the same handle and a diff would credit
+    // it only to whichever ran first.
+    $GLOBALS['rm_styles_enqueued'] = array();
     try {
         $html = $fn( array() );
     } catch ( \Throwable $e ) {
         $error = get_class( $e ) . ': ' . $e->getMessage();
     }
     $rendered[ $fn ] = $html;
+    $styles[ $fn ] = $GLOBALS['rm_styles_enqueued'];
     rm_test_check(
         $fn,
         '' === $error && is_string( $html ) && '' !== $html && ! str_contains( $html, 'No race selected' ),
@@ -111,10 +119,45 @@ rm_test_check( 'it is a button, so the whole pill can force a check',
 rm_test_check( 'and it starts hidden, for the no-JavaScript case',
     preg_match( '/<button[^>]+id="rm-update-status"[^>]*\shidden\b/', $rendered['rm_bracket_shortcode'] ) === 1,
     $rendered['rm_bracket_shortcode'] );
-rm_test_check( 'the stylesheet travels with it',
-    isset( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'] ) &&
-    str_contains( $GLOBALS['rm_styles_enqueued']['rm-update-status-css'], 'css/rm-update-status.css' ),
-    implode( ', ', array_keys( $GLOBALS['rm_styles_enqueued'] ) ) );
+$without_status_css = array_keys( array_filter( $styles,
+    static fn( $sheets ) => ! isset( $sheets['rm-update-status-css'] ) ) );
+rm_test_check( 'the stylesheet travels with it, in every view',
+    array() === $without_status_css, implode( ', ', $without_status_css ) );
+
+rm_test_section( 'The pilot filter, on the bracket view and now on the stats view' );
+// Both halves have to be present for either to be useful: the dropdown marks a pilot, the
+// checkbox drops the rest. js/rm-m-displayStats.js reads both by the ids below.
+foreach ( array( 'rm_bracket_shortcode', 'rm_stats_shortcode' ) as $fn ) {
+    rm_test_check( "$fn offers the pilot dropdown",
+        str_contains( $rendered[ $fn ], 'id="pilotSelector"' ), substr( $rendered[ $fn ], 0, 200 ) );
+    rm_test_check( "$fn offers the filter checkbox",
+        str_contains( $rendered[ $fn ], 'id="filterCheckbox"' ), substr( $rendered[ $fn ], 0, 200 ) );
+}
+// The controls sit in .web-controls, styled in css/rm-pilot-filter.css together with the marking
+// of the selected row. Both views load that file.
+foreach ( array( 'rm_bracket_shortcode', 'rm_stats_shortcode' ) as $fn ) {
+    rm_test_check( "$fn loads the stylesheet those controls need",
+        isset( $styles[ $fn ]['rm-pilot-filter-css'] ) &&
+        str_contains( $styles[ $fn ]['rm-pilot-filter-css'], 'css/rm-pilot-filter.css' ),
+        implode( ', ', array_keys( $styles[ $fn ] ) ) );
+}
+// The negative half, and the one that matters. rm_viewer.css is the *bracket's* stylesheet: it
+// redefines .node as a bracket race box, while in the stats view .node is RotorHazard's own class
+// for a lap-results column -- a callsign stacked above a table of laps. Loading it there laid the
+// two on top of each other and mangled the round detail under every heat. That is how the filter
+// was first built, and nothing caught it, because the controls did look right.
+rm_test_check( 'and the stats view does NOT load the bracket stylesheet with them',
+    ! isset( $styles['rm_stats_shortcode']['rm-sc-viewer-css'] ),
+    implode( ', ', array_keys( $styles['rm_stats_shortcode'] ) ) );
+// The pilots view deliberately has neither: displayPilotStats never imported pilotSelector, and
+// its own table is already one row per pilot. Its markup for the controls is still there but
+// commented out, so the comments have to come off before asking -- checking the raw string finds
+// the ids inside the comment and passes for the wrong reason.
+$pilots_live = preg_replace( '/<!--.*?-->/s', '', $rendered['rm_pilots_shortcode'] );
+rm_test_check( 'the pilots view still has no active filter, which is deliberate',
+    ! str_contains( $pilots_live, 'id="filterCheckbox"' ) &&
+    ! str_contains( $pilots_live, 'id="pilotSelector"' ),
+    $pilots_live );
 
 // Two live shortcodes on one page is a real configuration -- the pilot stats above the bracket --
 // and it is the same case rm_add_js_module_config() exists for. A second element would duplicate

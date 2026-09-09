@@ -1,0 +1,85 @@
+/**
+ * The pilot filter — the controls, and the marking of the chosen pilot.
+ *
+ * Shared by the bracket view and the stats view, which offer the same two levels: the
+ * dropdown marks one pilot, the checkbox drops everyone else.
+ *
+ * **This file exists because of a collision, and the collision is worth knowing about.**
+ * The controls used to be styled in rm_viewer.css, and the obvious way to give the stats
+ * view its filter was to load that sheet there too. rm_viewer.css is the *bracket's*
+ * stylesheet, and it redefines `.node` as a bracket race box — flex, centred, 12px,
+ * forced black, bordered, shadowed. In the stats view `.node` means something else
+ * entirely: RotorHazard's own class for a lap-results column, a callsign stacked above a
+ * table of laps. Loading the one sheet into the other view laid those two on top of each
+ * other and the round detail came out mangled.
+ *
+ * So the filter's styles were lifted out into their own file instead. The bracket keeps
+ * rm_viewer.css for everything else; the stats view never sees it. Anything added here
+ * has to be safe in both views, which in practice means: do not style `.node`, and do not
+ * style anything else RotorHazard already names.
+ */
+
+.web-controls {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	white-space: nowrap;
+	gap: 10px;
+}
+
+.web-controls a {
+	margin-left: 1em;
+	margin-right: 10px;
+	display: block;
+	transition: 0.1s linear all;
+	padding: 1px;
+}
+
+.web-controls a:hover {
+	color: #0050a0;
+}
+
+.web-controls #pilotSelector {
+	margin-right: 10px;
+	display: block;
+	transition: 0.1s linear all;
+	padding: 1px;
+	width: auto;
+}
+
+/*
+ * The chosen pilot's row, in every leaderboard they appear in.
+ *
+ * Marking rather than dimming everyone else, which is what the bracket does to its race
+ * nodes. There several of many nodes are relevant and greying the rest works. In a
+ * leaderboard one row in twenty is relevant, and a position only means something read
+ * against the ones around it — which is exactly what a grey table takes away.
+ */
+
+.leaderboard tr.selected-pilot {
+	background-color: #fff4cc;
+	font-weight: 700;
+}
+
+.leaderboard tr.selected-pilot td:first-child {
+	box-shadow: inset 0.2em 0 0 0 #bf8700;
+}
+
+/* Filtering down to a pilot who appears nowhere is a legitimate answer, and one worth
+   stating rather than leaving as a blank page that looks like a failure. */
+.rm-no-filter-results {
+	margin: 1em 0;
+	font-style: italic;
+	opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
+	.leaderboard tr.selected-pilot {
+		background-color: #3a2f10;
+	}
+
+	.leaderboard tr.selected-pilot td:first-child {
+		box-shadow: inset 0.2em 0 0 0 #d29922;
+	}
+}

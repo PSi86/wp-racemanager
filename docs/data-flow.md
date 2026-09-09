@@ -131,7 +131,7 @@ Subscribers get the entire object and pick what they need:
 | `rm-m-displayHeats` | bracket | `heat_data`, `pilot_data`, `class_data`, `current_heat`, `result_data` |
 | `rm-m-displayStats` | stats | `result_data` |
 | `rm-m-displayPilotStats` | pilots | `pilot_data`, `result_data` |
-| `rm-m-pilotSelector` | bracket, next-up | `pilot_data` |
+| `rm-m-pilotSelector` | bracket, stats, next-up | `pilot_data` |
 | `rm-m-displayLog` | next-up | `notifications` |
 
 Each view enqueues **one** module, and everything else arrives through that module's imports —
@@ -141,16 +141,24 @@ rather than assumed:
 ```
 bracket   -> displayHeats      -> dataLoader, pilotSelector
 pilots    -> displayPilotStats -> dataLoader
-stats     -> displayStats      -> dataLoader
+stats     -> displayStats      -> dataLoader, pilotSelector
 next-up   -> displayNextUp     -> pilotSelector, displayHeats, displayLog, displayRanking
 ```
 
-**`rm-m-pilotSelector` therefore does not run on the pilots and stats views.** `displayPilotStats`
-never imported it, and the import in `displayStats.js` is commented out — which matches those two
-shortcodes, whose `<select id="pilotSelector">` markup is commented out in `livepage-handler.php`
-as well. The `pilotSelector` entry those views still emit into `RmJsConfig` is a leftover that
-nothing reads. Anything that reasons about "the pilot dropdown on every live page" is wrong before
-it starts.
+**`rm-m-pilotSelector` therefore does not run on the pilots view.** `displayPilotStats` never
+imported it, and that shortcode's `<select id="pilotSelector">` markup is commented out in
+`livepage-handler.php` to match. The `pilotSelector` entry it still emits into `RmJsConfig` is a
+leftover that nothing reads. Anything that reasons about "the pilot dropdown on every live page"
+is wrong before it starts — it is on three of the four.
+
+That the pilots view has no filter is a decision rather than an omission: its table is already one
+row per pilot, so there is nothing to narrow down.
+
+The stats view **did** belong in that list until the pilot filter was built. Both halves of it —
+the import and the `<select>` markup — had been present but commented out, along with a
+half-finished change handler whose two guards were crossed over. Anyone reading the old shape
+would reasonably have concluded the view was meant to stay unfiltered; it was unfinished, not
+decided.
 
 ## What this costs
 

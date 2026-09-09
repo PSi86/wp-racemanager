@@ -8,6 +8,7 @@
       "test:live-resume": "node tests/e2e/live-resume.cjs",
       "test:update-status": "node tests/e2e/update-status.cjs",
       "test:flaky-network": "node tests/e2e/flaky-network.cjs",
+      "test:stats-filter": "node tests/e2e/stats-filter.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"
