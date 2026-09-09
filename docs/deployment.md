@@ -13,7 +13,7 @@ build sources that have no business on a web server. Section 2 is about separati
 
 | Requirement | Why | How to check without WP-CLI |
 |---|---|---|
-| **PHP 8.2 or newer** | `minishlink/web-push` v9 pulls in `web-token/jwt-library`, which requires 8.2. Below that, push notifications are unavailable. | Tools → Site Health → Info → Server |
+| **PHP 8.2 or newer** | `minishlink/web-push` pulls in `web-token/jwt-library`, which requires 8.2, and the plugin header declares it — so below that WordPress refuses to activate at all, rather than merely losing push. | Tools → Site Health → Info → Server |
 | `curl`, `openssl`, `mbstring`, `json` extensions | Web Push signing and delivery. | same screen |
 | **Pretty permalinks** | The `/live/{race}/{view}/` rewrite rule cannot work with plain permalinks. | Settings → Permalinks |
 | **Contact Form 7, active** | The activation hook refuses to run without it. | Plugins |
@@ -173,12 +173,54 @@ alone.
 The activation hook creates the two custom tables, bootstraps VAPID keys, writes `manifest.json`
 and `pwa-sw.js`, and flushes the rewrite rules.
 
-> **Do not deactivate/reactivate just to "run it again".**
-> `create_event_registration_cf7_form()` inserts a new *Event Registration Example* form every
-> single time it runs — the duplicate check in it is commented out. You get one more CF7 form per
-> reactivation, and they are easy to confuse with the real one.
+**Deactivate → Activate is safe again**, and it is the simplest way to run the hook after a ZIP
+replace. It used to be the thing not to do: `create_event_registration_cf7_form()` inserted
+another *Event Registration Example* form on every run, because the duplicate check in it was
+commented out. That is finding **E10**, fixed in [#10](https://github.com/PSi86/wp-racemanager/pull/10)
+— the function now returns the existing form, and `tests/suites/activation.php` asserts
+"reactivating creates nothing".
 
-Everything the hook would have done can be done by hand, and section 7 does exactly that.
+Everything the hook does can also be done by hand, and section 7 does exactly that.
+
+---
+
+## 6a · The update pending in September 2026 — what makes it different
+
+Production still runs the June 2025 code. Confirmed rather than assumed: on
+`copterrace.com`, `/live/bracket/?race_id=2402` answers 200 while
+`/live/winter-whooprace-2025/bracket/` answers 404, so the path-based router has never been
+deployed there. This is a year of accumulated change, and four things about it are not routine.
+
+**1 · PHP 8.2 is now a hard floor — check before anything else.** `minishlink/web-push` 11 pulls
+in `web-token/jwt-library`, which requires it, and the plugin header declares it. WordPress
+refuses to activate a plugin whose PHP requirement the server does not meet, so on an older PHP
+the update does not half-work, it stops. **Tools → Site Health → Info → Server** before you
+start; the host serves LiteSpeed and does not put the version in a response header.
+
+**2 · Two Composer dependencies crossed majors, and the ZIP settles it.** `minishlink/web-push`
+9 → 11, and 11 no longer depends on Guzzle: it resolves a PSR-18 client through
+`php-http/discovery` at construction time, so a dependency set without one leaves
+`class_exists()` reporting the library as present while every notification throws. `composer.json`
+requires `guzzlehttp/guzzle` explicitly for that reason. The artifact ships its own `vendor/`, and
+`rm_push_library_available()` looks there **first** — before any `vendor/` above the WordPress
+root — so the shipped set wins over whatever older one the server may still carry. Nothing has to
+be removed by hand, but see section 5 if this site was ever set up with the library outside the
+plugin.
+
+**3 · The live URLs change shape, and only a permalink flush completes it.** Production currently
+serves `/live/{view}/?race_id={id}`; the deployed code serves `/live/{race-slug}/{view}/` and
+redirects the old form to it. The rewrite rule is built from the slugs of the live page's
+children, and those already match — `bracket`, `pilots`, `stats`, `next-up` under `live`. So no
+page work is needed, but **Settings → Permalinks → Save** is not optional, and a cached 301 from
+before the change will send visitors to the wrong place until the cache is purged.
+
+**4 · The blocks moved to `apiVersion: 3`.** All seven, and every one of them is dynamic, so no
+stored post content changes and nothing can be invalidated. What is worth a look after the
+deployment is the editor: open a post containing a RaceManager block and check the browser
+console is free of block errors. The `race-gallery` block drives the classic media modal, which
+was verified against WordPress 7.1's iframed editor.
+
+Beyond that, the ordinary sequence in sections 3, 4 and 7 applies unchanged.
 
 ---
 
