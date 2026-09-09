@@ -45,7 +45,7 @@ add_rewrite_rule(
 );
 ```
 
-`$view_pattern` is an alternation of the actual view slugs — `bracket|stats|nextup|…` — built
+`$view_pattern` is an alternation of the actual view slugs — `bracket|stats|next-up|…` — built
 from the same cached child-page list that drives the rest of the routing.
 
 **A generic `[^/]+` for the second segment is wrong**, and this was caught only after the first

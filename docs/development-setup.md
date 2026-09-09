@@ -279,17 +279,24 @@ The live micro-site is built from ordinary WordPress pages, so it has to exist b
 under `/live/` works. One parent page plus one child page per view, each holding its shortcode:
 
 ```bash
-LIVE=$(ddev wp post create --post_type=page --post_title='Live' --post_name=live \
+LIVE=$(ddev wp post create --post_type=page --post_title='Select Race' --post_name=live \
         --post_status=publish --porcelain)
 
-for v in bracket pilots stats nextup; do
-  ddev wp post create --post_type=page --post_title="$v" --post_name="$v" \
-      --post_parent="$LIVE" --post_status=publish --post_content="[rm_$v]" --porcelain
+# slug:shortcode -- the slugs match production, and "next-up" is the one where
+# the two differ, because the shortcode has always been [rm_nextup].
+for pair in bracket:rm_bracket pilots:rm_pilots stats:rm_stats next-up:rm_nextup; do
+  ddev wp post create --post_type=page --post_name="${pair%%:*}" --post_title="${pair%%:*}" \
+      --post_parent="$LIVE" --post_status=publish --post_content="[${pair##*:}]" --porcelain
 done
 
 ddev wp option update rm_live_page_id "$LIVE"
 ddev wp rewrite flush
 ```
+
+The slugs are not cosmetic: they are what the rewrite rule is built from, so using production's
+is what makes a local URL and a production URL the same string. `bin/bootstrap-devenv.sh` uses
+these, and renames an older `nextup` page to `next-up` rather than creating a second one beside
+it.
 
 `bin/bootstrap-devenv.sh` does exactly this, and skips whatever already exists; run it with
 `--recreate-live-pages` to tear the four pages down and rebuild them. What it does not do is add a
@@ -480,7 +487,21 @@ Useful DDEV commands for this plugin specifically:
 | `ddev snapshot` / `ddev snapshot restore --latest` | Database checkpoint before trying a migration — for example the event-date migration on the settings page. |
 | `ddev wp ...` | Any WP-CLI command. |
 | `ddev restart` | After changing `.ddev/config.yaml`. |
+| `ddev exec ls /var/www/html` | Note `MSYS_NO_PATHCONV=1` in Git Bash, or the path is rewritten before ddev.exe sees it. |
 | `ddev delete -O` | Throw the database and the DDEV project away. The files stay, so to start truly fresh delete `wp-app/` too, recreate the plugin symlink (section 3), then `ddev start` and re-run `bin/bootstrap-devenv.sh`. The repository is outside `wp-app/`, so there is nothing to rescue first. |
+
+### Scripting against ddev
+
+Two things bite when a shell script drives `ddev` rather than a person:
+
+- **`ddev` reads stdin.** Inside a `while read ... done < list` loop it consumes the rest of the
+  list, so the loop body runs exactly once and the script looks like it silently skipped
+  everything. Redirect: `ddev wp ... </dev/null`. A `for x in $list` loop does not have the
+  problem, which is why `bin/bootstrap-devenv.sh` uses one.
+- **Uploads are bind-mounted, not synced.** `.ddev/mutagen/mutagen.yml` ignores
+  `/wp-app/wp-content/uploads`, but DDEV bind-mounts that path into the container separately, so a
+  file dropped there on the host *is* immediately visible inside — no `ddev start`, no sync wait.
+  That is where the per-race JSON lives, which makes importing production data a plain `cp`.
 
 ### Building the blocks
 

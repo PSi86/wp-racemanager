@@ -68,8 +68,26 @@ Subscribers get the entire object and pick what they need:
 | `rm-m-displayHeats` | bracket | `heat_data`, `pilot_data`, `class_data`, `current_heat`, `result_data` |
 | `rm-m-displayStats` | stats | `result_data` |
 | `rm-m-displayPilotStats` | pilots | `pilot_data`, `result_data` |
-| `rm-m-pilotSelector` | all | `pilot_data` |
-| `rm-m-displayLog` | nextup | `notifications` |
+| `rm-m-pilotSelector` | bracket, next-up | `pilot_data` |
+| `rm-m-displayLog` | next-up | `notifications` |
+
+Each view enqueues **one** module, and everything else arrives through that module's imports —
+which is why the table above is not a free choice. The graph, read out of the `import` statements
+rather than assumed:
+
+```
+bracket   -> displayHeats      -> dataLoader, pilotSelector
+pilots    -> displayPilotStats -> dataLoader
+stats     -> displayStats      -> dataLoader
+next-up   -> displayNextUp     -> pilotSelector, displayHeats, displayLog, displayRanking
+```
+
+**`rm-m-pilotSelector` therefore does not run on the pilots and stats views.** `displayPilotStats`
+never imported it, and the import in `displayStats.js` is commented out — which matches those two
+shortcodes, whose `<select id="pilotSelector">` markup is commented out in `livepage-handler.php`
+as well. The `pilotSelector` entry those views still emit into `RmJsConfig` is a leftover that
+nothing reads. Anything that reasons about "the pilot dropdown on every live page" is wrong before
+it starts.
 
 ## What this costs
 

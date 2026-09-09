@@ -107,6 +107,12 @@ Only `race-gallery` is built from source; the other blocks are hand-written `ind
 in `blocks/`. The build runs on the host, and `blocks/race-gallery/` is committed, so a source
 change has to be committed together with its rebuilt output.
 
+**Every block is dynamic**: `save` returns `null` and the markup comes from a `render_callback` in
+`includes/block-render-*.php`. Nothing is stored in post content but the block delimiter, so
+changes to `block.json` — `apiVersion`, attributes, supports — cannot invalidate saved content.
+That removes the usual risk from block migrations, and it is worth checking before assuming one is
+dangerous.
+
 `webpack.config.js` is load-bearing: wp-scripts empties its output directory before every emit,
 and the output directory is `blocks/`, so the config narrows the clean to the folders that have a
 source under `blocks-src/`. Without it a build deletes the six hand-written blocks silently. After
