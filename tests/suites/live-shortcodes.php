@@ -21,6 +21,7 @@ function wp_enqueue_script_module( string $id, string $src = '', array $deps = a
 // purpose -- the stubs guard every definition with function_exists(), so this one wins.
 function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
     $GLOBALS['rm_styles_enqueued'][ $handle ] = $src;
+    $GLOBALS['rm_style_versions'][ $handle ]  = $ver;
 }
 
 function get_post_meta( $id, $key, $single = false ) { return '_race_live' === $key ? '1' : ''; }
@@ -36,6 +37,7 @@ function rm_get_vapid() { return array( 'publicKey' => 'TESTPUBKEY', 'privateKey
 $GLOBALS['rm_modules_registered'] = array();
 $GLOBALS['rm_modules_enqueued']   = array();
 $GLOBALS['rm_styles_enqueued']    = array();
+$GLOBALS['rm_style_versions']     = array();
 $GLOBALS['rm_options'] = array( 'rm_live_page_id' => 7, 'admin_email' => 'race@example.test' );
 
 require_once RM_TEST_DIR . '/stubs/wordpress.php';
@@ -103,6 +105,30 @@ foreach ( $GLOBALS['rm_modules_registered'] as $id => $module ) {
     rm_test_check( "$id passes no classic script handles as module deps", array() === $module['deps'],
         implode( ',', array_map( 'strval', $module['deps'] ) ) );
 }
+
+rm_test_section( 'Every asset is versioned by the plugin, not by hand' );
+// A literal version string beside an enqueue has to be remembered every time the file changes,
+// and it never is: css/rm-update-status.css was rewritten twice while the '1.1.0' next to it
+// stayed put, and js/rm-m-displayStats.js grew a whole pilot filter while its module still said
+// '1.0.3'. A returning visitor would have kept the cached copy and seen the previous release --
+// which looks like nothing is wrong, because the old file still works.
+//
+// Note what this cannot cover: js/rm-m-dataLoader.js is reached through a relative import, and
+// WordPress versions only what it enqueues. That one's freshness rests on the host's cache
+// headers, which docs/deployment.md says to check once per host.
+$stale = array();
+foreach ( $GLOBALS['rm_modules_registered'] as $id => $module ) {
+    if ( WP_RACEMANAGER_VERSION !== $module['version'] ) {
+        $stale[] = "$id=" . var_export( $module['version'], true );
+    }
+}
+foreach ( $GLOBALS['rm_style_versions'] as $handle => $version ) {
+    if ( WP_RACEMANAGER_VERSION !== $version ) {
+        $stale[] = "$handle=" . var_export( $version, true );
+    }
+}
+rm_test_check( 'every registered module and stylesheet carries WP_RACEMANAGER_VERSION',
+    array() === $stale, implode( ', ', $stale ) );
 
 rm_test_section( 'The freshness indicator is wired into every live view' );
 // The element, the module and the stylesheet come from one helper precisely so that they cannot

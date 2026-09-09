@@ -106,18 +106,23 @@ function rm_add_js_module_config( array $config ) {
  * @return string Markup for the first caller in a request, an empty string for any after it.
  */
 function rm_update_status_markup() {
+    // The plugin version rather than a hand-written one. A literal here has to be remembered
+    // every time the file changes, and it was already wrong: this stylesheet was rewritten twice
+    // -- the pill redesign and the [hidden] fix -- while the string beside it stayed put. A
+    // release bump now busts these on its own, which is the only version anybody actually keeps
+    // in step.
     wp_enqueue_style(
         'rm-update-status-css',
         plugin_dir_url( __DIR__ ) . 'css/rm-update-status.css',
         array(),
-        '1.1.0'
+        WP_RACEMANAGER_VERSION
     );
 
     wp_register_script_module(
         'rm-updateStatus',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-updateStatus.js',
         array(), // the loader is a relative import inside the module, as in every other view
-        '1.1.0'
+        WP_RACEMANAGER_VERSION
     );
     wp_enqueue_script_module( 'rm-updateStatus' );
 
@@ -150,18 +155,22 @@ function rm_pilots_shortcode( $atts ) {
 
     wp_enqueue_style(
         'rm-sc-rotorhazard-css', 
-        plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css'
+        plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css',
+        array(),
+        WP_RACEMANAGER_VERSION
     );
     wp_enqueue_style(
         'rm-sc-viewer-css', 
-        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css',
+        array(),
+        WP_RACEMANAGER_VERSION
     );
 
     wp_register_script_module(
         'rm-pilot-stats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayPilotStats.js',
         array(), // no dependency needed here, as dynamic imports are handled in the module itself
-        '1.0.3'
+        WP_RACEMANAGER_VERSION
     );
 
     // Load dataLoader, pilotSelector, pushSubscription
@@ -210,7 +219,9 @@ function rm_bracket_shortcode( $atts ) {
     // Enqueue custom CSS and JS
     wp_enqueue_style(
         'rm-sc-viewer-css',
-        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css',
+        array(),
+        WP_RACEMANAGER_VERSION
     );
     // The filter's own styles, shared with the stats view, which cannot load rm_viewer.css --
     // see the note there.
@@ -218,14 +229,14 @@ function rm_bracket_shortcode( $atts ) {
         'rm-pilot-filter-css',
         plugin_dir_url( __DIR__ ) . 'css/rm-pilot-filter.css',
         array(),
-        '1.0.0'
+        WP_RACEMANAGER_VERSION
     );
 
     wp_enqueue_script(
         'rm-bracket-template',
         plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', 
         ['jquery'], 
-        '1.0.3', 
+        WP_RACEMANAGER_VERSION,
         false
     );
 
@@ -233,7 +244,7 @@ function rm_bracket_shortcode( $atts ) {
         'rm-displayHeats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayHeats.js',
         array(), // no dependency needed here, as dynamic imports are handled in the module itself
-        '1.0.3'
+        WP_RACEMANAGER_VERSION
     );
 
     rm_add_js_module_config( array(
@@ -282,7 +293,9 @@ function rm_stats_shortcode( $atts ) {
 
     wp_enqueue_style(
         'rm-sc-rotorhazard-css',
-        plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css'
+        plugin_dir_url( __DIR__ ) . 'css/rotorhazard.css',
+        array(),
+        WP_RACEMANAGER_VERSION
     );
     // The pilot filter only. Deliberately NOT rm_viewer.css, which is the bracket's stylesheet:
     // it redefines .node as a bracket race box, while here .node is RotorHazard's own class for
@@ -291,13 +304,13 @@ function rm_stats_shortcode( $atts ) {
         'rm-pilot-filter-css',
         plugin_dir_url( __DIR__ ) . 'css/rm-pilot-filter.css',
         array(),
-        '1.0.0'
+        WP_RACEMANAGER_VERSION
     );
     wp_register_script_module(
         'rm-stats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayStats.js',
         array(), // no dependency needed here, as dynamic imports are handled in the module itself
-        '1.0.3'
+        WP_RACEMANAGER_VERSION
     );
 
     // Load dataLoader, pilotSelector, pushSubscription
@@ -348,14 +361,16 @@ function rm_nextup_shortcode( $atts ) {
     
     wp_enqueue_style(
         'rm-sc-viewer-css', 
-        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css'
+        plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css',
+        array(),
+        WP_RACEMANAGER_VERSION
     );
 
     wp_register_script_module(
         'rm-nextUp',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayNextUp.js',
         array(), // no dependency needed here, as dynamic imports are handled in the module itself
-        '1.0.3'
+        WP_RACEMANAGER_VERSION
     );
 
     // Generate a nonce using the wp_rest action (the default for REST API endpoints)

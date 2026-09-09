@@ -71,6 +71,13 @@ Consequences worth keeping in mind when changing this:
   `rm_print_js_module_config()` prints on `wp_head`.
 - `wp_register_script_module()` takes **five** parameters since WordPress 6.9, the fifth being
   `array $args`. Passing anything else there is an uncaught `TypeError`.
+- **Every enqueued asset is versioned with `WP_RACEMANAGER_VERSION`, never a literal.** A
+  hand-written version has to be remembered on every edit and never is: `rm-update-status.css` was
+  rewritten twice while the `'1.1.0'` beside it stayed put, and two stylesheets carried no version
+  at all. A returning visitor then keeps the cached copy and runs the previous release, which
+  looks like nothing is wrong because the old file still works. `live-shortcodes` fails if a
+  literal comes back. This cannot cover `rm-m-dataLoader.js`, reached through a relative `import`
+  that WordPress does not version — see `docs/deployment.md`.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
