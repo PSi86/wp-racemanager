@@ -94,13 +94,29 @@ rm_test_section( 'Route registration' );
 rm_register_rest_routes_rh();
 $routes = $GLOBALS['rm_rest_routes'];
 
-rm_test_check( 'three routes registered', 3 === count( $routes ), implode( ', ', array_keys( $routes ) ) );
-foreach ( array( 'rm/v1/upload', 'rm/v1/get-pilots', 'rm/v1/notify-racers' ) as $route ) {
-    rm_test_check( "$route is guarded",
-        isset( $routes[ $route ]['permission_callback'] ) && 'permission_check_user' === $routes[ $route ]['permission_callback'] );
+rm_test_check( 'four routes registered', 4 === count( $routes ), implode( ', ', array_keys( $routes ) ) );
+
+// A route is one endpoint, or a list of them when it answers more than one method
+// (GET and POST /races).
+$endpoints = array();
+foreach ( $routes as $route => $args ) {
+    foreach ( isset( $args['methods'] ) ? array( $args ) : $args as $endpoint ) {
+        $endpoints[] = array( 'route' => $route ) + $endpoint;
+    }
 }
-rm_test_check( 'no route falls back to __return_true',
-    ! in_array( '__return_true', array_column( $routes, 'permission_callback' ), true ) );
+rm_test_check( 'five endpoints', 5 === count( $endpoints ),
+    implode( ', ', array_map( fn( $e ) => $e['methods'] . ' ' . $e['route'], $endpoints ) ) );
+foreach ( $endpoints as $endpoint ) {
+    rm_test_check( "{$endpoint['methods']} {$endpoint['route']} is guarded",
+        isset( $endpoint['permission_callback'] ) && 'permission_check_user' === $endpoint['permission_callback'] );
+}
+rm_test_check( 'no endpoint falls back to __return_true',
+    ! in_array( '__return_true', array_column( $endpoints, 'permission_callback' ), true ) );
+
+$race_id_arg = $routes['rm/v1/upload']['args']['race_id'] ?? array();
+rm_test_check( 'upload takes race_id, optional, checked per race',
+    false === ( $race_id_arg['required'] ?? null )
+    && 'permission_check_race_id' === ( $race_id_arg['validate_callback'] ?? null ) );
 
 rm_test_section( 'The per-race check is still there' );
 
