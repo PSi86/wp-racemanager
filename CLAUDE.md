@@ -33,6 +33,7 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
 | `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. Two channels out: `subscribe()` for the data, `onState()` for what the loader is doing. |
 | `js/rm-m-updateStatus.js` | The freshness pill floating at the foot of every live view — the only consumer of `onState()`. `describe()` is pure and exported so the state machine can be tested without a broken network, and `isRelevant()` beside it decides whether the pill appears at all: on a race that is **not** flagged live it stays hidden unless the data could not be loaded. `rm_update_status_markup()` emits it **once per page**, not once per shortcode. |
+| `templates/template-pwa-sw.js` | The service worker: push, and since L6 the kept copies of the live pages and their files for when the network does not answer. Network first for everything, the race JSON never touched. Written to the WordPress root as `pwa-sw.js` by `rm_maybe_refresh_pwa_files()` on `admin_init`, whenever a value or a template changed. |
 
 ## How the live area works
 
@@ -108,6 +109,7 @@ when any of that is missing.
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
 | `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have |
 | `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |
+| `npm run test:offline` | the service worker: the first visit kept, a reload without a connection still showing the race, no race JSON in its cache, the kept page after the deadline on a link that delivers nothing, and neither `no-store` pages nor stale copies of changed files served while the network answers |
 | `npm run test:stats-filter` | the pilot filter on the stats view — marking, filtering, the per-round lap tables going with the leaderboards, pruning of what the filter emptied, and that the bracket view's own filter is unmoved |
 
 `test:update-status` needs a race that is flagged live (`ddev wp post meta update <id> _race_live
@@ -132,7 +134,10 @@ MSYS_NO_PATHCONV=1 ddev exec -d /var/www/html/wp-app/wp-content/plugins/wp-racem
 ```
 
 `MSYS_NO_PATHCONV=1` is for Git Bash, which otherwise rewrites the `-d` path into a Windows one;
-PowerShell needs nothing. Three races carry real result data from production. The theme differs —
+PowerShell needs nothing. After changing `templates/template-pwa-sw.js`, `ddev wp eval
+'rm_maybe_refresh_pwa_files();'` — or opening any admin page — writes the new worker to the
+WordPress root; until then the site serves the old one. Three races carry real result data from
+production. The theme differs —
 Twenty Twenty-Five here, Frost on production — which matters for anything the navigation renders.
 The rest of the setup, and what deliberately does not match production, is in
 [`docs/development-setup.md`](docs/development-setup.md).
@@ -225,10 +230,9 @@ Three lists, and they answer different questions:
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
   updates broke or exposed. 24 findings, all resolved. Closed.
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
-  could get better, above all its data path. L1–L5 are done; L6 (a service worker that caches),
-  L9 (a stylesheet for the mobile navigation) and L7/L8 (per-section files, then per-section
-  uploads) are open, in the order its *Next steps* give; L10 (a CDN) is not needed at this audience
-  size. [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
+  could get better, above all its data path. L1–L6 are done; L9 (a stylesheet for the mobile
+  navigation) and L7/L8 (per-section files, then per-section uploads) are open, in the order its
+  *Next steps* give; L10 (a CDN) is not needed at this audience size. [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
 - [`docs/pilot-identity.md`](docs/pilot-identity.md) — a stable per-pilot identifier in
   `get-pilots`, so RotorHazard can recognise a returning pilot. Nothing to build until one of its
   three options is chosen.

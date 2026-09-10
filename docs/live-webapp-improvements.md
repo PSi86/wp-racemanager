@@ -27,7 +27,7 @@ IDs are stable and referenced from commits and pull requests, the same way the a
 | L9 | P1 | the theme's rendered markup | A stylesheet for the mobile navigation |
 | L2 | P2 | ✅ done — and worth less than this list claimed | Conditional requests alongside `cache: 'no-store'` |
 | L3 | P2 | ✅ done | `localStorage` instead of per-tab `sessionStorage` |
-| L6 | P2 | nothing | A service worker that caches, so the installed PWA survives bad reception |
+| L6 | P2 | ✅ done | A service worker that caches, so the installed PWA survives bad reception |
 | L7 | P2 | nothing | Split the payload into per-section files with an index |
 | L8 | P3 | ~~a change on the RotorHazard side~~ — the uploader is ours | Upload only the sections that changed |
 | L10 | P3 | — not needed at this audience size | A CDN in front of the JSON |
@@ -198,15 +198,70 @@ Details worth getting right: `role="status"` and `aria-live="polite"` so a scree
 changes without stealing focus; one shared timer for the relative time rather than one per
 component; the absolute time in `title`; never show "aktuell" while a check is failing.
 
-### L6 · A service worker that caches
+### L6 · A service worker that caches — done
 
-The service worker handles push and nothing else — there is no `fetch` handler, so the installed
-PWA shows an error page when reception drops, even though it had the data a moment ago.
+**Done**, in [`templates/template-pwa-sw.js`](../templates/template-pwa-sw.js), with
+`tests/e2e/offline.cjs` covering it. The problem was as this entry described it: the worker
+handled push and nothing else, so a reload or a relaunch of the installed app without reception
+got the browser's error page — and the standing that had sat in `localStorage` since L3 never had
+a page to appear on. Measured against the old worker, the offline reload failed with
+`net::ERR_INTERNET_DISCONNECTED`.
 
-Add: cache-first for the app shell (CSS, JS modules, icons), stale-while-revalidate for the race
-JSON. Two consequences worth planning for: a versioned cache name and an eviction step in
-`activate`, and a deliberate decision not to cache `-timestamp.json` — that one must always hit the
-network or the freshness indicator starts lying.
+The sketch that stood here read: *cache-first for the app shell (CSS, JS modules, icons),
+stale-while-revalidate for the race JSON*, plus a versioned cache name with an eviction step in
+`activate`, and not caching `-timestamp.json`. What was built differs from it in three places, each
+for a reason that was measured or that L3 had created since:
+
+- **Network first, not cache first — for everything.** The first version answered files with a
+  `?ver=` query from its cache first, on the grounds that such a URL is fixed for its version.
+  Measured, that was wrong twice over: a stylesheet changed without a version bump was served stale
+  from the cache, with no revalidation on reload to end it, and on a stalled link the unversioned
+  modules (`rm-m-dataLoader.js` and everything else reached by relative import) waited out a second
+  deadline — **10.05 s** to a usable page instead of **5.03 s**. The worker is now a fallback rather
+  than a faster path: while the network answers, a viewer gets exactly what they would without it.
+- **The race JSON is not cached at all.** L3 had since put the payload into `localStorage`, so a
+  second copy in the worker would only have put another cache between the loader and the network.
+  The timestamp stays out for the reason the sketch gave.
+- **The first visit is kept too.** The sketch did not consider it, and it is the visit a spectator
+  at the trackside is most likely to have had. It happens before the worker controls the page, so
+  nothing it loaded passes the fetch handler; `js/pwa-sw-register.js` therefore sends the page's
+  URL and the resources it loaded, and the worker fetches whatever it does not have yet.
+
+How it behaves, where a kept copy exists:
+
+| Situation | What the viewer gets |
+|---|---|
+| the network answers | the network's response, as without a worker, and the kept copy is refreshed |
+| the device knows it is offline | the kept copy, at once |
+| the link is up but nothing comes back | the kept copy after 5 s; the request carries on and refreshes the copy if it does return |
+| for 30 s after such a failure | a page's *files* from their copies at once, so they do not each wait 5 s again. Pages still try the network first, so the first page after reception returns is a fresh one |
+| a server error (5xx) | the kept copy |
+
+And where none does: a page never opened on the device gets a short *No connection* page with a
+retry button (status 503) instead of the browser's error. A response marked `no-store` is shown but
+never kept — WordPress sends exactly that to a logged-in user, whose pages carry the admin bar with
+their name in it.
+
+Over a kept page the pill says `Offline · data from 2025-12-14 17:18`: the data time out of the
+loader's own cache, as L5 intends.
+
+The sketch's two consequences are both in. The cache is named for the plugin version plus a hash of
+the worker template, and activation deletes every other `rm-live-` cache while leaving anything else
+on the origin alone. Getting there exposed a gap in `rm_maybe_refresh_pwa_files()`: its signature
+covered the substituted values and the plugin version but not the templates, so a changed worker
+was never written out without a version bump — the site kept serving the old one, and nothing said
+so. Both templates' hashes are part of the signature now; `tests/suites/pwa-files.php` holds that.
+
+Known limits:
+
+- **A kept page carries the live flag it was kept with.** A race that went live after the copy was
+  made, opened while the link is failing, shows its standing but does not poll until a page load
+  reaches the network again.
+- **`js/pwa-sw-register.js` hard-codes `/pwa-sw.js` and the scope `/live/`**, while the manifest
+  derives both from the configured live page. On this site they agree; on one whose live page sits
+  elsewhere the worker would register for the wrong scope. Older than L6, and a fix of its own.
+- **The worker file is rewritten on `admin_init`**, like the manifest. A deployment through the
+  admin triggers that by itself; one by SFTP alone does not until someone opens the admin.
 
 ---
 
@@ -442,12 +497,9 @@ In order, and each one is a self-contained piece of work:
    `js/rm-m-dataLoader.js`, and building them apart would have meant rewriting that stretch four
    times. L5 also needs what L2 and L3 change — a 304 is the "nothing changed" state, and a cache
    that survives is what produces the "shown but not yet confirmed" state.
-4. **L6 · the service worker.** Now the largest thing missing from the data path, and the one the
-   others cleared the way for: with the payload in `localStorage` and the loader reporting its own
-   state, a `fetch` handler has something coherent to fall back to and something to tell the
-   viewer when it does. Two decisions to make deliberately — a versioned cache name with an
-   eviction step in `activate`, and **not** caching `-timestamp.json`, which must always hit the
-   network or the freshness indicator starts lying.
+4. ~~**L6 · the service worker.**~~ — done, see the entry. The two decisions this step named are
+   in: a versioned cache name with an eviction step in `activate`, and the race JSON — the
+   timestamp above all — left to the network.
 5. **L9** — still unblocked, and the measurement says it is worth more than its P1 rating
    suggested: on a phone the live area is effectively a single view unless the visitor knows to
    open the burger.

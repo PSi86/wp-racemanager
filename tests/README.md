@@ -5,9 +5,10 @@ Two runners, and they answer different questions.
 **`php tests/run.php`** is the one to reach for: plain PHP, no framework, no WordPress
 installation required, so it runs anywhere and it is fast.
 
-**`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`** and
-**`test:update-status`** use a real browser, because some behaviour is what the DOM, the network
-and the browser's own storage do rather than what the source says. They are deliberately kept out
+**`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`**,
+**`test:update-status`**, **`test:flaky-network`**, **`test:stats-filter`** and **`test:offline`**
+use a real browser, because some behaviour is what the DOM, the network, the service worker and the
+browser's own storage do rather than what the source says. They are deliberately kept out
 of the PHP runner — see [Browser checks](#browser-checks) at the end.
 
 ```
@@ -28,6 +29,7 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `live-links` | Rewriting the live navigation so every item carries the current race, run against the **real** `WP_HTML_Tag_Processor`. Includes the full "visitor on race 66" scenario and the cases that must stay untouched. |
 | `live-shortcodes` | The four live-page shortcodes against the **verbatim WordPress 7.1 signatures** of the script module API. This is the regression guard for the 6.9 breakage: `wp_register_script_module()` gained a fifth `array $args` parameter, and anything else there is an uncaught `TypeError` that kills the whole page. |
 | `asset-versions` | That every asset the plugin enqueues carries `WP_RACEMANAGER_VERSION`. Read from the source with the tokenizer rather than from a rendered page, so it reaches the call sites no other suite executes — the admin, the navigation, the service worker registration — and a new file is covered the day it is added. Bundled libraries under `assets/` are versioned by the release in their directory name; the legacy `[rm_viewer]` shortcode is exempt by name, and the suite fails once that exemption has nothing left to cover. |
+| `pwa-files` | `manifest.json` and `pwa-sw.js` as the plugin writes them into the WordPress root: every placeholder a template uses has a value, the worker's cache is named for the plugin version and the template, and a template changed **without** a version bump is written out all the same — it used to stay on disk as it was, because the signature that decides about rewriting did not cover the templates. Works on a copy of `templates/` so it can change one. |
 | `vapid` | Key generation, the refusal to generate while subscriptions exist, key and contact validation, and constants beating the database. Runs against the real `minishlink/web-push`. |
 | `registration-email` | The address the registration confirmation uses: derived from the site's own domain by default, overridable in the settings, and carried into a form the plugin created — but never over an edit an organiser made by hand. |
 | `seo-head` | That `<head>` carries exactly one `<title>` — the SEO handler used to echo its own next to core's — that the per-post override reaches it through `pre_get_document_title`, and that an archive or 404 produces no undefined-variable warnings. |
@@ -69,12 +71,13 @@ npm run test:live-resume                            # against https://racemanage
 npm run test:update-status                          # against https://racemanager.ddev.site
 npm run test:flaky-network                          # against https://racemanager.ddev.site
 npm run test:stats-filter                           # against https://racemanager.ddev.site
+npm run test:offline                                # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
 ```
 
-All four run through Playwright, and all four skip rather than fail when Playwright or its
+All of them run through Playwright, and all of them skip rather than fail when Playwright or its
 Chromium is missing.
 
 ### `tests/e2e/pilot-selector.cjs`
@@ -175,6 +178,40 @@ report:
    the difference between "the app is broken" and "the app is behind".
 
 Needs a race flagged live, like `update-status.cjs`.
+
+### `tests/e2e/offline.cjs`
+
+The service worker's side of a bad link (L6). `flaky-network.cjs` shows that a warm
+`localStorage` turns an outage into old data; this one shows there is still a page to show it on.
+Before L6 the worker had no `fetch` handler, and a reload without reception got the browser's error
+page — `net::ERR_INTERNET_DISCONNECTED`, which is what 14 of the 25 checks report against it.
+
+Offline is `context.setOffline(true)`, and a link that is up but delivering nothing is
+`context.route` holding every request: in Chromium that reaches the worker's own fetches as well,
+which `page.route` does not. What it covers:
+
+1. **The first visit is kept**, although the worker was installed during it and never saw the page
+   load — the visit a spectator at the trackside is most likely to have had.
+2. **What is kept**: the page, a versioned view module, the loader (which carries no version) and
+   the pill's stylesheet — and **no race JSON**, which the loader keeps itself and must fetch from
+   the network for the pill to be honest.
+3. **A reload without a connection** shows the page, styled, with the standing from `localStorage`,
+   and the pill does not claim it is current.
+4. **A page never opened here** gets a *No connection* page with status 503, not the browser's.
+5. **Back online, the page comes from the network**, told apart from the kept copy by its `Date`.
+6. **Housekeeping**: a cache named like an older worker's is deleted on activation, one belonging
+   to something else on the origin is left alone. Both are planted before the worker first runs.
+7. **A link that stops delivering** gets the kept page after the worker's 5 s deadline, and the
+   page's files do not each wait out a deadline of their own: 5.0 s to a usable page, where the
+   first, cache-first version took 10.05 s.
+8. **A page marked `no-store`** — the header WordPress sends a logged-in user, faked on the response
+   so no credentials are needed — is shown but not kept.
+9. **Online, the network decides**, even for a URL with `?ver=`: a stylesheet changed without a
+   version bump reaches the page, and replaces the kept copy.
+
+The order is not free. After a failure the worker answers a page's *files* from its copies for 30 s,
+so the checks that need the network to win (5 and 9) run before the one that holds every request
+(7).
 
 ### `tests/e2e/stats-filter.cjs`
 

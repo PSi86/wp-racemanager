@@ -96,8 +96,9 @@ rm_test_check( 'under a new cache name, so the new worker starts with an empty c
     preg_match( $version_pattern, $sw_after, $second_name ) && isset( $first_name[1] ) && $second_name[1] !== $first_name[1],
     ( $first_name[1] ?? '?' ) . ' -> ' . ( $second_name[1] ?? '?' ) );
 
-unlink( $root . 'pwa-sw.js' );
-unlink( $root . 'manifest.json' );
+// Not there when the rewrite above failed, which is the case this suite exists for.
+@unlink( $root . 'pwa-sw.js' );
+@unlink( $root . 'manifest.json' );
 file_put_contents( $GLOBALS['rm_test_tmp'] . 'plugin/templates/template-manifest.json', "\n", FILE_APPEND );
 rm_maybe_refresh_pwa_files();
 rm_test_check( 'so is a changed manifest template', is_file( $root . 'manifest.json' ) );

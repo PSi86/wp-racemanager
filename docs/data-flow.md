@@ -168,10 +168,6 @@ decided.
   [`live-webapp-improvements.md`](live-webapp-improvements.md) are about.
 - **The upload is all-or-nothing.** The timer re-sends pilots, heats and classes with every lap,
   from a field, usually over a phone hotspot.
-- **The service worker does not cache anything.** [`templates/template-pwa-sw.js`](../templates/template-pwa-sw.js)
-  handles `push` and `notificationclick` only — there is no `fetch` handler. The installed PWA
-  therefore shows nothing at all when reception drops, even though it displayed the data a minute
-  earlier. That is L6, and it is the largest single thing still missing from this path.
 
 ### What this used to cost, and no longer does
 
@@ -204,6 +200,14 @@ was wrong for a year before anyone measured it.
   on `focus` and on `online`; the delay carries ±20 % jitter and doubles after each failure up to
   two minutes. `visibilitychange`, `focus` and `online` all fire within milliseconds of each other
   when a tab comes back, so a two-second floor keeps that from becoming three requests at once.
+
+- ~~**The service worker does not cache anything.**~~ It had no `fetch` handler, so a reload or a
+  relaunch of the installed PWA without reception showed the browser's error page, although the
+  standing sat in `localStorage`. Since L6 [`templates/template-pwa-sw.js`](../templates/template-pwa-sw.js)
+  keeps the live pages and their files and answers from those copies when the network does not —
+  network first, so it changes nothing while the network answers. It leaves the race JSON alone
+  entirely: the payload is the loader's to keep, and the timestamp has to come from the network or
+  the freshness pill would be reporting on a copy.
 
 - ~~**Nothing tells the viewer any of this.**~~ [`js/rm-m-updateStatus.js`](../js/rm-m-updateStatus.js)
   renders the loader's state above every live view. Two times are shown and never conflated: when
