@@ -272,11 +272,13 @@ Also worth a look on the first deployment after a longer break:
 
 ### Assets, and which of them a release actually refreshes
 
-Everything the plugin **enqueues** — every stylesheet, every script module — carries
-`WP_RACEMANAGER_VERSION`, so bumping the plugin version refreshes all of them at once and the
-`live-shortcodes` suite fails if a hand-written literal creeps back in. That is why the version
-bump is not optional for a release: without it, returning visitors keep the cached assets and run
-the previous release against the new PHP.
+Everything the plugin **enqueues** — every stylesheet, every script, every script module —
+carries `WP_RACEMANAGER_VERSION`, so bumping the plugin version refreshes all of them at once. The
+`asset-versions` suite reads every enqueue in the source and fails if a hand-written literal or a
+missing version creeps back in; the bundled Swiper is versioned by the release in its path, and
+the legacy `[rm_viewer]` shortcode is exempt by name. That is why the version bump is not optional
+for a release: without it, returning visitors keep the cached assets and run the previous release
+against the new PHP.
 
 The exception is below, and it is the one to check by hand.
 
