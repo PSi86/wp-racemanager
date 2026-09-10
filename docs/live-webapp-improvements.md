@@ -222,10 +222,15 @@ for a reason that was measured or that L3 had created since:
 - **The race JSON is not cached at all.** L3 had since put the payload into `localStorage`, so a
   second copy in the worker would only have put another cache between the loader and the network.
   The timestamp stays out for the reason the sketch gave.
-- **The first visit is kept too.** The sketch did not consider it, and it is the visit a spectator
-  at the trackside is most likely to have had. It happens before the worker controls the page, so
-  nothing it loaded passes the fetch handler; `js/pwa-sw-register.js` therefore sends the page's
-  URL and the resources it loaded, and the worker fetches whatever it does not have yet.
+- **The first visit is kept too, and so is the page the app starts on.** The sketch considered
+  neither. The first visit is the one a spectator at the trackside is most likely to have had, and
+  it happens before the worker controls the page, so nothing it loaded passes the fetch handler;
+  `js/pwa-sw-register.js` therefore sends the page's URL and the resources it loaded, and the worker
+  fetches whatever it does not have yet. The selection page is added to that every time: the
+  installed app starts there (`/live/?resume=1`, which `rm-live-resume.js` turns into the race last
+  viewed), and someone who installed it from a race page has usually never opened it. The first
+  version of the worker kept every race page and not that one, so the installed app could not start
+  offline at all — found by the test, not by reasoning.
 
 How it behaves, where a kept copy exists:
 

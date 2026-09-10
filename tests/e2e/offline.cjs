@@ -16,6 +16,8 @@
  *      loader keeps itself and has to fetch from the network for the freshness pill to be honest.
  *   3. A reload without a connection shows the page, styled, with the standing from localStorage,
  *      and the pill does not claim to be current.
+ *  3b. Launching the installed app without a connection -- start_url, the selection page, which
+ *      the visitor never opened -- goes on to the race last viewed.
  *   4. A page never opened on this device gets a stated answer instead of the browser's error.
  *   5. Back online, the page comes from the network again, not from the cache.
  *   6. Caches left by an older worker are deleted; a cache that is not ours is left alone.
@@ -26,7 +28,7 @@
  *   9. Online, the network decides, even for a file whose URL carries ?ver=: a file changed
  *      without a version bump is served as it is now.
  *
- * The sections run in the order 1, 2, 6, 3, 4, 5, 9, 7, 8. After a failure the worker answers a
+ * The sections run in the order 1, 2, 6, 3, 3b, 4, 5, 9, 7, 8. After a failure the worker answers a
  * page's *files* from its cache for a while, so the checks that need the network to win come
  * before the one that holds every request.
  *
@@ -206,6 +208,25 @@ const view = ( page ) =>
 	check( 'and the last known standing, out of the loader\'s own cache', !! offline.hasStanding, JSON.stringify( offline ) );
 	check( 'while the pill does not claim it is current',
 		offline.tone !== 'live' && ! /Up to date/i.test( offline.says || '' ), JSON.stringify( offline ) );
+
+	// ============================================== 3b · launching the installed app offline
+	section( 'Launching the installed app without a connection lands on the race' );
+	// The app starts at the manifest's start_url, /live/?resume=1 -- the selection page, which
+	// js/rm-live-resume.js turns into the race last viewed. This visitor never opened the
+	// selection page, which is the ordinary case for someone who installed the app from a race.
+	const launch = await ctx.newPage();
+	let launchError = '';
+	try {
+		await launch.goto( `${ BASE }/live/?resume=1`, { waitUntil: 'domcontentloaded', timeout: 15000 } );
+		await launch.waitForURL( raceUrl, { timeout: 5000 } );
+		await launch.waitForTimeout( 1500 );
+	} catch ( e ) {
+		launchError = e.message.split( '\n' )[ 0 ];
+	}
+	const launched = await view( launch ).catch( () => ( {} ) );
+	check( 'it goes on to the race last viewed', launch.url() === raceUrl, launchError || launch.url() );
+	check( 'and shows its standing', !! launched.hasStanding, JSON.stringify( launched ) );
+	await launch.close();
 
 	// ====================================================== 4 · a page never opened here
 	section( 'A page never opened on this device gets a stated answer' );

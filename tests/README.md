@@ -184,7 +184,8 @@ Needs a race flagged live, like `update-status.cjs`.
 The service worker's side of a bad link (L6). `flaky-network.cjs` shows that a warm
 `localStorage` turns an outage into old data; this one shows there is still a page to show it on.
 Before L6 the worker had no `fetch` handler, and a reload without reception got the browser's error
-page — `net::ERR_INTERNET_DISCONNECTED`, which is what 14 of the 25 checks report against it.
+page — `net::ERR_INTERNET_DISCONNECTED`, which is what 14 of the 25 checks that existed at the
+time reported against it.
 
 Offline is `context.setOffline(true)`, and a link that is up but delivering nothing is
 `context.route` holding every request: in Chromium that reaches the worker's own fetches as well,
@@ -196,7 +197,10 @@ which `page.route` does not. What it covers:
    the pill's stylesheet — and **no race JSON**, which the loader keeps itself and must fetch from
    the network for the pill to be honest.
 3. **A reload without a connection** shows the page, styled, with the standing from `localStorage`,
-   and the pill does not claim it is current.
+   and the pill does not claim it is current. And **launching the installed app** without one —
+   `start_url` is the selection page, which this visitor never opened — goes on to the race last
+   viewed. The first version of the worker failed exactly that: it kept every race page and not the
+   page the app starts on.
 4. **A page never opened here** gets a *No connection* page with status 503, not the browser's.
 5. **Back online, the page comes from the network**, told apart from the kept copy by its `Date`.
 6. **Housekeeping**: a cache named like an older worker's is deleted on activation, one belonging

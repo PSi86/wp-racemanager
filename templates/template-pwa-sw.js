@@ -255,12 +255,18 @@ self.addEventListener('fetch', (event) => {
 // it loaded, and whatever is not kept yet is fetched and kept now. That makes the *first* visit
 // survive a lost connection -- the one a spectator at the trackside is most likely to have had.
 // Sent on every page view, so anything already kept costs a cache lookup and nothing else.
+//
+// The selection page is always added. The installed app starts there -- the manifest's start_url
+// is [pwaStartPage], which js/rm-live-resume.js turns into the race last viewed -- and someone who
+// installed the app from a race page has usually never opened it. Without a copy of it the app
+// could not start offline at all, even with every race page it needs kept.
 self.addEventListener('message', (event) => {
     const data = event.data || {};
     if (data.type !== 'rm-keep-page' || !Array.isArray(data.urls)) {
         return;
     }
-    event.waitUntil(keepUrls(data.urls.slice(0, 200)));
+    const startPage = new URL(SCOPE_PATH, self.location.origin).href;
+    event.waitUntil(keepUrls(data.urls.slice(0, 200).concat(startPage)));
 });
 
 // On a first visit the page sends twice -- once when the worker is ready, once when it takes
