@@ -75,9 +75,11 @@ Consequences worth keeping in mind when changing this:
   hand-written version has to be remembered on every edit and never is: `rm-update-status.css` was
   rewritten twice while the `'1.1.0'` beside it stayed put, and two stylesheets carried no version
   at all. A returning visitor then keeps the cached copy and runs the previous release, which
-  looks like nothing is wrong because the old file still works. `live-shortcodes` fails if a
-  literal comes back. This cannot cover `rm-m-dataLoader.js`, reached through a relative `import`
-  that WordPress does not version — see `docs/deployment.md`.
+  looks like nothing is wrong because the old file still works. `asset-versions` reads every
+  enqueue in the source and fails on a literal or a missing version — three had survived the rule
+  because no suite rendered them. A bundled library under `assets/` is versioned by the release in
+  its directory name instead. This cannot cover `rm-m-dataLoader.js`, reached through a relative
+  `import` that WordPress does not version — see `docs/deployment.md`.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is

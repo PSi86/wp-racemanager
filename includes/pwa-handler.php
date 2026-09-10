@@ -74,7 +74,7 @@ function rm_pwa_enqueue_scripts() {
         'pwa-sw-register',
         plugin_dir_url( __DIR__ ) . 'js/pwa-sw-register.js', //plugins_url('pwa-sw-register.js', __FILE__),
         array(),
-        '1.0.3',
+        WP_RACEMANAGER_VERSION,
         false
     );
 }
