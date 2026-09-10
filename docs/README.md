@@ -11,6 +11,7 @@ Written while catching up with WordPress 6.9–7.1 after a year without updates.
 | [data-flow.md](data-flow.md) | How race data gets from the timer to a phone at the trackside, and what that costs today. |
 | [live-webapp-improvements.md](live-webapp-improvements.md) | Proposals for the live app, mostly about the data path. Ordered, with effort and effect per item. |
 | [live-urls-and-vapid.md](live-urls-and-vapid.md) | Why the live URLs and the VAPID handling look the way they do. Read before changing either. |
+| [pilot-identity.md](pilot-identity.md) | A to-do: give each registration a stable pilot identifier so RotorHazard can recognise a returning pilot. Why `user_id` is not enough yet, and the options. |
 
 These started as a diagnosis of a single symptom — "picking a race in the live area is
 unreliable" — and grew into the catch-up. The cause turned out to be one line: WordPress 6.9
