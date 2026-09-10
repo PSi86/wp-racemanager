@@ -137,6 +137,10 @@ function rm_create_file_from_template($template_filename, $output_file_path) {
  * The start URL carries ?resume=1, which js/rm-live-resume.js uses to send the visitor back
  * to the race they last looked at. Without a stored race it simply shows the selection page.
  *
+ * [cacheVersion] names the service worker's offline cache. The plugin version turns it over with
+ * every release, the template's own hash with every change to the worker, released or not; the
+ * worker deletes every other cache of its own when it activates.
+ *
  * @return array<string,string>
  */
 function rm_get_pwa_template_values() {
@@ -151,7 +155,19 @@ function rm_get_pwa_template_values() {
         "[pwaStartUrl]"   => add_query_arg( 'resume', '1', $live_url ), // when the PWA is started
         "[pwaStartPage]"  => $live_rel . '?resume=1',   // relative variant, used by the service worker
         "[iconFolderUrl]" => plugin_dir_url(__DIR__) . 'img',
+        "[cacheVersion]"  => WP_RACEMANAGER_VERSION . '-' . rm_pwa_template_hash( 'template-pwa-sw.js' ),
     );
+}
+
+/**
+ * A short hash of a PWA template's content.
+ *
+ * @param string $template_filename File name inside templates/.
+ * @return string Eight hex digits, or '0' when the file cannot be read.
+ */
+function rm_pwa_template_hash( $template_filename ) {
+    $hash = @md5_file( plugin_dir_path( __DIR__ ) . 'templates/' . $template_filename );
+    return $hash ? substr( $hash, 0, 8 ) : '0';
 }
 
 /**
@@ -160,10 +176,16 @@ function rm_get_pwa_template_values() {
  * They used to be written on activation only, so a plugin update never refreshed them and a
  * site that changed its URL or live page kept stale files.
  *
+ * The signature covers both templates' content as well: the service worker's hash is part of
+ * [cacheVersion], the manifest's is added here. Without that, a changed template stayed
+ * unwritten until the next version bump -- the file on disk kept the old worker, and nothing
+ * said so.
+ *
  * @return void
  */
 function rm_maybe_refresh_pwa_files() {
-    $signature = md5( wp_json_encode( rm_get_pwa_template_values() ) . WP_RACEMANAGER_VERSION );
+    $signature = md5( wp_json_encode( rm_get_pwa_template_values() ) . WP_RACEMANAGER_VERSION
+        . rm_pwa_template_hash( 'template-manifest.json' ) );
 
     if ( get_option( 'rm_pwa_files_signature' ) === $signature ) {
         return;
