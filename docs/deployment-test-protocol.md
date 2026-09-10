@@ -149,19 +149,16 @@ real site.
 
 - [ ] **Review the log.** `wp-content/debug.log` holds no new warnings or errors from the
       plugin.
-- [ ] **Watch one race live.** Heats, stats, race log and next-up all refresh.
-      **Note:** the pilot dropdown still accumulates duplicates — known, finding D1 in the
-      [audit](wordpress-update-audit.md), not yet fixed.
+- [ ] **Watch one race live.** Heats, stats, race log and next-up all refresh, and the pilot
+      dropdown lists every pilot once however many updates have arrived — finding D1 in the
+      [audit](wordpress-update-audit.md), fixed in [#15](https://github.com/PSi86/wp-racemanager/pull/15).
 
 ---
 
 ## Known and deliberately not part of this round
 
-**The pilot dropdown** (`js/rm-m-pilotSelector.js`) appends a full set of options on every data
-update without clearing first. It only shows on a **live** race — an archived race populates
-exactly once — and every page load resets it, which is why it has never been noticed in
-practice.
-
-The two fixes belong together: rebuilding the list alone would make the selection go blank when
-a pilot leaves the field, because today the stale option is what keeps it selected. See D1 in
-the [audit](wordpress-update-audit.md).
+Nothing at present. The one entry this section held — the pilot dropdown appending a full set of
+options on every data update — was fixed in [#15](https://github.com/PSi86/wp-racemanager/pull/15),
+together with the fallback that keeps the selection from going blank when a pilot leaves the
+field. `tests/e2e/pilot-selector.cjs` covers both halves; see D1 in the
+[audit](wordpress-update-audit.md).

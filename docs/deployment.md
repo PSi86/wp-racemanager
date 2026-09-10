@@ -184,7 +184,12 @@ Everything the hook does can also be done by hand, and section 7 does exactly th
 
 ---
 
-## 6a · The update pending in September 2026 — what makes it different
+## 6a · The September 2026 update — what made it different
+
+> **Done.** Production serves 1.2.0, measured on 2026-09-10: `/live/winter-whooprace-2025/bracket/`
+> answers 200, the old `/live/bracket/?race_id=2402` answers 301 to it, and the plugin's assets
+> carry `?ver=1.2.0`. The section stays as the record of what made that update unusual; it was
+> written before it, in the present tense of the time.
 
 Production still runs the June 2025 code. Confirmed rather than assumed: on
 `copterrace.com`, `/live/bracket/?race_id=2402` answers 200 while

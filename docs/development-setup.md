@@ -477,6 +477,12 @@ the `vapid` suite exercises the real push library and therefore needs PHP 8.2 li
 ddev exec -d /var/www/html/wp-app/wp-content/plugins/wp-racemanager php tests/run.php
 ```
 
+That is the normal case on the Windows machine this is developed on, which has no PHP of its own.
+From Git Bash the line needs `MSYS_NO_PATHCONV=1` in front: without it the `-d` path is rewritten
+into a Windows one and the container refuses it with *"Cwd must be an absolute path"*. PowerShell
+passes it through unchanged. Either way it has to run from the project directory, like every
+`ddev` command — see section 8.
+
 Useful DDEV commands for this plugin specifically:
 
 | Command | What for |
@@ -611,8 +617,9 @@ Two things make Claude Code useful here:
 
 - `php tests/run.php` is fast and needs nothing installed — it is the fastest correctness signal
   in the project.
-- The open work is tracked in [`wordpress-update-audit.md`](wordpress-update-audit.md) with a
-  status per item. "Pick the next open item from the audit" is a complete instruction.
+- The open work is tracked in [`live-webapp-improvements.md`](live-webapp-improvements.md), whose
+  *Next steps* are in order, and in [`pilot-identity.md`](pilot-identity.md). The
+  [audit](wordpress-update-audit.md) that used to hold it is closed, all 24 findings resolved.
 
 If you want the container's PHP inside VS Code, run `ddev ssh` in the integrated terminal, or use
 the Dev Containers extension against `.ddev/`.
