@@ -324,15 +324,21 @@ page cache, and verify in a private window rather than a reloaded tab.
 
 ## 9 · The RotorHazard side
 
-Nothing about the endpoints changed, so a working timer configuration keeps working:
+The endpoints a timer uses:
 
 ```
-POST /wp-json/rm/v1/upload
+POST /wp-json/rm/v1/upload?race_id=…
+GET  /wp-json/rm/v1/races
+POST /wp-json/rm/v1/races
 GET  /wp-json/rm/v1/get-pilots?race_id=…
 POST /wp-json/rm/v1/notify-racers
 ```
 
-All three authenticate as a WordPress user — in practice an application password on a dedicated
+The two `races` routes and the upload's `race_id` came with choosing the race on the timer. A timer
+with an older connector keeps working: its upload carries no `race_id` and goes by title, as
+before — for one more release.
+
+All of them authenticate as a WordPress user — in practice an application password on a dedicated
 account. If uploads start failing after a deployment, check in this order: the application
 password still exists, the account still has `edit_post` on that race, and the uploads directory
 is writable. The upload endpoint reports a directory it cannot create rather than failing

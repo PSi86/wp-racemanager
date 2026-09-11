@@ -6,14 +6,39 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 //add_action('rest_api_init', function () {
 function rm_register_rest_routes_rh() {
-    // Endpoint for uploading JSON data
+    // Endpoint for uploading JSON data. With ?race_id= it updates exactly that race; without,
+    // it goes by title as before -- kept for one release, for timers with an older plugin.
     register_rest_route(
-        'rm/v1', 
-        '/upload', 
+        'rm/v1',
+        '/upload',
         [
             'methods' => 'POST',
             'callback' => 'rm_handle_upload',
             'permission_callback' => 'permission_check_user',
+            'args' => [
+                'race_id' => [
+                    'required' => false,
+                    'validate_callback' => 'permission_check_race_id',
+                ],
+            ],
+        ]
+    );
+
+    // The races a timer can upload to, and creating one on purpose from the event
+    register_rest_route(
+        'rm/v1',
+        '/races',
+        [
+            [
+                'methods'  => 'GET',
+                'callback' => 'rm_list_races',
+                'permission_callback' => 'permission_check_user',
+            ],
+            [
+                'methods'  => 'POST',
+                'callback' => 'rm_handle_create_race',
+                'permission_callback' => 'permission_check_user',
+            ],
         ]
     );
 
@@ -96,18 +121,16 @@ function permission_check_race_id( $param, \WP_REST_Request $request, $key ) {
 }
 
 /**
- * Callback for POST /wp-json/wp-racemanager/v1/races
- * Expects JSON with { race_name, race_description, ...anything else... }
- */
-/**
  * Main REST API callback for uploading race result data.
+ *
+ * Expects the event as JSON: { race_name, race_description, heat_data, ... }.
  *
  * @param WP_REST_Request $request
  * @return WP_REST_Response|WP_Error
  */
 function rm_handle_upload( WP_REST_Request $request ) {
     // Authentication happens in permission_check_user(); the per-race capability is checked in
-    // rm_process_race() once the request names a race.
+    // permission_check_race_id() for a race_id, and in rm_update_race() / rm_create_race().
 
     // Validate request size & decode JSON
     $data = rm_validate_and_decode_json( $request );
@@ -127,15 +150,17 @@ function rm_handle_upload( WP_REST_Request $request ) {
         ], 400);
     }
 
-    // Process the race (either update existing or create new)
-    //  User rights are checked within rm_find_or_create_race()
-    $race_result = rm_find_or_create_race( $data );
+    // A timer that names its race gets exactly that one, and never a new race on the way.
+    // Without race_id: the lookup by title, which may create one -- kept for one release, for
+    // timers with an older plugin.
+    $race_id = $request->get_param( 'race_id' );
+    if ( null !== $race_id && '' !== $race_id ) {
+        $race_result = rm_update_race( absint( $race_id ), $data );
+    } else {
+        $race_result = rm_find_or_create_race( $data );
+    }
     if ( is_wp_error( $race_result ) ) {
-        return new WP_REST_Response([
-            'status'  => 'error',
-            'message' => $race_result->get_error_message(),
-            'id'      => $race_result->get_error_data() ?: 0,
-        ], 400);
+        return rm_race_error_response( $race_result );
     }
 
     // If we get here, $race_result is an array with:
@@ -166,6 +191,105 @@ function rm_handle_upload( WP_REST_Request $request ) {
         'nextup' => $upcomingPilots,
         'notifiedIds' => $notified,
     ], $is_update ? 200 : 201);
+}
+
+/**
+ * The answer for a race that could not be updated or created.
+ *
+ * The error's data carries the HTTP status -- 403, 404, 500 -- and, for a locked race, the
+ * race's ID; anything without a status is a 400.
+ *
+ * @param WP_Error $error
+ * @return WP_REST_Response
+ */
+function rm_race_error_response( $error ) {
+    $data = $error->get_error_data();
+    return new WP_REST_Response( [
+        'status'  => 'error',
+        'message' => $error->get_error_message(),
+        'id'      => ( is_array( $data ) && isset( $data['id'] ) ) ? (int) $data['id'] : 0,
+    ], ( is_array( $data ) && isset( $data['status'] ) ) ? (int) $data['status'] : 400 );
+}
+
+/** How many races GET /races lists: a timer needs this season's, not the archive. */
+const RM_TIMER_RACE_LIST_LENGTH = 50;
+
+/**
+ * Callback for GET /rm/v1/races: the races the current user may edit, newest first.
+ *
+ * Ordered by event start like the live race selection, so a race needs its start date to
+ * appear -- every race an upload creates has one. Titles, dates and the live flag only.
+ *
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
+function rm_list_races( WP_REST_Request $request ) {
+    $query = new WP_Query( [
+        'post_type'      => 'race',
+        'post_status'    => 'any',
+        'posts_per_page' => RM_TIMER_RACE_LIST_LENGTH,
+        'no_found_rows'  => true,
+        'fields'         => 'ids',
+        'meta_key'       => '_race_event_start',
+        'meta_type'      => 'DATETIME',
+        'orderby'        => 'meta_value',
+        'order'          => 'DESC',
+    ] );
+
+    $races = [];
+    foreach ( $query->posts as $race_id ) {
+        if ( ! current_user_can( 'edit_post', $race_id ) ) {
+            continue;
+        }
+        $races[] = [
+            'id'    => (int) $race_id,
+            'title' => (string) get_post_field( 'post_title', $race_id ),
+            'start' => (string) get_post_meta( $race_id, '_race_event_start', true ),
+            'end'   => (string) get_post_meta( $race_id, '_race_event_end', true ),
+            'live'  => '1' === (string) get_post_meta( $race_id, '_race_live', true ),
+        ];
+    }
+
+    return new WP_REST_Response( $races, 200 );
+}
+
+/**
+ * Callback for POST /rm/v1/races: creates a race on purpose, from the event.
+ *
+ * The body is the event the upload sends. A new race gets its files right away, because a race
+ * without them shows up empty in every listing. It is created even if a race of that title
+ * exists: the organiser asked for a new one.
+ *
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
+function rm_handle_create_race( WP_REST_Request $request ) {
+    $data = rm_validate_and_decode_json( $request );
+    if ( is_wp_error( $data ) ) {
+        return new WP_REST_Response( [
+            'status'  => 'error',
+            'message' => $data->get_error_message(),
+        ], $data->get_error_data() ?: 400 );
+    }
+
+    $maybe_error = rm_validate_required_fields( $data );
+    if ( is_wp_error( $maybe_error ) ) {
+        return new WP_REST_Response( [
+            'status'  => 'error',
+            'message' => $maybe_error->get_error_message(),
+        ], 400 );
+    }
+
+    $race_result = rm_create_race( $data );
+    if ( is_wp_error( $race_result ) ) {
+        return rm_race_error_response( $race_result );
+    }
+
+    return new WP_REST_Response( [
+        'status'  => 'success',
+        'message' => $race_result['message'],
+        'id'      => $race_result['id'],
+    ], 201 );
 }
 
 /**
@@ -218,78 +342,102 @@ function rm_validate_required_fields( $data ) {
 }
 
 /**
- * Finds an existing Race CPT (by title=race_name) or creates a new one, if the current user is allowed to do so.
+ * Finds an existing Race CPT (by title=race_name) or creates a new one -- what an upload without
+ * race_id does. Kept for one release, for timers with an older plugin; a timer that names its
+ * race goes through rm_update_race() alone. See race-selection.md in the RotorHazard plugin's
+ * repository.
  * Returns array on success: ['status' => 'updated'|'success', 'id' => (race_id), 'message' => '...']
  * Returns WP_Error on failure.
  */
 function rm_find_or_create_race( $data ) {
-    $race_name        = sanitize_text_field( $data['race_name'] );
-    $race_description = isset( $data['race_description'] )
-        ? sanitize_textarea_field( $data['race_description'] )
-        : '';
+    $race_name = sanitize_text_field( $data['race_name'] );
 
     // Search for an existing Race with this exact title
-    $args = [
+    $existing_query = new WP_Query( [
         'post_type'      => 'race',
         'post_status'    => 'any',
         'title'          => $race_name,
         'posts_per_page' => 1,
         'fields'         => 'ids', // return only IDs
-    ];
-    $existing_query = new WP_Query( $args );
-
-    $timestamp         = current_time( 'mysql' );
+    ] );
 
     if ( $existing_query->have_posts() ) {
-        // Existing Race found
-        $race_id  = $existing_query->posts[0];
-
-        // Check if the current user is allowed to edit this post.
-        // This check respects the default capabilities, allowing higher-level users
-        // (e.g. editors, administrators) to update any post.
-        if ( ! current_user_can( 'edit_post', $race_id ) ) {
-            return new WP_Error( 
-                'forbidden',
-                __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ), 
-                array( 'status' => 403 ) 
-            );
-        }
-                
-        $post_live = get_post_meta( $race_id, '_race_live', true );
-        if ( '1' !== $post_live ) {
-            return new WP_Error(
-                'race_locked',
-                'Race is locked and cannot be overwritten',
-                $race_id
-            );
-        }
-        
-        $written = rm_write_files( $race_id, $data );
-        if ( is_wp_error( $written ) ) {
-            return $written;
-        }
-        update_post_meta( $race_id, '_race_last_upload', $timestamp );
-
-        return [
-            'status'  => 'updated',
-            'id'      => $race_id,
-            'message' => 'Event updated successfully',
-        ];
+        return rm_update_race( (int) $existing_query->posts[0], $data );
     }
-    else {
-        // Create new race post
-        // Check if the current user is allowed to publish posts.
-        if ( ! current_user_can( 'publish_posts' ) ) {
-            return new WP_Error( 
-                'forbidden',
-                __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ), 
-                array( 'status' => 403 ) 
-            );
-        }
-        // Otherwise, no existing race found -> create a new CPT post
-        /* $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
-                        "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n"; */
-        $post_content = '<!-- wp:group {"metadata":{"name":"Link Row"},"layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between"}} -->
+    return rm_create_race( $data );
+}
+
+/**
+ * Writes an upload into an existing race, if the current user may edit it and it is flagged live.
+ * Never creates one. Returns ['status' => 'updated', 'id', 'message'], or a WP_Error that carries
+ * the HTTP status in its data, and for a locked race the race's ID.
+ */
+function rm_update_race( $race_id, $data ) {
+    if ( 'race' !== get_post_type( $race_id ) || 'trash' === get_post_status( $race_id ) ) {
+        return new WP_Error(
+            'not_found',
+            __( 'There is no race with this ID.', 'wp-racemanager' ),
+            array( 'status' => 404 )
+        );
+    }
+
+    // Check if the current user is allowed to edit this post.
+    // This check respects the default capabilities, allowing higher-level users
+    // (e.g. editors, administrators) to update any post.
+    if ( ! current_user_can( 'edit_post', $race_id ) ) {
+        return new WP_Error(
+            'forbidden',
+            __( 'Wrong user. You do not have permission to update this race.', 'wp-racemanager' ),
+            array( 'status' => 403 )
+        );
+    }
+
+    $post_live = get_post_meta( $race_id, '_race_live', true );
+    if ( '1' !== $post_live ) {
+        return new WP_Error(
+            'race_locked',
+            'Race is locked and cannot be overwritten',
+            array( 'status' => 400, 'id' => $race_id )
+        );
+    }
+
+    $written = rm_write_files( $race_id, $data );
+    if ( is_wp_error( $written ) ) {
+        return $written;
+    }
+    update_post_meta( $race_id, '_race_last_upload', current_time( 'mysql' ) );
+
+    return [
+        'status'  => 'updated',
+        'id'      => $race_id,
+        'message' => 'Event updated successfully',
+    ];
+}
+
+/**
+ * Creates a race from an upload -- the post, its files, flagged live, with placeholder times --
+ * if the current user may publish. What an upload without race_id does for an unknown title, and
+ * what POST /races does on purpose. Returns ['status' => 'success', 'id', 'message'], or a
+ * WP_Error that carries the HTTP status in its data.
+ */
+function rm_create_race( $data ) {
+    $race_name        = sanitize_text_field( $data['race_name'] );
+    $race_description = isset( $data['race_description'] )
+        ? sanitize_textarea_field( $data['race_description'] )
+        : '';
+    $timestamp        = current_time( 'mysql' );
+
+    if ( ! current_user_can( 'publish_posts' ) ) {
+        return new WP_Error(
+            'forbidden',
+            __( 'Wrong user. You do not have permission to create a race.', 'wp-racemanager' ),
+            array( 'status' => 403 )
+        );
+    }
+    // Otherwise, no existing race found -> create a new CPT post
+    /* $post_content = "<!-- wp:paragraph -->\n<p>{$race_description}</p>\n<!-- /wp:paragraph -->\n\n" .
+                    "<!-- wp:shortcode -->\n[rm_viewer]\n<!-- /wp:shortcode -->\n"; */
+    $post_content = '<!-- wp:group {"metadata":{"name":"Link Row"},"layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between"}} -->
             <div class="wp-block-group">
             <!-- wp:wp-racemanager/race-buttons /-->
 
@@ -328,45 +476,44 @@ function rm_find_or_create_race( $data ) {
             <!-- wp:shortcode {"metadata":{"name":"Registered Pilots"}} -->
             [rm_registered]
             <!-- /wp:shortcode -->';
-        
-        $race_id = wp_insert_post([
-            'post_type'    => 'race',
-            'post_title'   => $race_name,
-            'post_content' => $post_content,
-            'post_status'  => 'publish',
-        ]);
+    
+    $race_id = wp_insert_post([
+        'post_type'    => 'race',
+        'post_title'   => $race_name,
+        'post_content' => $post_content,
+        'post_status'  => 'publish',
+    ]);
 
-        if ( is_wp_error( $race_id ) ) {
-            return new WP_Error(
-                'post_creation_failed',
-                'Could not create Race CPT post.',
-                500
-            );
-        }
-
-        $written = rm_write_files( $race_id, $data, 1 );
-        if ( is_wp_error( $written ) ) {
-            // The post exists but carries no data, so it would show up empty in every
-            // listing. Remove it again and report the failure.
-            wp_delete_post( $race_id, true );
-            return $written;
-        }
-
-        update_post_meta( $race_id, '_race_live', 1 );
-        update_post_meta( $race_id, '_race_last_upload', $timestamp );
-        update_post_meta( $race_id, '_race_reg_closed', true );
-
-        // Placeholder times the organiser is expected to correct in the backend. Stored in
-        // the canonical format so they do not cast to NULL in the date queries.
-        update_post_meta( $race_id, '_race_event_start', rm_normalize_event_datetime( strtotime( 'today 8:00' ) ) );
-        update_post_meta( $race_id, '_race_event_end', rm_normalize_event_datetime( strtotime( 'today 19:00' ) ) );
-
-        return [
-            'status'  => 'success',
-            'id'      => $race_id,
-            'message' => 'Event created successfully',
-        ];
+    if ( is_wp_error( $race_id ) ) {
+        return new WP_Error(
+            'post_creation_failed',
+            'Could not create Race CPT post.',
+            array( 'status' => 500 )
+        );
     }
+
+    $written = rm_write_files( $race_id, $data, 1 );
+    if ( is_wp_error( $written ) ) {
+        // The post exists but carries no data, so it would show up empty in every
+        // listing. Remove it again and report the failure.
+        wp_delete_post( $race_id, true );
+        return $written;
+    }
+
+    update_post_meta( $race_id, '_race_live', 1 );
+    update_post_meta( $race_id, '_race_last_upload', $timestamp );
+    update_post_meta( $race_id, '_race_reg_closed', true );
+
+    // Placeholder times the organiser is expected to correct in the backend. Stored in
+    // the canonical format so they do not cast to NULL in the date queries.
+    update_post_meta( $race_id, '_race_event_start', rm_normalize_event_datetime( strtotime( 'today 8:00' ) ) );
+    update_post_meta( $race_id, '_race_event_end', rm_normalize_event_datetime( strtotime( 'today 19:00' ) ) );
+
+    return [
+        'status'  => 'success',
+        'id'      => $race_id,
+        'message' => 'Event created successfully',
+    ];
 }
 
 /**
