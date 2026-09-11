@@ -211,44 +211,62 @@ function rm_race_error_response( $error ) {
     ], ( is_array( $data ) && isset( $data['status'] ) ) ? (int) $data['status'] : 400 );
 }
 
-/** How many races GET /races lists: a timer needs this season's, not the archive. */
-const RM_TIMER_RACE_LIST_LENGTH = 50;
+/**
+ * How many races GET /races lists, counted among those the user may edit: the timer needs the
+ * next events', not the archive. Decided on 2026-09-11.
+ */
+const RM_TIMER_RACE_LIST_LENGTH = 15;
+
+/** How many race IDs one query of GET /races fetches while it looks for editable ones. */
+const RM_TIMER_RACE_LIST_PAGE = 50;
 
 /**
- * Callback for GET /rm/v1/races: the races the current user may edit, newest first.
+ * Callback for GET /rm/v1/races: the newest races the current user may edit.
  *
  * Ordered by event start like the live race selection, so a race needs its start date to
  * appear -- every race an upload creates has one. Titles, dates and the live flag only.
+ *
+ * The limit counts races the user may edit, and edit_post decides that per race, so the list is
+ * read page by page until it has them: an account that may edit only its own races would
+ * otherwise get whichever of them happened to be among the newest few overall.
  *
  * @param WP_REST_Request $request
  * @return WP_REST_Response
  */
 function rm_list_races( WP_REST_Request $request ) {
-    $query = new WP_Query( [
-        'post_type'      => 'race',
-        'post_status'    => 'any',
-        'posts_per_page' => RM_TIMER_RACE_LIST_LENGTH,
-        'no_found_rows'  => true,
-        'fields'         => 'ids',
-        'meta_key'       => '_race_event_start',
-        'meta_type'      => 'DATETIME',
-        'orderby'        => 'meta_value',
-        'order'          => 'DESC',
-    ] );
-
     $races = [];
-    foreach ( $query->posts as $race_id ) {
-        if ( ! current_user_can( 'edit_post', $race_id ) ) {
-            continue;
+    $page  = 1;
+    do {
+        $query = new WP_Query( [
+            'post_type'      => 'race',
+            'post_status'    => 'any',
+            'posts_per_page' => RM_TIMER_RACE_LIST_PAGE,
+            'paged'          => $page++,
+            'no_found_rows'  => true,
+            'fields'         => 'ids',
+            'meta_key'       => '_race_event_start',
+            'meta_type'      => 'DATETIME',
+            // Races created the same day share their placeholder start; without a second key
+            // the database may order those differently from one page to the next.
+            'orderby'        => [ 'meta_value' => 'DESC', 'ID' => 'DESC' ],
+        ] );
+
+        foreach ( $query->posts as $race_id ) {
+            if ( ! current_user_can( 'edit_post', $race_id ) ) {
+                continue;
+            }
+            $races[] = [
+                'id'    => (int) $race_id,
+                'title' => (string) get_post_field( 'post_title', $race_id ),
+                'start' => (string) get_post_meta( $race_id, '_race_event_start', true ),
+                'end'   => (string) get_post_meta( $race_id, '_race_event_end', true ),
+                'live'  => '1' === (string) get_post_meta( $race_id, '_race_live', true ),
+            ];
+            if ( count( $races ) === RM_TIMER_RACE_LIST_LENGTH ) {
+                return new WP_REST_Response( $races, 200 );
+            }
         }
-        $races[] = [
-            'id'    => (int) $race_id,
-            'title' => (string) get_post_field( 'post_title', $race_id ),
-            'start' => (string) get_post_meta( $race_id, '_race_event_start', true ),
-            'end'   => (string) get_post_meta( $race_id, '_race_event_end', true ),
-            'live'  => '1' === (string) get_post_meta( $race_id, '_race_live', true ),
-        ];
-    }
+    } while ( count( $query->posts ) === RM_TIMER_RACE_LIST_PAGE );
 
     return new WP_REST_Response( $races, 200 );
 }

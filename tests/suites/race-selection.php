@@ -150,7 +150,8 @@ class WP_REST_Response {
 }
 
 // A title query matches post_title exactly and, with post_status 'any', skips the bin; any
-// other query is the race list and answers with whatever the suite put into rm_listed.
+// other query is the race list: the page it asks for out of rm_listed, which the suite fills
+// in the order the database would return.
 class WP_Query {
     public $posts = array();
 
@@ -165,7 +166,9 @@ class WP_Query {
             $this->posts = array_slice( $this->posts, 0, $args['posts_per_page'] ?? 10 );
             return;
         }
-        $this->posts = $GLOBALS['rm_listed'];
+        $per_page    = $args['posts_per_page'] ?? 10;
+        $page        = max( 1, (int) ( $args['paged'] ?? 1 ) );
+        $this->posts = array_slice( $GLOBALS['rm_listed'], ( $page - 1 ) * $per_page, $per_page );
     }
     public function have_posts() { return ! empty( $this->posts ); }
 }
@@ -315,8 +318,32 @@ rm_test_check( 'with title, dates and the live flag',
 rm_test_check( 'a race that is not live says so', false === $response->data[0]['live'] );
 $args = end( $GLOBALS['rm_queries'] );
 rm_test_check( 'asks for races in any status but the bin', 'race' === $args['post_type'] && 'any' === $args['post_status'] );
-rm_test_check( 'newest event first, at most 50',
-    '_race_event_start' === $args['meta_key'] && 'meta_value' === $args['orderby'] && 'DESC' === $args['order'] && 50 === $args['posts_per_page'] );
+// Races created the same day share their placeholder start; without a second key the database
+// may order those differently from one page to the next.
+rm_test_check( 'newest event first, the newer post first among equal starts',
+    '_race_event_start' === $args['meta_key'] && array( 'meta_value' => 'DESC', 'ID' => 'DESC' ) === $args['orderby'] );
+
+// Fifteen is enough, as long as they are the newest the user may edit (decided 2026-09-11).
+rm_rs_reset();
+$GLOBALS['rm_listed'] = range( 101, 130 );
+array_map( fn( $id ) => rm_rs_race( $id, "Race $id" ), $GLOBALS['rm_listed'] );
+$GLOBALS['rm_editable'] = range( 106, 130 );
+$GLOBALS['rm_queries']  = array();
+$response = rm_list_races( new WP_REST_Request() );
+rm_test_check( 'at most 15, counted among the races the user may edit',
+    range( 106, 120 ) === array_column( $response->data, 'id' ), implode( ',', array_column( $response->data, 'id' ) ) );
+rm_test_check( 'and no more queries once it has them', 1 === count( $GLOBALS['rm_queries'] ) );
+
+rm_rs_reset();
+$GLOBALS['rm_listed'] = range( 1, 120 );
+array_map( fn( $id ) => rm_rs_race( $id, "Race $id" ), $GLOBALS['rm_listed'] );
+$GLOBALS['rm_editable'] = array( 7, 60, 110 );
+$GLOBALS['rm_queries']  = array();
+$response = rm_list_races( new WP_REST_Request() );
+rm_test_check( 'the races the user may edit are found beyond the first page',
+    array( 7, 60, 110 ) === array_column( $response->data, 'id' ), implode( ',', array_column( $response->data, 'id' ) ) );
+rm_test_check( 'page by page, until a page comes back short',
+    array( 1, 2, 3 ) === array_map( fn( $q ) => $q['paged'] ?? 1, $GLOBALS['rm_queries'] ) );
 
 rm_rs_reset();
 rm_test_check( 'no races: an empty list', array() === rm_list_races( new WP_REST_Request() )->data );
