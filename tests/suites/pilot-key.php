@@ -106,7 +106,9 @@ $GLOBALS['rm_options']['rm_pilot_namespace'] = $ns;
 rm_test_section( 'Every row carries the key of its address' );
 $GLOBALS['wpdb']->rows = array(
     array( 'id' => 1, 'user_id' => 0,  'race_id' => 5, 'form_date' => '2026-09-01 10:00:00',
-           'form_value' => serialize( array( 'pilot_nickname_1' => 'MaxDax', 'pilot_mail_1' => 'max@example.com', 'secret' => 'x' ) ) ),
+           'form_value' => serialize( array( 'pilot_name_1' => 'Max D', 'pilot_nickname_1' => 'MaxDax', 'pilot_mail_1' => 'max@example.com',
+                                             'pilot_phone_1' => '+43 660 1234567', 'acceptance-communication' => '1',
+                                             'pilot_club_1' => 'FPV Club', 'secret' => 'x' ) ) ),
     array( 'id' => 2, 'user_id' => 12, 'race_id' => 5, 'form_date' => '2026-09-02 10:00:00',
            'form_value' => serialize( array( 'pilot_nickname_1' => 'MaxDaxx', 'pilot_mail_1' => ' MAX@example.com ' ) ) ),
     array( 'id' => 3, 'user_id' => 0,  'race_id' => 5, 'form_date' => '2026-09-03 10:00:00',
@@ -132,8 +134,29 @@ rm_test_post( 5, 'race', 'autumn-cup' );
 $response = rm_get_registration_data( new WP_REST_Request( array( 'race_id' => '5' ) ) );
 $served   = $response instanceof WP_REST_Response ? array_column( (array) $response->data, 'pilot_key' ) : array();
 rm_test_check( 'get-pilots hands every registration its key', $keys === $served, wp_json_encode( $served ) );
-rm_test_check( 'and still the fields the connector reads today',
-    isset( $response->data[0]['user_id'], $response->data[0]['pilot_mail_1'], $response->data[0]['id'] ) );
+rm_test_check( 'and the fields the connector reads: name, callsign, user_id',
+    'Max D' === ( $response->data[0]['pilot_name_1'] ?? null ) && 'MaxDax' === ( $response->data[0]['pilot_nickname_1'] ?? null )
+    && 12 === ( $response->data[1]['user_id'] ?? null ), wp_json_encode( $response->data[0] ) );
+rm_test_check( 'with the record\'s own ID and date', 1 === ( $response->data[0]['id'] ?? null )
+    && '2026-09-01 10:00:00' === ( $response->data[0]['form_date'] ?? null ) );
+
+rm_test_section( 'get-pilots carries no contact details (D1)' );
+// No version of the connector has read an address, a phone number or the consent flag -- not the
+// code that ran at the events, not 2.0.0-beta.1, not its main -- and a timer's log and database
+// backups are no place for them. D1 in the RotorHazard plugin's roadmap.
+$served_fields = array_unique( array_merge( ...array_map( 'array_keys', (array) $response->data ) ) );
+rm_test_check( 'no address, no phone number, no consent flag',
+    array() === array_values( array_intersect( array( 'pilot_mail_1', 'pilot_phone_1', 'acceptance-communication' ), $served_fields ) ),
+    implode( ', ', $served_fields ) );
+rm_test_check( 'the admin list and the CSV export keep them',
+    isset( $rows[0]['pilot_mail_1'], $rows[0]['pilot_phone_1'], $rows[0]['acceptance-communication'] ) );
+// A field the form gains later reaches the timer only once someone decides it should.
+$GLOBALS['rm_gui_columns'][] = 'pilot_club_1';
+$club_admin  = rm_registration_rows( $GLOBALS['wpdb']->rows )[0]['pilot_club_1'] ?? null;
+$club_served = rm_get_registration_data( new WP_REST_Request( array( 'race_id' => '5' ) ) )->data[0];
+array_pop( $GLOBALS['rm_gui_columns'] );
+rm_test_check( 'a field the admin list gains later stays off the timer',
+    'FPV Club' === $club_admin && ! array_key_exists( 'pilot_club_1', $club_served ), wp_json_encode( $club_served ) );
 
 rm_test_section( 'A namespace in wp-config.php wins -- if it is one' );
 rm_test_check( 'a UUID in capitals and blanks is read as the same UUID',

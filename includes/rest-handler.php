@@ -713,9 +713,24 @@ function add_notifications_to_race_json( $race_data, $race_id ) {
     return $race_data; // Return the modified array
 }
 
-// Callback function to fetch and return pilot registration data
-// Options: 'latest' or a specific form title
-// requires 'race_id' parameter and 'api_key' header to be set
+/**
+ * What get-pilots gives the timer of each registration: who the pilot is -- name, callsign,
+ * account, pilot key -- and the record's own ID and date, but none of the contact details.
+ *
+ * No version of the connector has read an address, a phone number or the consent flag, and a
+ * timer's log and database backups are no place for them (D1 in the RotorHazard plugin's
+ * roadmap). A whitelist, so that a field the form and the admin list gain later stays off the
+ * timer until someone decides it belongs there.
+ */
+const RM_TIMER_REGISTRATION_FIELDS = array( 'pilot_name_1', 'pilot_nickname_1', 'user_id', 'pilot_key', 'id', 'form_date' );
+
+/**
+ * Callback for GET /rm/v1/get-pilots: the race's registrations, as far as the timer needs them.
+ * Authentication and the right to the race are checked in permission_check_user_and_race().
+ *
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
 function rm_get_registration_data( WP_REST_Request $request) {
 
     global $wpdb;
@@ -748,9 +763,14 @@ function rm_get_registration_data( WP_REST_Request $request) {
         //return new WP_Error('no_form_data', 'No data found for the matching form.', ['status' => 404]);
     }
 
-    // The same rows the admin list shows, pilot_key included: the identity RotorHazard matches
-    // a returning pilot by (docs/pilot-identity.md).
-    return rest_ensure_response( rm_registration_rows( $results ) );
+    // The same rows the admin list shows -- so a pilot key can be checked against the
+    // registration it came from (docs/pilot-identity.md) -- cut to what the timer needs.
+    $fields = array_flip( RM_TIMER_REGISTRATION_FIELDS );
+    $rows   = array();
+    foreach ( rm_registration_rows( $results ) as $row ) {
+        $rows[] = array_intersect_key( $row, $fields );
+    }
+    return rest_ensure_response( $rows );
 }
 
 /**
