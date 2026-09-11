@@ -1,6 +1,6 @@
 {
     "name": "wp-racemanager",
-    "version": "1.5.3",
+    "version": "1.6.0",
     "scripts": {
         "test": "php tests/run.php",
       "test:e2e": "node tests/e2e/editor.cjs",
