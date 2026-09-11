@@ -24,7 +24,7 @@
         "@wordpress/data": "^10.54.0",
         "@wordpress/element": "^8.6.0",
         "@wordpress/i18n": "^6.27.0",
-        "@wordpress/scripts": "^34.2.0",
+        "@wordpress/scripts": "^35.0.0",
         "copyfiles": "^2.4.1"
     }
 }

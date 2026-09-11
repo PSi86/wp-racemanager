@@ -23,7 +23,7 @@ Everything here is done once. Afterwards the daily loop is `ddev start`, edit, `
 | **Docker** — Docker Desktop, OrbStack or Colima | DDEV runs the site in containers. Nothing is installed into your system PHP. If you take the WSL 2 route below, switch Docker Desktop's **Settings → Resources → WSL Integration** on for the distro, otherwise the daemon socket never reaches it. |
 | **DDEV**, a current release | Windows: `winget install DDEV.DDEV`, which lands in `%LOCALAPPDATA%\Programs\DDEV`. macOS: `brew install ddev/ddev/ddev`. Linux and WSL 2: `curl -fsSL https://ddev.com/install.sh \| bash`. See the [installation docs](https://docs.ddev.com/en/stable/users/install/ddev-installation/). |
 | **Git** | On Windows the Git Bash that comes with Git for Windows is what runs `bin/*.sh`. |
-| **Node 20+ and npm** | Only for `npm run build` (the `race-gallery` block). Runs beside the project, not in the container. |
+| **Node 20.19+ or 22.13+, and npm** | Only for `npm run build` (the `race-gallery` block). Runs beside the project, not in the container. |
 | **VS Code** with the Claude Code extension | The editor side. Section 8. |
 | **On Windows, optionally: WSL 2** with a current Ubuntu | Faster, and it removes a class of Windows-only annoyances. Not required — see the trade-off below. |
 
@@ -534,8 +534,8 @@ npm run start              # watch mode while working on the block
 exactly what `package-lock.json` pins and fails loudly when the lock and `package.json` disagree;
 `npm install` quietly rewrites the lock to make the disagreement go away. Since the built file is
 committed, two people whose installs differ produce different `blocks/race-gallery/index.js` and
-the diff churns for no reason. The toolchain asks for Node ≥ 18.12; the local setup and
-`.devcontainer/devcontainer.json` both run 22.
+the diff churns for no reason. `@wordpress/scripts` 35 asks for Node `^20.19.0 || >=22.13.0`;
+the local setup and `.devcontainer/devcontainer.json` both run 22.
 
 #### `webpack.config.js` is what keeps the other six blocks alive
 
@@ -590,8 +590,8 @@ just installed on the host stays exactly where it is.
 section 3.
 
 `.devcontainer/devcontainer.json` still describes the GitHub Codespace the blocks used to be
-built in — PHP 8.2 plus Node 18. It still satisfies the toolchain, but Node 18 is past end of
-life, and the local build above removes the reason to go through it.
+built in — PHP 8.2 plus Node 22. It still satisfies the toolchain, but the local build above
+removes the reason to go through it.
 
 ---
 
