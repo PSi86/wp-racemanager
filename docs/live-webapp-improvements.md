@@ -522,6 +522,12 @@ now in the local environment (see [`development-setup.md`](development-setup.md)
 
    That plugin is a project of its own and wants its own review pass.
 
+   > **Since 2026-09-10 it is one**: the *WP RaceManager Connector*, in its own private repository
+   > [`PSi86/WP_RaceManager_RH_Plugin`](https://github.com/PSi86/WP_RaceManager_RH_Plugin). What
+   > is described above is the code as it ran at events. The connector has changed since — it
+   > names its race by ID (PR #27 here) and matches returning pilots by WordPress account — and its
+   > `docs/wordpress-contract.md` is the current description of what it sends to this plugin.
+
 3. **What does the live navigation actually render on a phone?** — **answered**, measured at
    390 × 844 against production. The four view links collapse to 0 × 0 and every view switch goes
    through the burger; the overlay's items are 32 px tall with no current-view marking; the header
