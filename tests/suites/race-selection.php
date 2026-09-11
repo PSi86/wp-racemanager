@@ -100,8 +100,15 @@ function rm_get_race_data_dir( $create = true ) {
 function rm_normalize_event_datetime( $value ) {
     return date( 'Y-m-d H:i:s', (int) $value );
 }
+// The race's canonical live URL, as includes/live-routing.php builds it; that file is not loaded
+// here.
+function rm_live_url( $race, $view = '' ) {
+    return 'https://example.test/live/race-' . ( is_object( $race ) ? $race->ID : (int) $race ) . '/';
+}
+// Who flies next: nobody, unless a case sets rm_upcoming -- null is what the real function
+// answers when the data lacks a section it needs.
 function rm_getUpcomingRacePilots( $data ) {
-    return array();
+    return array_key_exists( 'rm_upcoming', $GLOBALS ) ? $GLOBALS['rm_upcoming'] : array();
 }
 function wp_upload_dir() {
     return array( 'basedir' => sys_get_temp_dir(), 'baseurl' => 'https://example.test/wp-content/uploads', 'error' => '' );
@@ -190,6 +197,8 @@ function rm_rs_reset() {
     $GLOBALS['rm_caps']            = array( 'edit_posts', 'publish_posts' );
     $GLOBALS['rm_editable']        = array();
     $GLOBALS['rm_data_dir_broken'] = false;
+    unset( $GLOBALS['rm_upcoming'] );
+    \RaceManager\WP_RaceManager::instance()->pwa_subscription_handler = null;
     // Files outlive a case otherwise, and "nothing written" could never hold for an ID an
     // earlier case wrote.
     array_map( 'unlink', glob( $GLOBALS['rm_data_dir'] . '*' ) ?: array() );
@@ -400,6 +409,87 @@ rm_test_check( 'without publish_posts: 403', 403 === $response->status && array(
 /* --------------------------------------------------------------------------
  * The error answer
  * ----------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
+ * After the files are written (D8 in the RotorHazard plugin's roadmap)
+ * ----------------------------------------------------------------------- */
+
+rm_test_section( 'The notifications after a saved upload' );
+
+// Working out who flies next needs sections an older connector may not send, or a current heat
+// RotorHazard has not set. The race is saved by then: a failure here is no failed upload.
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+$GLOBALS['rm_upcoming'] = null;
+$response = rm_rs_upload( rm_rs_event( 'Autumn Cup' ), array( 'race_id' => '2578' ) );
+rm_test_check( 'next pilots that cannot be worked out: the saved upload is still a 200',
+    200 === $response->status && 2578 === $response->data['id'], print_r( $response->data, true ) );
+rm_test_check( 'with its files', rm_rs_written( 2578 ) );
+rm_test_check( 'and saying that nobody was notified', ! empty( $response->data['notice'] ) );
+
+rm_rs_reset();
+$GLOBALS['rm_upcoming'] = null;
+$response = rm_rs_upload( rm_rs_event( 'Spring Cup' ) );
+rm_test_check( 'a race created by title stays a 201', 201 === $response->status, print_r( $response->data, true ) );
+
+// The push library throws on keys it cannot use, among others -- after the files are written.
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+$GLOBALS['rm_upcoming'] = array( array( 'heat_id' => 1, 'pilot_id' => 7 ) );
+\RaceManager\WP_RaceManager::instance()->pwa_subscription_handler = new class() {
+    public function send_next_up_notifications( $race_id, $upcoming ) {
+        throw new \ErrorException( '[VAPID] Public key should be 65 bytes long when decoded.' );
+    }
+};
+$response = rm_rs_upload( rm_rs_event( 'Autumn Cup' ), array( 'race_id' => '2578' ) );
+rm_test_check( 'notifications that throw: still a 200, with its files',
+    200 === $response->status && rm_rs_written( 2578 ), print_r( $response->data, true ) );
+rm_test_check( 'and saying that nobody was notified', ! empty( $response->data['notice'] ) );
+
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+$response = rm_rs_upload( rm_rs_event( 'Autumn Cup' ), array( 'race_id' => '2578' ) );
+rm_test_check( 'an upload whose notifications went fine carries no notice', ! isset( $response->data['notice'] ) );
+
+/* --------------------------------------------------------------------------
+ * notify-racers: the link in the race log (D6 in the RotorHazard plugin's roadmap)
+ * ----------------------------------------------------------------------- */
+
+rm_test_section( 'notify-racers: the link in the race log' );
+
+// The timer's default click URL pointed at another host in the legacy ?race_id= form. WordPress
+// knows the race's canonical live URL; the timer does not.
+function rm_rs_notify( $body ) {
+    return handle_notification_request( new WP_REST_Request( json_encode( $body ) ) );
+}
+function rm_rs_logged_url( $race_id ) {
+    $log = get_post_meta( $race_id, '_race_notification_log', true );
+    return is_array( $log ) && isset( $log[0]['msg_url'] ) ? $log[0]['msg_url'] : null;
+}
+$message = array( 'race_id' => '2578', 'msg_title' => 'Break', 'msg_body' => 'Back at 3pm.' );
+
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+rm_rs_notify( $message + array( 'msg_url' => '' ) );
+rm_test_check( 'no click URL from the timer: the race\'s live page',
+    'https://example.test/live/race-2578/' === rm_rs_logged_url( 2578 ), var_export( rm_rs_logged_url( 2578 ), true ) );
+rm_rs_notify( $message );
+rm_test_check( 'none sent at all: the same', 'https://example.test/live/race-2578/' === rm_rs_logged_url( 2578 ) );
+rm_rs_notify( $message + array( 'msg_url' => 'https://example.test/live/autumn-cup/stats/' ) );
+rm_test_check( 'one the timer names is kept', 'https://example.test/live/autumn-cup/stats/' === rm_rs_logged_url( 2578 ) );
+
+// The timer's three icons were images in one club's media library (D6). Decided on 2026-09-11:
+// the icon is the timer's to name, and without one the log shows this site's app icon.
+function rm_rs_logged_icon( $race_id ) {
+    $log = get_post_meta( $race_id, '_race_notification_log', true );
+    return is_array( $log ) && isset( $log[0]['msg_icon'] ) ? $log[0]['msg_icon'] : null;
+}
+rm_rs_notify( $message + array( 'msg_icon' => '' ) );
+rm_test_check( 'no icon from the timer: the site\'s app icon',
+    'https://example.test/wp-content/plugins/wp-racemanager/img/icon_192.png' === rm_rs_logged_icon( 2578 ),
+    var_export( rm_rs_logged_icon( 2578 ), true ) );
+rm_rs_notify( $message + array( 'msg_icon' => 'https://example.test/wp-content/uploads/lunch.png' ) );
+rm_test_check( 'one the timer names is kept', 'https://example.test/wp-content/uploads/lunch.png' === rm_rs_logged_icon( 2578 ) );
 
 rm_test_section( 'rm_race_error_response()' );
 

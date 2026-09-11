@@ -193,29 +193,37 @@ function rm_handle_upload( WP_REST_Request $request ) {
     $race_id   = $race_result['id'];
     $is_update = ( 'updated' === $race_result['status'] );
 
-    // Notify subscribers about the new or updated race
-    //    (Only do this if it’s actually published/live, etc.)
-    // TODO TEST New Notification logic
-    // Call the function to get the upcoming race pilots (in race-data-functions.php) and feed the output to send_next_up_notifications(race_id, upcomingPilots)
-    $upcomingPilots = rm_getUpcomingRacePilots($data);
-    if ($upcomingPilots === null) {
-        return new WP_REST_Response([
-            'status'  => 'error',
-            'message' => 'Could not extract upcoming pilots from data.',
-            'id'      => 0,
-        ], 400);
+    // Tell the viewers who follow the pilots flying next. The race is saved by now, so nothing
+    // from here on turns the upload into a failure: that answered 400 when the data lacked a
+    // section rm_getUpcomingRacePilots() needs, and the timer reported a saved upload as failed
+    // (D8 in the RotorHazard plugin's roadmap). The push library throws too -- on keys it cannot
+    // use, among others. Either way nobody is notified, and the answer says so.
+    $notice         = null;
+    $notified       = false;
+    $upcomingPilots = rm_getUpcomingRacePilots( $data );
+    if ( null === $upcomingPilots ) {
+        $upcomingPilots = array();
+        $notice         = 'Saved. Who flies next could not be worked out from the data, so nobody was notified.';
+    } else {
+        try {
+            $notified = rm_notify_nextup( $race_id, $upcomingPilots );
+        } catch ( \Throwable $e ) {
+            error_log( 'rm_handle_upload: next-up notifications failed: ' . $e->getMessage() );
+            $notice = 'Saved. Sending the next-up notifications failed, so nobody was notified.';
+        }
     }
-    $notified = rm_notify_nextup($race_id, $upcomingPilots);
-    //rm_notify_nextup_bak( $race_id, $is_update );
 
-    // Return final success response
-    return new WP_REST_Response([
-        'status'  => 'success',
-        'message' => $race_result['message'],
-        'id'      => $race_id,
-        'nextup' => $upcomingPilots,
+    $answer = [
+        'status'      => 'success',
+        'message'     => $race_result['message'],
+        'id'          => $race_id,
+        'nextup'      => $upcomingPilots,
         'notifiedIds' => $notified,
-    ], $is_update ? 200 : 201);
+    ];
+    if ( null !== $notice ) {
+        $answer['notice'] = $notice;
+    }
+    return new WP_REST_Response( $answer, $is_update ? 200 : 201 );
 }
 
 /**
@@ -705,9 +713,24 @@ function add_notifications_to_race_json( $race_data, $race_id ) {
     return $race_data; // Return the modified array
 }
 
-// Callback function to fetch and return pilot registration data
-// Options: 'latest' or a specific form title
-// requires 'race_id' parameter and 'api_key' header to be set
+/**
+ * What get-pilots gives the timer of each registration: who the pilot is -- name, callsign,
+ * account, pilot key -- and the record's own ID and date, but none of the contact details.
+ *
+ * No version of the connector has read an address, a phone number or the consent flag, and a
+ * timer's log and database backups are no place for them (D1 in the RotorHazard plugin's
+ * roadmap). A whitelist, so that a field the form and the admin list gain later stays off the
+ * timer until someone decides it belongs there.
+ */
+const RM_TIMER_REGISTRATION_FIELDS = array( 'pilot_name_1', 'pilot_nickname_1', 'user_id', 'pilot_key', 'id', 'form_date' );
+
+/**
+ * Callback for GET /rm/v1/get-pilots: the race's registrations, as far as the timer needs them.
+ * Authentication and the right to the race are checked in permission_check_user_and_race().
+ *
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
 function rm_get_registration_data( WP_REST_Request $request) {
 
     global $wpdb;
@@ -740,9 +763,14 @@ function rm_get_registration_data( WP_REST_Request $request) {
         //return new WP_Error('no_form_data', 'No data found for the matching form.', ['status' => 404]);
     }
 
-    // The same rows the admin list shows, pilot_key included: the identity RotorHazard matches
-    // a returning pilot by (docs/pilot-identity.md).
-    return rest_ensure_response( rm_registration_rows( $results ) );
+    // The same rows the admin list shows -- so a pilot key can be checked against the
+    // registration it came from (docs/pilot-identity.md) -- cut to what the timer needs.
+    $fields = array_flip( RM_TIMER_REGISTRATION_FIELDS );
+    $rows   = array();
+    foreach ( rm_registration_rows( $results ) as $row ) {
+        $rows[] = array_intersect_key( $row, $fields );
+    }
+    return rest_ensure_response( $rows );
 }
 
 /**
@@ -774,12 +802,27 @@ function handle_notification_request( \WP_REST_Request $request ) {
 
     // Authenticated, let's proceed with the notification
 
+    // The link the race log shows with the message. Without one from the timer it is the race's
+    // own live page: WordPress knows its canonical URL, and the timer does not -- its default used
+    // to be another host in the legacy ?race_id= form (D6 in the RotorHazard plugin's roadmap).
+    $msg_url = isset( $body['msg_url'] ) ? esc_url_raw( $body['msg_url'] ) : '';
+    if ( '' === $msg_url ) {
+        $msg_url = rm_live_url( $race_id );
+    }
+    // The icon beside it. The timer's three choices were images in one club's media library
+    // (D6 as well); decided on 2026-09-11 that the icon is the timer's to name, and that without
+    // one the log shows this site's app icon -- the one the manifest and the push use.
+    $msg_icon = isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '';
+    if ( '' === $msg_icon ) {
+        $msg_icon = plugin_dir_url( __DIR__ ) . 'img/icon_192.png';
+    }
+
     // Build notification data for storing in post meta
     $notification = array(
         'msg_title'   => isset( $body['msg_title'] ) ? sanitize_text_field( $body['msg_title'] ) : '',
         'msg_body'    => isset( $body['msg_body'] ) ? sanitize_textarea_field( $body['msg_body'] ) : '',
-        'msg_url'     => isset( $body['msg_url'] ) ? esc_url_raw( $body['msg_url'] ) : '',
-        'msg_icon'    => isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '',
+        'msg_url'     => $msg_url,
+        'msg_icon'    => $msg_icon,
         'msg_time'    => current_time( 'mysql' ),
     );
 

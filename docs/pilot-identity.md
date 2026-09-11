@@ -68,10 +68,12 @@ database and goes with every backup of it. A site rebuilt from scratch without i
 a new key, and the timer takes each for a new pilot. Copying it into `wp-config.php` as
 `RM_PILOT_NAMESPACE` makes the keys independent of the database.
 
-**Where it appears**: every row of `get-pilots`, as `pilot_key` beside the fields that were there
-before; and the registrations list in the admin with its CSV export, as the last column. One
-function, `rm_registration_rows()`, builds all three, so the key the timer receives is the key the
-organiser sees next to the registration.
+**Where it appears**: every row of `get-pilots`, as `pilot_key`; and the registrations list in the
+admin with its CSV export, as the last column. One function, `rm_registration_rows()`, builds all
+three, so the key the timer receives is the key the organiser sees next to the registration.
+`get-pilots` then cuts each row to what the timer needs — name, callsign, `user_id`, `pilot_key`,
+the record's ID and date — and since 1.5.1 carries no address, phone number or consent flag (D1
+in the connector's roadmap): no version of the connector read them.
 
 **Limits**, both inherent in keying by address: a typo in the address is a different address and so
 a different pilot; and a pilot who registers with another address is another pilot, until someone
@@ -84,8 +86,9 @@ download gave the same three keys.
 
 ## What the connector has to do
 
-On this side the change is additive: `get-pilots` gains `pilot_key` and nothing is removed or
-renamed, so a connector that does not read the field yet is unaffected. To use it, the connector:
+On this side the change is additive: `get-pilots` gains `pilot_key` and nothing the connector reads
+is removed or renamed, so a connector that does not read the field yet is unaffected. To use it,
+the connector:
 
 1. stores `pilot_key` on the pilot, as an attribute like `rm_wp_user_id` today;
 2. on the next download, matches a registration to the pilot with the same `pilot_key` first;
