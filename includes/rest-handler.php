@@ -774,6 +774,40 @@ function rm_get_registration_data( WP_REST_Request $request) {
 }
 
 /**
+ * The icons a timer can name for a notification, and the image this plugin ships for each: Tabler
+ * Icons, MIT-licensed, see img/notification/LICENSE-tabler-icons.txt. The names are the contract
+ * with the connector's dropdown; a new one needs a release of both.
+ */
+const RM_NOTIFICATION_ICONS = array( 'lunch', 'break', 'warning' );
+
+/**
+ * The image the race log shows beside a notification.
+ *
+ * The timer's three choices were images in one club's media library (D6 in the RotorHazard
+ * plugin's roadmap). Decided on 2026-09-11: the timer picks a name from a dropdown, and this
+ * plugin ships the images. A web address -- what a timer stored before -- is used as it is;
+ * nothing, or anything else, is this site's app icon, the one the manifest and the push use.
+ * Anything else includes a name a newer timer might send, which esc_url_raw() would otherwise
+ * turn into a broken "http://…".
+ *
+ * @param mixed $icon What the timer sent as msg_icon.
+ * @return string An image URL.
+ */
+function rm_notification_icon_url( $icon ) {
+    $icon = trim( (string) $icon );
+    if ( in_array( $icon, RM_NOTIFICATION_ICONS, true ) ) {
+        return plugin_dir_url( __DIR__ ) . 'img/notification/' . $icon . '.svg';
+    }
+    if ( 1 === preg_match( '#^https?://#i', $icon ) ) {
+        $url = esc_url_raw( $icon );
+        if ( '' !== $url ) {
+            return $url;
+        }
+    }
+    return plugin_dir_url( __DIR__ ) . 'img/icon_192.png';
+}
+
+/**
  * Handle notification requests from RotorHazard
  * Sends notifications to all subscribers in a race.
  * Expects JSON with:
@@ -809,13 +843,7 @@ function handle_notification_request( \WP_REST_Request $request ) {
     if ( '' === $msg_url ) {
         $msg_url = rm_live_url( $race_id );
     }
-    // The icon beside it. The timer's three choices were images in one club's media library
-    // (D6 as well); decided on 2026-09-11 that the icon is the timer's to name, and that without
-    // one the log shows this site's app icon -- the one the manifest and the push use.
-    $msg_icon = isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '';
-    if ( '' === $msg_icon ) {
-        $msg_icon = plugin_dir_url( __DIR__ ) . 'img/icon_192.png';
-    }
+    $msg_icon = rm_notification_icon_url( isset( $body['msg_icon'] ) ? $body['msg_icon'] : '' );
 
     // Build notification data for storing in post meta
     $notification = array(

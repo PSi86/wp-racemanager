@@ -489,7 +489,26 @@ rm_test_check( 'no icon from the timer: the site\'s app icon',
     'https://example.test/wp-content/plugins/wp-racemanager/img/icon_192.png' === rm_rs_logged_icon( 2578 ),
     var_export( rm_rs_logged_icon( 2578 ), true ) );
 rm_rs_notify( $message + array( 'msg_icon' => 'https://example.test/wp-content/uploads/lunch.png' ) );
-rm_test_check( 'one the timer names is kept', 'https://example.test/wp-content/uploads/lunch.png' === rm_rs_logged_icon( 2578 ) );
+rm_test_check( 'a URL the timer names is kept', 'https://example.test/wp-content/uploads/lunch.png' === rm_rs_logged_icon( 2578 ) );
+
+// The timer picks its icon from a dropdown of names, and this plugin ships the images behind them
+// (decided on 2026-09-11): no club's URLs in the connector, nothing for an operator to mistype.
+$images = 'https://example.test/wp-content/plugins/wp-racemanager/img/notification/';
+foreach ( array( 'lunch', 'break', 'warning' ) as $name ) {
+    rm_rs_notify( $message + array( 'msg_icon' => $name ) );
+    rm_test_check( "'$name' is the image this plugin ships for it",
+        $images . $name . '.svg' === rm_rs_logged_icon( 2578 ), var_export( rm_rs_logged_icon( 2578 ), true ) );
+    rm_test_check( "  and the file is there", is_file( RM_PLUGIN_DIR . '/img/notification/' . $name . '.svg' ) );
+}
+// A name a newer timer might send, or anything else that is no web address: the app icon, rather
+// than the broken "http://coffee" esc_url_raw() would make of it.
+foreach ( array( 'coffee', 'javascript:alert(1)', 'lunch.svg' ) as $other ) {
+    rm_rs_notify( $message + array( 'msg_icon' => $other ) );
+    rm_test_check( "'$other': the app icon",
+        'https://example.test/wp-content/plugins/wp-racemanager/img/icon_192.png' === rm_rs_logged_icon( 2578 ),
+        var_export( rm_rs_logged_icon( 2578 ), true ) );
+}
+rm_test_check( 'the icons\' license ships beside them', is_file( RM_PLUGIN_DIR . '/img/notification/LICENSE-tabler-icons.txt' ) );
 
 rm_test_section( 'rm_race_error_response()' );
 
