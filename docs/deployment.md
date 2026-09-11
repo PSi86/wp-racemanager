@@ -297,6 +297,10 @@ curl -sI https://<site>/wp-content/plugins/wp-racemanager/js/rm-m-dataLoader.js 
   | grep -i -E 'cache-control|expires|etag|last-modified'
 ```
 
+The service worker (L6) does not change this. It goes to the network first for every file, versioned
+or not, through the browser's own cache like a page would; its copies answer only when the network
+does not.
+
 `no-cache` or a short `max-age` means the browser revalidates and picks the new file up on the
 next load; that is what the local DDEV nginx sends. A long `max-age` with no revalidation means
 returning visitors keep running the **old** loader against the new PHP until it expires — and

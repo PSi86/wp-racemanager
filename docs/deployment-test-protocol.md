@@ -93,7 +93,14 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
 
 - [ ] **Check the generated files.** Open `/manifest.json` and `/pwa-sw.js`. Expected: your
       **own** domain instead of `https://domain.com/`, and `start_url` ending in `?resume=1`.
-      They are rewritten on the first admin request after deploying.
+      They are rewritten on the first admin request after deploying. In `/pwa-sw.js`,
+      `const CACHE_NAME = CACHE_PREFIX + '…'` starts with the version just deployed — otherwise
+      the old worker is still being served.
+- [ ] **A live page survives losing reception (L6).** On a phone: open a race, then switch to
+      airplane mode and reload. The page stays, with its standing, and the pill says
+      *Offline · data from …*. A view of that race never opened on the phone says
+      *No connection* instead of the browser's error page. Reception back, a reload no longer
+      reports an error — on a live race the pill says *Up to date*, on a finished one it goes away.
 - [ ] **Launch the PWA from the home screen.** Lands in the last race viewed. Without a stored
       race (or in a fresh profile), the selection list — the correct fallback.
 - [ ] **An existing installation still works.** On a device with the PWA already installed: it
