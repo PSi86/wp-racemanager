@@ -77,6 +77,24 @@ function rm_cb_status( $result ) {
     return is_wp_error( $result ) ? ( $result->get_error_data()['status'] ?? null ) : null;
 }
 
+// The run for "A PHP without zlib" below: this file again, in a PHP started with inflate_init()
+// disabled. It says what it saw, as JSON, and stops.
+if ( in_array( 'no-zlib', $argv, true ) ) {
+    $response = new WP_REST_Response( array() );
+    rm_announce_compressed_bodies( $response, null, new WP_REST_Request( '/rm/v1/races' ) );
+    $compressed = gzencode( $event );
+    list( $result, $request ) = rm_cb_decode( $compressed, array( 'Content-Encoding' => 'gzip' ) );
+    list( $plain_result, $plain ) = rm_cb_decode( $event, array() );
+    echo json_encode( array(
+        'inflate_init' => function_exists( 'inflate_init' ),
+        'announced'    => $response->headers['Accept-Encoding'] ?? null,
+        'status'       => rm_cb_status( $result ),
+        'kept'         => $compressed === $request->get_body(),
+        'plain'        => null === $plain_result && $event === $plain->get_body(),
+    ) );
+    exit( 0 );
+}
+
 rm_test_section( 'Registered with the routes' );
 
 rm_register_rest_routes_rh();
@@ -178,5 +196,20 @@ $other = new WP_REST_Response( array() );
 rm_announce_compressed_bodies( $other, null, new WP_REST_Request( '/wp/v2/posts' ) );
 rm_test_check( 'not on another namespace', ! isset( $other->headers['Accept-Encoding'] ) );
 rm_test_check( 'what is no response passes through', 'x' === rm_announce_compressed_bodies( 'x', null, new WP_REST_Request( '/rm/v1/upload' ) ) );
+
+rm_test_section( 'A PHP without zlib' );
+
+// zlib is optional in PHP, and a function cannot be taken away from a running process. PHP 8
+// treats a disabled function as one that is not there, so this file runs again with
+// inflate_init() disabled; see the top.
+$out  = (string) shell_exec( escapeshellarg( PHP_BINARY ) . ' -d disable_functions=inflate_init '
+    . escapeshellarg( __FILE__ ) . ' no-zlib 2>&1' );
+$seen = json_decode( $out, true );
+rm_test_check( 'the run without it answers', is_array( $seen ) && false === $seen['inflate_init'], $out );
+$seen = is_array( $seen ) ? $seen : array();
+rm_test_check( '  no answer says gzip, so a timer does not compress', array_key_exists( 'announced', $seen ) && null === $seen['announced'] );
+rm_test_check( '  a gzip body anyway: 415, not a fatal 500', 415 === ( $seen['status'] ?? null ) );
+rm_test_check( '  with the body left as it came', true === ( $seen['kept'] ?? null ) );
+rm_test_check( '  a body as it is goes on as before', true === ( $seen['plain'] ?? null ) );
 
 rm_test_finish();

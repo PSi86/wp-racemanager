@@ -54,7 +54,11 @@ whose LiteSpeed passes the body on as it came). So `rm_decode_compressed_body()`
 endpoints' gate lets through. It inflates at most 10 MB, piece by piece: `gzdecode()`'s own
 limit did not hold in PHP 8.3. Every answer of the namespace carries `Accept-Encoding: gzip`
 (RFC 7694), and the timer compresses only once it has read that, so an older WordPress keeps
-getting bodies it can read. What the upload stores is the same either way, byte for byte.
+getting bodies it can read. A PHP without zlib, which is optional, does not say so, and answers
+a compressed body 415 rather than dying of the missing `inflate_init()`. On a 415 the timer sends
+the event again as it is, and on core's 400 `rest_invalid_json` too — what it meets when the site
+goes back to an older WP RaceManager while it runs. What the upload stores is the same either
+way, byte for byte.
 
 **The next-up pushes go out after the answer** (since 1.6.0). `rm_notify_nextup()` works out
 who flies next, queues their followers' pushes and stores each follower's heat and slot inside

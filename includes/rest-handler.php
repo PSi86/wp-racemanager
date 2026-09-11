@@ -100,8 +100,9 @@ const RM_MAX_BODY_BYTES = 10 * 1024 * 1024;
  * @param mixed           $result  An answer another filter already has, passed on.
  * @param WP_REST_Server  $server  Unused.
  * @param WP_REST_Request $request The request, whose body is replaced by the decoded one.
- * @return mixed $result, or a WP_Error: 401/403 without the right, 415 for another encoding,
- *               400 for a body that is no gzip or larger than RM_MAX_BODY_BYTES decoded.
+ * @return mixed $result, or a WP_Error: 401/403 without the right, 415 for another encoding or
+ *               a PHP that cannot inflate, 400 for a body that is no gzip or larger than
+ *               RM_MAX_BODY_BYTES decoded.
  */
 function rm_decode_compressed_body( $result, $server, $request ) {
     if ( null !== $result || 0 !== strpos( $request->get_route(), '/rm/v1/' ) ) {
@@ -123,6 +124,13 @@ function rm_decode_compressed_body( $result, $server, $request ) {
             array( 'status' => 415 )
         );
     }
+    if ( ! rm_can_inflate() ) {
+        return new WP_Error(
+            'rm_unsupported_encoding',
+            'This site takes a body only as it is: its PHP has no zlib.',
+            array( 'status' => 415 )
+        );
+    }
 
     $body = rm_gunzip( $request->get_body(), RM_MAX_BODY_BYTES );
     if ( ! is_string( $body ) ) {
@@ -137,6 +145,19 @@ function rm_decode_compressed_body( $result, $server, $request ) {
     $request->set_body( $body );
     $request->remove_header( 'content_encoding' );
     return $result;
+}
+
+/**
+ * Tell whether this PHP can inflate a gzip body.
+ *
+ * zlib is optional in PHP. Without it inflate_init() is not there, and a compressed body would end
+ * in a fatal error: an answer of 500, which the timer tries again. So a PHP without it does not
+ * say it takes gzip, and refuses a compressed body with 415, on which the timer sends it as it is.
+ *
+ * @return bool
+ */
+function rm_can_inflate() {
+    return function_exists( 'inflate_init' );
 }
 
 /**
@@ -182,7 +203,7 @@ function rm_gunzip( $data, $limit ) {
  *
  * Accept-Encoding in a response is how RFC 7694 lets a server tell a client which encodings it
  * takes in a request. The timer compresses only once it has seen it, so an older WordPress keeps
- * getting bodies it can read.
+ * getting bodies it can read. A PHP that cannot inflate one does not say it.
  *
  * @param WP_HTTP_Response|mixed $response The answer.
  * @param WP_REST_Server         $server   Unused.
@@ -190,7 +211,7 @@ function rm_gunzip( $data, $limit ) {
  * @return WP_HTTP_Response|mixed The answer, with the header on this namespace's routes.
  */
 function rm_announce_compressed_bodies( $response, $server, $request ) {
-    if ( $response instanceof WP_HTTP_Response && 0 === strpos( $request->get_route(), '/rm/v1/' ) ) {
+    if ( rm_can_inflate() && $response instanceof WP_HTTP_Response && 0 === strpos( $request->get_route(), '/rm/v1/' ) ) {
         $response->header( 'Accept-Encoding', 'gzip' );
     }
     return $response;
