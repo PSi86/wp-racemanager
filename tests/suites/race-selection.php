@@ -478,6 +478,19 @@ rm_test_check( 'none sent at all: the same', 'https://example.test/live/race-257
 rm_rs_notify( $message + array( 'msg_url' => 'https://example.test/live/autumn-cup/stats/' ) );
 rm_test_check( 'one the timer names is kept', 'https://example.test/live/autumn-cup/stats/' === rm_rs_logged_url( 2578 ) );
 
+// The timer's three icons were images in one club's media library (D6). Decided on 2026-09-11:
+// the icon is the timer's to name, and without one the log shows this site's app icon.
+function rm_rs_logged_icon( $race_id ) {
+    $log = get_post_meta( $race_id, '_race_notification_log', true );
+    return is_array( $log ) && isset( $log[0]['msg_icon'] ) ? $log[0]['msg_icon'] : null;
+}
+rm_rs_notify( $message + array( 'msg_icon' => '' ) );
+rm_test_check( 'no icon from the timer: the site\'s app icon',
+    'https://example.test/wp-content/plugins/wp-racemanager/img/icon_192.png' === rm_rs_logged_icon( 2578 ),
+    var_export( rm_rs_logged_icon( 2578 ), true ) );
+rm_rs_notify( $message + array( 'msg_icon' => 'https://example.test/wp-content/uploads/lunch.png' ) );
+rm_test_check( 'one the timer names is kept', 'https://example.test/wp-content/uploads/lunch.png' === rm_rs_logged_icon( 2578 ) );
+
 rm_test_section( 'rm_race_error_response()' );
 
 rm_test_check( 'status and ID from the error',

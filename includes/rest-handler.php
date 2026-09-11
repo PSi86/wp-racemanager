@@ -809,13 +809,20 @@ function handle_notification_request( \WP_REST_Request $request ) {
     if ( '' === $msg_url ) {
         $msg_url = rm_live_url( $race_id );
     }
+    // The icon beside it. The timer's three choices were images in one club's media library
+    // (D6 as well); decided on 2026-09-11 that the icon is the timer's to name, and that without
+    // one the log shows this site's app icon -- the one the manifest and the push use.
+    $msg_icon = isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '';
+    if ( '' === $msg_icon ) {
+        $msg_icon = plugin_dir_url( __DIR__ ) . 'img/icon_192.png';
+    }
 
     // Build notification data for storing in post meta
     $notification = array(
         'msg_title'   => isset( $body['msg_title'] ) ? sanitize_text_field( $body['msg_title'] ) : '',
         'msg_body'    => isset( $body['msg_body'] ) ? sanitize_textarea_field( $body['msg_body'] ) : '',
         'msg_url'     => $msg_url,
-        'msg_icon'    => isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '',
+        'msg_icon'    => $msg_icon,
         'msg_time'    => current_time( 'mysql' ),
     );
 
