@@ -40,8 +40,11 @@ require_once RM_TEST_DIR . '/stubs/wordpress.php';
 if ( ! class_exists( 'WP_REST_Request' ) ) {
     class WP_REST_Request {
         private $headers = array();
+        private $params;
+        public function __construct( $params = array() ) { $this->params = $params; }
         public function get_header( $key ) { return isset( $this->headers[ $key ] ) ? $this->headers[ $key ] : null; }
         public function get_body() { return ''; }
+        public function get_param( $key ) { return $this->params[ $key ] ?? null; }
     }
 }
 if ( ! class_exists( 'WP_REST_Response' ) ) {
@@ -108,24 +111,51 @@ rm_test_check( 'five endpoints', 5 === count( $endpoints ),
     implode( ', ', array_map( fn( $e ) => $e['methods'] . ' ' . $e['route'], $endpoints ) ) );
 foreach ( $endpoints as $endpoint ) {
     rm_test_check( "{$endpoint['methods']} {$endpoint['route']} is guarded",
-        isset( $endpoint['permission_callback'] ) && 'permission_check_user' === $endpoint['permission_callback'] );
+        in_array( $endpoint['permission_callback'] ?? null, array( 'permission_check_user', 'permission_check_user_and_race' ), true ) );
 }
 rm_test_check( 'no endpoint falls back to __return_true',
     ! in_array( '__return_true', array_column( $endpoints, 'permission_callback' ), true ) );
 
+// WordPress validates a route's parameters before it calls its permission callback. A per-race
+// check in race_id's validate_callback therefore answered a request without a valid login --
+// a revoked application password, say -- with 400 "Invalid parameter(s): race_id" instead of
+// 401. Measured on the local site against 1.3.2, for the upload and for get-pilots.
 $race_id_arg = $routes['rm/v1/upload']['args']['race_id'] ?? array();
-rm_test_check( 'upload takes race_id, optional, checked per race',
+rm_test_check( 'upload takes race_id, optional, and checks only its form there',
     false === ( $race_id_arg['required'] ?? null )
-    && 'permission_check_race_id' === ( $race_id_arg['validate_callback'] ?? null ) );
+    && 'rm_validate_race_id' === ( $race_id_arg['validate_callback'] ?? null ) );
+rm_test_check( 'get-pilots checks the race after the login, in its permission callback',
+    'permission_check_user_and_race' === ( $routes['rm/v1/get-pilots']['permission_callback'] ?? null )
+    && 'rm_validate_race_id' === ( $routes['rm/v1/get-pilots']['args']['race_id']['validate_callback'] ?? null ) );
 
-rm_test_section( 'The per-race check is still there' );
+rm_test_section( 'race_id: its form' );
 
-$GLOBALS['rm_caps'] = array( 'edit_posts' ); // not edit_post on the race itself
-$denied = permission_check_race_id( '77', $request, 'race_id' );
-rm_test_check( 'get-pilots refuses a race the user cannot edit', is_wp_error( $denied ) );
-$GLOBALS['rm_caps'] = array( 'edit_post' );
-rm_test_check( 'and allows one they can', true === permission_check_race_id( '77', $request, 'race_id' ) );
-rm_test_check( 'a non-numeric race_id is rejected', is_wp_error( permission_check_race_id( 'abc', $request, 'race_id' ) ) );
+rm_test_check( 'a whole number is a race_id', true === rm_validate_race_id( '77', $request, 'race_id' ) );
+foreach ( array( 'abc', '0', '-5', '7.5', '' ) as $bad ) {
+    rm_test_check( "'$bad' is not", is_wp_error( rm_validate_race_id( $bad, $request, 'race_id' ) ) );
+}
+
+rm_test_section( 'get-pilots: the login, then the race' );
+
+rm_test_post( 77, 'race', 'autumn-cup' );
+rm_test_post( 78, 'page', 'about' );
+$for_77 = new WP_REST_Request( array( 'race_id' => '77' ) );
+
+$GLOBALS['rm_logged_in'] = false;
+$GLOBALS['rm_caps']      = array();
+$result = permission_check_user_and_race( $for_77 );
+rm_test_check( 'no valid login: 401 from the login check, before the race is looked at',
+    is_wp_error( $result ) && 'rest_forbidden' === $result->get_error_code() && 401 === $result->get_error_data()['status'] );
+
+$GLOBALS['rm_logged_in'] = true;
+$GLOBALS['rm_caps']      = array( 'edit_posts' ); // not edit_post on the race itself
+$result = permission_check_user_and_race( $for_77 );
+rm_test_check( 'a race the user may not edit: 403', is_wp_error( $result ) && 403 === $result->get_error_data()['status'] );
+$GLOBALS['rm_caps'] = array( 'edit_posts', 'edit_post' );
+rm_test_check( 'one they may edit: through', true === permission_check_user_and_race( $for_77 ) );
+$GLOBALS['rm_caps'] = array( 'edit_posts' );
+rm_test_check( 'an ID that is no race goes on to the handler, which answers 404',
+    true === permission_check_user_and_race( new WP_REST_Request( array( 'race_id' => '78' ) ) ) );
 
 /* --------------------------------------------------------------------------
  * The dead key check is gone

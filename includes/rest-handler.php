@@ -8,6 +8,8 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 function rm_register_rest_routes_rh() {
     // Endpoint for uploading JSON data. With ?race_id= it updates exactly that race; without,
     // it goes by title as before -- kept for one release, for timers with an older plugin.
+    // Whether the race exists and the user may edit it is rm_update_race()'s to say: it answers
+    // 404 and 403 in that order, where a check here could only say "not allowed" to both.
     register_rest_route(
         'rm/v1',
         '/upload',
@@ -18,7 +20,7 @@ function rm_register_rest_routes_rh() {
             'args' => [
                 'race_id' => [
                     'required' => false,
-                    'validate_callback' => 'permission_check_race_id',
+                    'validate_callback' => 'rm_validate_race_id',
                 ],
             ],
         ]
@@ -49,11 +51,11 @@ function rm_register_rest_routes_rh() {
         [
             'methods'  => 'GET',
             'callback' => 'rm_get_registration_data',
-            'permission_callback' => 'permission_check_user',
+            'permission_callback' => 'permission_check_user_and_race',
             'args' => [
                 'race_id' => [
                     'required' => true,
-                    'validate_callback' => 'permission_check_race_id',
+                    'validate_callback' => 'rm_validate_race_id',
                 ],
             ],
         ]
@@ -97,27 +99,50 @@ function permission_check_user( \WP_REST_Request $request ) {
     );
 }
 
-function permission_check_race_id( $param, \WP_REST_Request $request, $key ) {
-    if ( rest_is_integer($param) ) {
-        $race_id = intval($param);
-        if( current_user_can( 'edit_post', $race_id ) ) {
-            return true;
-        } else {
-            // User is not allowed to edit this post
-            return new WP_Error( 
-                'forbidden',
-                __( 'Wrong user. You do not have permission to access this race.', 'wp-racemanager' ), 
-                array( 'status' => 403 ) 
-            );
-        }
+/**
+ * validate_callback for race_id: its form, and nothing else.
+ *
+ * WordPress validates a route's parameters before it calls its permission callback, so a check
+ * of the user's rights here ran ahead of the login check: a request without a valid login -- a
+ * revoked application password, say -- was answered 400 "Invalid parameter(s): race_id" instead
+ * of 401. Rights belong in the permission callback, or in the handler.
+ *
+ * @return true|\WP_Error
+ */
+function rm_validate_race_id( $param, \WP_REST_Request $request, $key ) {
+    if ( rest_is_integer( $param ) && (int) $param > 0 ) {
+        return true;
     }
-    else {
-        return new WP_Error( 
+    return new WP_Error(
+        'invalid_race_id',
+        __( 'race_id has to be a race\'s ID, a whole number.', 'wp-racemanager' ),
+        array( 'status' => 400 )
+    );
+}
+
+/**
+ * permission_callback for get-pilots: the login first, then the right to the race it names.
+ *
+ * The registrations handler does not check the race itself, so this has to happen before it.
+ * An ID that is no race goes on to the handler, which answers 404 for it; a race the user may
+ * not edit is refused here with 403.
+ *
+ * @return true|\WP_Error
+ */
+function permission_check_user_and_race( \WP_REST_Request $request ) {
+    $allowed = permission_check_user( $request );
+    if ( true !== $allowed ) {
+        return $allowed;
+    }
+    $race_id = (int) $request->get_param( 'race_id' );
+    if ( 'race' === get_post_type( $race_id ) && ! current_user_can( 'edit_post', $race_id ) ) {
+        return new WP_Error(
             'forbidden',
-            __( 'Wrong prarameter format [race_id]', 'wp-racemanager' ), 
-            array( 'status' => 400 ) 
+            __( 'Wrong user. You do not have permission to access this race.', 'wp-racemanager' ),
+            array( 'status' => 403 )
         );
     }
+    return true;
 }
 
 /**
@@ -130,7 +155,7 @@ function permission_check_race_id( $param, \WP_REST_Request $request, $key ) {
  */
 function rm_handle_upload( WP_REST_Request $request ) {
     // Authentication happens in permission_check_user(); the per-race capability is checked in
-    // permission_check_race_id() for a race_id, and in rm_update_race() / rm_create_race().
+    // rm_update_race() / rm_create_race().
 
     // Validate request size & decode JSON
     $data = rm_validate_and_decode_json( $request );
