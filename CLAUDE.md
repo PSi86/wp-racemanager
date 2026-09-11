@@ -107,9 +107,9 @@ when any of that is missing.
 | `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, and that the console stays clean |
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback |
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
-| `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have |
+| `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have — and, offline, is there and says so |
 | `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |
-| `npm run test:offline` | the service worker: the first visit kept, a reload without a connection still showing the race, no race JSON in its cache, the kept page after the deadline on a link that delivers nothing, and neither `no-store` pages nor stale copies of changed files served while the network answers |
+| `npm run test:offline` | the service worker: the first visit kept, a reload or an app launch without a connection still showing the race with the pill there and saying offline — a finished race's too — no race JSON in its cache, the kept page after the deadline on a link that delivers nothing, and neither `no-store` pages nor stale copies of changed files served while the network answers |
 | `npm run test:stats-filter` | the pilot filter on the stats view — marking, filtering, the per-round lap tables going with the leaderboards, pruning of what the filter emptied, and that the bracket view's own filter is unmoved |
 
 `test:update-status` needs a race that is flagged live (`ddev wp post meta update <id> _race_live
