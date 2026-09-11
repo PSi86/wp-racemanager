@@ -221,19 +221,24 @@ function rm_handle_upload( WP_REST_Request $request ) {
 /**
  * The answer for a race that could not be updated or created.
  *
- * The error's data carries the HTTP status -- 403, 404, 500 -- and, for a locked race, the
- * race's ID; anything without a status is a 400.
+ * The error's data carries the HTTP status -- 403, 404, 409, 500 -- and, for a locked race or a
+ * taken title, the race's ID; for a taken title also whether the user may edit that race.
+ * Anything without a status is a 400.
  *
  * @param WP_Error $error
  * @return WP_REST_Response
  */
 function rm_race_error_response( $error ) {
     $data = $error->get_error_data();
-    return new WP_REST_Response( [
+    $body = [
         'status'  => 'error',
         'message' => $error->get_error_message(),
         'id'      => ( is_array( $data ) && isset( $data['id'] ) ) ? (int) $data['id'] : 0,
-    ], ( is_array( $data ) && isset( $data['status'] ) ) ? (int) $data['status'] : 400 );
+    ];
+    if ( is_array( $data ) && isset( $data['editable'] ) ) {
+        $body['editable'] = (bool) $data['editable'];
+    }
+    return new WP_REST_Response( $body, ( is_array( $data ) && isset( $data['status'] ) ) ? (int) $data['status'] : 400 );
 }
 
 /**
@@ -324,12 +329,17 @@ function rm_handle_create_race( WP_REST_Request $request ) {
         ], 400 );
     }
 
+    // Races may be created by other accounts, and one the user may not edit is left out of
+    // GET /races: the timer cannot choose it. So the answer says which kind of race it is.
     $existing = rm_find_race_by_title( sanitize_text_field( $data['race_name'] ) );
     if ( $existing ) {
+        $editable = current_user_can( 'edit_post', $existing );
         return rm_race_error_response( new WP_Error(
             'race_exists',
-            __( 'There is a race with this title already.', 'wp-racemanager' ),
-            array( 'status' => 409, 'id' => $existing )
+            $editable
+                ? __( 'There is a race with this title already.', 'wp-racemanager' )
+                : __( 'There is a race with this title already, and you may not edit it.', 'wp-racemanager' ),
+            array( 'status' => 409, 'id' => $existing, 'editable' => $editable )
         ) );
     }
 
