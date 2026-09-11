@@ -71,8 +71,130 @@ function rm_register_rest_routes_rh() {
             'permission_callback' => 'permission_check_user',
         ]
     );
+
+    // A timer may send its body gzip-compressed, and learns from every answer that it may.
+    add_filter( 'rest_pre_dispatch', 'rm_decode_compressed_body', 10, 3 );
+    add_filter( 'rest_post_dispatch', 'rm_announce_compressed_bodies', 10, 3 );
 }
 //);
+
+/**
+ * The largest body an endpoint takes, decoded: what rm_validate_and_decode_json() allows.
+ */
+const RM_MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Decode a gzip-compressed request body before WordPress reads it as JSON.
+ *
+ * The upload is the whole event, up to 1.8 MB, and gzip makes it 7 % of that (measured on a full
+ * event, see the RotorHazard connector's docs/upload-timing.md): at 0.25 Mbit/s about 4 s of
+ * sending instead of 57. Core parses a JSON body while it checks the parameters,
+ * before any callback, and answers compressed bytes with 400 rest_invalid_json: measured on
+ * production, whose LiteSpeed passes the body on as it came. Hence rest_pre_dispatch, which
+ * runs first, for the routes of this namespace only.
+ *
+ * Only for a user permission_check_user() lets through: a stranger does not get a body
+ * inflated before the gate says no. What a request without Content-Encoding sends stays as it
+ * is, so a timer that never compresses notices nothing.
+ *
+ * @param mixed           $result  An answer another filter already has, passed on.
+ * @param WP_REST_Server  $server  Unused.
+ * @param WP_REST_Request $request The request, whose body is replaced by the decoded one.
+ * @return mixed $result, or a WP_Error: 401/403 without the right, 415 for another encoding,
+ *               400 for a body that is no gzip or larger than RM_MAX_BODY_BYTES decoded.
+ */
+function rm_decode_compressed_body( $result, $server, $request ) {
+    if ( null !== $result || 0 !== strpos( $request->get_route(), '/rm/v1/' ) ) {
+        return $result;
+    }
+    $encoding = strtolower( trim( (string) $request->get_header( 'content_encoding' ) ) );
+    if ( '' === $encoding || 'identity' === $encoding ) {
+        return $result;
+    }
+
+    $allowed = permission_check_user( $request );
+    if ( true !== $allowed ) {
+        return $allowed;
+    }
+    if ( 'gzip' !== $encoding && 'x-gzip' !== $encoding ) {
+        return new WP_Error(
+            'rm_unsupported_encoding',
+            'A body can be sent as it is or gzip-compressed, nothing else.',
+            array( 'status' => 415 )
+        );
+    }
+
+    $body = rm_gunzip( $request->get_body(), RM_MAX_BODY_BYTES );
+    if ( ! is_string( $body ) ) {
+        return new WP_Error(
+            'rm_invalid_body',
+            null === $body
+                ? 'JSON size exceeds the maximum allowed limit of 10 MB.'
+                : 'The body says it is gzip-compressed, but it is not.',
+            array( 'status' => 400 )
+        );
+    }
+    $request->set_body( $body );
+    $request->remove_header( 'content_encoding' );
+    return $result;
+}
+
+/**
+ * Inflate gzip data, but no further than $limit bytes.
+ *
+ * gzdecode()'s own limit is not one: measured with PHP 8.3, gzdecode( $data, 99 ) returned all
+ * 100 bytes of the data. So the input goes in piece by piece, and a piece of 1 kB cannot inflate
+ * to much more than a megabyte, whatever it holds - a body built to explode stops at the limit.
+ *
+ * @param string $data  gzip data.
+ * @param int    $limit The most bytes it may inflate to.
+ * @return string|null|false The data; null when it would exceed $limit; false when it is no
+ *                           complete gzip stream.
+ */
+function rm_gunzip( $data, $limit ) {
+    $inflate = inflate_init( ZLIB_ENCODING_GZIP );
+    if ( false === $inflate ) {
+        return false;
+    }
+    $out    = '';
+    $length = strlen( $data );
+    for ( $offset = 0; $offset < $length; $offset += 1024 ) {
+        $piece = @inflate_add( $inflate, substr( $data, $offset, 1024 ), ZLIB_SYNC_FLUSH );
+        if ( false === $piece ) {
+            return false;
+        }
+        $out .= $piece;
+        if ( strlen( $out ) > $limit ) {
+            return null;
+        }
+        if ( ZLIB_STREAM_END === inflate_get_status( $inflate ) ) {
+            break;
+        }
+    }
+    if ( ZLIB_STREAM_END !== inflate_get_status( $inflate ) ) {
+        return false;
+    }
+    return $out;
+}
+
+/**
+ * Say in every answer of this namespace that a compressed body is welcome.
+ *
+ * Accept-Encoding in a response is how RFC 7694 lets a server tell a client which encodings it
+ * takes in a request. The timer compresses only once it has seen it, so an older WordPress keeps
+ * getting bodies it can read.
+ *
+ * @param WP_HTTP_Response|mixed $response The answer.
+ * @param WP_REST_Server         $server   Unused.
+ * @param WP_REST_Request        $request  The request it answers.
+ * @return WP_HTTP_Response|mixed The answer, with the header on this namespace's routes.
+ */
+function rm_announce_compressed_bodies( $response, $server, $request ) {
+    if ( $response instanceof WP_HTTP_Response && 0 === strpos( $request->get_route(), '/rm/v1/' ) ) {
+        $response->header( 'Accept-Encoding', 'gzip' );
+    }
+    return $response;
+}
 
 /**
  * Gate for the endpoints RotorHazard talks to.
@@ -368,7 +490,7 @@ function rm_handle_create_race( WP_REST_Request $request ) {
  */
 function rm_validate_and_decode_json( WP_REST_Request $request ) {
     // 10 MB limit
-    if ( strlen( $request->get_body() ) > 10 * 1024 * 1024 ) {
+    if ( strlen( $request->get_body() ) > RM_MAX_BODY_BYTES ) {
         return new WP_Error(
             'invalid_data',
             'JSON size exceeds the maximum allowed limit of 10 MB.',

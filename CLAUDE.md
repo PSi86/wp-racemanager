@@ -181,7 +181,9 @@ either — DDEV greps the whole file. See "Building the blocks" in
   from `web-token/jwt-library` behind `minishlink/web-push`, the WordPress one from the Script
   Modules API.
 - Push needs `minishlink/web-push` via Composer. The autoloader is looked for in several
-  locations; historically it lived outside the plugin.
+  locations; historically it lived outside the plugin. `php-http/guzzle7-adapter` lets a round of
+  pushes go out at once; without it they go one after another. Either way they go after the
+  answer (`includes/after-response.php`, since 1.6.0).
 - Registration data lives in a custom table `{prefix}rm_registrations`, push subscriptions in
   `{prefix}rm_subscriptions`. Race JSON lives in `wp-content/uploads/races/`.
 

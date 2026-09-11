@@ -134,6 +134,15 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
       for every registration with an email address. Two registrations with the same address —
       in any capitalisation — show the same key. Settings → RaceManager shows the namespace
       under *Pilot keys*; copy it into `wp-config.php` (see deployment.md, step 5).
+- [ ] **Pushes after the answer, at once (1.6.0).** Tools → Site Health → Info → Server shows a
+      *cURL version*; without cURL the pushes still go out, but one after another. Follow a
+      pilot of a live race on a phone and upload with that pilot up next: the push arrives, and
+      with `WP_DEBUG_LOG` on, `debug.log` has `rm_after_response: 1 task(s) after the answer,
+      connection closed by litespeed`. *closed by nothing* means the server made the timer
+      wait for the pushes, as before 1.6.0.
+- [ ] **Compressed uploads are welcome (1.6.0).** `curl -sI https://<site>/wp-json/rm/v1/races`
+      answers 401 with the header `Accept-Encoding: gzip`. A timer with the connector's
+      compression then sends its uploads gzip-compressed; the race looks the same either way.
 - [ ] *Optional:* **force a write failure.** Make `uploads/races/` read-only briefly and upload.
       Expected: an **error** instead of `201 Created`, and no empty race left behind.
 

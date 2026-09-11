@@ -12,6 +12,7 @@ POST /rm/v1/upload   -->   rm_handle_upload()
   whole JSON
   (limit: 10 MB)           rm_write_files()          -->  182-data.json        <--  full download
                            rm_notify_nextup()                                       on any change
+                           (queued; sent after the answer)
 ```
 
 ## The upload
@@ -43,6 +44,27 @@ which updates the race of that title or has `rm_create_race()` make one. Either 
 
 Both are plain files served by the web server. Nothing is stored in the database except post meta
 (`_race_last_upload`, `_race_live`).
+
+**The body may come gzip-compressed** (`Content-Encoding: gzip`, since 1.6.0). A full event
+shrinks to about 7 % that way — 1,642,049 bytes went over the wire as 126,911 in the local test.
+Core would refuse it: it parses a JSON body while it checks the parameters, before any
+callback, and answers compressed bytes with 400 `rest_invalid_json` (measured on production,
+whose LiteSpeed passes the body on as it came). So `rm_decode_compressed_body()` decodes it on
+`rest_pre_dispatch`, which runs first, for the `rm/v1` routes only, and only for a user the
+endpoints' gate lets through. It inflates at most 10 MB, piece by piece: `gzdecode()`'s own
+limit did not hold in PHP 8.3. Every answer of the namespace carries `Accept-Encoding: gzip`
+(RFC 7694), and the timer compresses only once it has read that, so an older WordPress keeps
+getting bodies it can read. What the upload stores is the same either way, byte for byte.
+
+**The next-up pushes go out after the answer** (since 1.6.0). `rm_notify_nextup()` works out
+who flies next, queues their followers' pushes and stores each follower's heat and slot inside
+the request; `includes/after-response.php` sends them once the timer has its answer. They used
+to go out first, one after another, each waiting for its push service. Measured on the local
+site with 100 followers and a stand-in push service that answers in 100 ms, the upload's answer
+went from 10.19 s to 0.10 s, and all 100 pushes arrived 0.13-0.28 s after it. They go out 50 at
+a time, each with 10 s at most; one after another where `php-http/guzzle7-adapter` or cURL is
+missing. A timer on a slow uplink gives up on an answer after 60 s, and reported a stored
+upload as failed when the pushes took that long. The same holds for `notify-racers`.
 
 ## The download
 

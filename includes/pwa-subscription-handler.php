@@ -9,11 +9,27 @@ defined( 'ABSPATH' ) || exit;
 // layout differed.
 require_once __DIR__ . '/vapid-handler.php';
 rm_push_library_available();
+require_once __DIR__ . '/after-response.php';
 
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
 class PWA_Subscription_Handler {
+
+    /**
+     * Seconds one push may take in all, and to connect. Measured from a home line on 2026-09-11,
+     * the push services answered in 0.04-0.57 s, and Apple's twice not within 20 s; without a
+     * limit, one that hangs holds up every push after it.
+     */
+    const PUSH_TIMEOUT         = 10;
+    const PUSH_CONNECT_TIMEOUT = 5;
+
+    /**
+     * How many pushes go out at once, when they can go out at once at all. Enough that a hall
+     * full of followers is served in a few rounds; few enough that the web server does not open
+     * hundreds of connections in one go.
+     */
+    const PUSH_BATCH = 50;
 
     public function __construct() {
         //add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
@@ -97,8 +113,7 @@ class PWA_Subscription_Handler {
             return false;
         }
 
-        // Holy shit! This cost a whole day. was: $webPush = new WebPush($vapid);
-        $webPush = new WebPush( [ 'VAPID' => $this->get_vapid() ] );
+        list( $webPush, $pooled ) = $this->web_push();
 
         foreach ( $subscriptions as $sub ) {
             $subscription = Subscription::create([
@@ -110,27 +125,14 @@ class PWA_Subscription_Handler {
                 'title' => $title,
                 'body'  => 'Hi '. $sub['pilot_callsign'] . ', ' . $message,
             ]);
-            //$webPush->sendOneNotification($subscription, $payload);
             $webPush->queueNotification($subscription, $payload);
         }
-        $report = $webPush->flush();
-        // handle eventual errors here, and remove the subscription from your server if it is expired
-        foreach ($report as $result) {
-            $endpoint = $result->getRequest()->getUri()->__toString();
-            if ($result->isSuccess()) {
-                WP_RaceManager::write_log('Notification sent successfully to: ' . $endpoint);
-            } else {
-                if(strpos($result->getReason(), '410') !== false) {
-                    rm_delete_subscription($endpoint);
-                    WP_RaceManager::write_log('Subscription expired and removed: ' . $endpoint);
-                }
-                else {
-                    WP_RaceManager::write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
-                }
-            }
-        }
+        // The timer that sent the message has its answer before the push services are asked.
+        rm_after_response( function () use ( $webPush, $pooled ) {
+            $this->deliver( $webPush, $pooled );
+        } );
 
-        return true; // Indicate success
+        return true; // Queued; they go out after the answer
     }
 
     /**
@@ -153,7 +155,7 @@ class PWA_Subscription_Handler {
             return false;
         }
 
-        $webPush = new WebPush( [ 'VAPID' => $this->get_vapid() ] );
+        list( $webPush ) = $this->web_push();
         $subscription = Subscription::create( [
             'endpoint'  => $endpoint,
             'publicKey' => $p256dh,
@@ -166,16 +168,8 @@ class PWA_Subscription_Handler {
         ] );
 
         $webPush->queueNotification( $subscription, $payload );
-        $report = $webPush->flush();
-
-        // Clean up expired subscriptions
-        foreach ( $report as $result ) {
-            $url = $result->getRequest()->getUri()->__toString();
-            if ( ! $result->isSuccess() && strpos( $result->getReason(), '410' ) !== false ) {
-                rm_delete_subscription( $url );
-                WP_RaceManager::write_log( 'Removed expired subscription: ' . $url );
-            }
-        }
+        // One push, to the browser that just subscribed: sent right away.
+        $this->deliver( $webPush, false );
 
         return true;
     }
@@ -228,7 +222,7 @@ class PWA_Subscription_Handler {
             return false;
         }
 
-        $webPush = new WebPush( [ 'VAPID' => $this->get_vapid() ] );
+        list( $webPush, $pooled ) = $this->web_push();
 
         $notifiedPilotIds = array();
 
@@ -342,25 +336,80 @@ class PWA_Subscription_Handler {
                 }
             }
         }
-        // Send all queued notifications.
-        $report = $webPush->flush();
-        // handle eventual errors here, and remove the subscription from your server if it is expired
-        foreach ($report as $result) {
-            $endpoint = $result->getRequest()->getUri()->__toString();
-            if ($result->isSuccess()) {
-                WP_RaceManager::write_log('Notification sent successfully to: ' . $endpoint);
-            } else {
-                if(strpos($result->getReason(), '410') !== false) {
-                    rm_delete_subscription($endpoint);
-                    WP_RaceManager::write_log('Subscription expired and removed: ' . $endpoint);
-                }
-                else {
-                    WP_RaceManager::write_log('Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason());
-                }
-            }
-        }
+        // Sent once the timer has its answer: the upload no longer waits for the push services
+        // (includes/after-response.php). The subscribers' heat and slot are updated above
+        // already, so the pilots listed here are the ones queued, not the ones reached.
+        rm_after_response( function () use ( $webPush, $pooled ) {
+            $this->deliver( $webPush, $pooled );
+        } );
 
         return $notifiedPilotIds;
+    }
+
+    /**
+     * A push client, and whether it can send a flush's pushes all at once.
+     *
+     * Every push gets PUSH_TIMEOUT. At once needs php-http/guzzle7-adapter, the asynchronous
+     * client web-push's flushPooled() asks for: measured with the library alone in the local
+     * container, 100 pushes to a push service that answers in 100 ms took 0.17 s that way and
+     * 10.1 s one after another. Where the adapter is missing - a vendor/ from before it, or one
+     * outside the plugin - they go out one after another, with the same limits.
+     *
+     * The VAPID keys are checked here, so unusable ones still throw inside the request that
+     * asked for the pushes, and the upload says nobody was notified (D8 in the connector's
+     * roadmap). A subscription's own keys are used only when its push goes out, after the
+     * answer; one that cannot be used there shows in the log, not in the answer.
+     *
+     * @return array{0: WebPush, 1: bool}
+     */
+    protected function web_push() {
+        $config = array(
+            'timeout'         => self::PUSH_TIMEOUT,
+            'connect_timeout' => self::PUSH_CONNECT_TIMEOUT,
+        );
+        $client = class_exists( '\GuzzleHttp\Client' ) ? new \GuzzleHttp\Client( $config ) : null;
+        $async  = class_exists( '\Http\Adapter\Guzzle7\Client' )
+            ? \Http\Adapter\Guzzle7\Client::createWithConfig( $config )
+            : null;
+
+        $webPush = new WebPush(
+            array( 'VAPID' => $this->get_vapid() ),
+            array( 'batchSize' => self::PUSH_BATCH ),
+            $client,
+            null,
+            null,
+            $async
+        );
+
+        return array( $webPush, null !== $async );
+    }
+
+    /**
+     * Send what is queued, and forget the subscriptions a push service says are gone.
+     *
+     * @param WebPush $webPush The client with the queued pushes.
+     * @param bool    $pooled  Whether it can send them all at once (see web_push()).
+     */
+    protected function deliver( $webPush, $pooled ) {
+        $handle = function ( $result ) {
+            $endpoint = $result->getRequest()->getUri()->__toString();
+            if ( $result->isSuccess() ) {
+                WP_RaceManager::write_log( 'Notification sent successfully to: ' . $endpoint );
+            } elseif ( false !== strpos( $result->getReason(), '410' ) ) {
+                rm_delete_subscription( $endpoint );
+                WP_RaceManager::write_log( 'Subscription expired and removed: ' . $endpoint );
+            } else {
+                WP_RaceManager::write_log( 'Notification failed to send to: ' . $endpoint . ' with reason: ' . $result->getReason() );
+            }
+        };
+
+        if ( $pooled ) {
+            $webPush->flushPooled( $handle );
+            return;
+        }
+        foreach ( $webPush->flush() as $result ) {
+            $handle( $result );
+        }
     }
 
     /**
