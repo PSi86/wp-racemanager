@@ -193,29 +193,37 @@ function rm_handle_upload( WP_REST_Request $request ) {
     $race_id   = $race_result['id'];
     $is_update = ( 'updated' === $race_result['status'] );
 
-    // Notify subscribers about the new or updated race
-    //    (Only do this if it’s actually published/live, etc.)
-    // TODO TEST New Notification logic
-    // Call the function to get the upcoming race pilots (in race-data-functions.php) and feed the output to send_next_up_notifications(race_id, upcomingPilots)
-    $upcomingPilots = rm_getUpcomingRacePilots($data);
-    if ($upcomingPilots === null) {
-        return new WP_REST_Response([
-            'status'  => 'error',
-            'message' => 'Could not extract upcoming pilots from data.',
-            'id'      => 0,
-        ], 400);
+    // Tell the viewers who follow the pilots flying next. The race is saved by now, so nothing
+    // from here on turns the upload into a failure: that answered 400 when the data lacked a
+    // section rm_getUpcomingRacePilots() needs, and the timer reported a saved upload as failed
+    // (D8 in the RotorHazard plugin's roadmap). The push library throws too -- on keys it cannot
+    // use, among others. Either way nobody is notified, and the answer says so.
+    $notice         = null;
+    $notified       = false;
+    $upcomingPilots = rm_getUpcomingRacePilots( $data );
+    if ( null === $upcomingPilots ) {
+        $upcomingPilots = array();
+        $notice         = 'Saved. Who flies next could not be worked out from the data, so nobody was notified.';
+    } else {
+        try {
+            $notified = rm_notify_nextup( $race_id, $upcomingPilots );
+        } catch ( \Throwable $e ) {
+            error_log( 'rm_handle_upload: next-up notifications failed: ' . $e->getMessage() );
+            $notice = 'Saved. Sending the next-up notifications failed, so nobody was notified.';
+        }
     }
-    $notified = rm_notify_nextup($race_id, $upcomingPilots);
-    //rm_notify_nextup_bak( $race_id, $is_update );
 
-    // Return final success response
-    return new WP_REST_Response([
-        'status'  => 'success',
-        'message' => $race_result['message'],
-        'id'      => $race_id,
-        'nextup' => $upcomingPilots,
+    $answer = [
+        'status'      => 'success',
+        'message'     => $race_result['message'],
+        'id'          => $race_id,
+        'nextup'      => $upcomingPilots,
         'notifiedIds' => $notified,
-    ], $is_update ? 200 : 201);
+    ];
+    if ( null !== $notice ) {
+        $answer['notice'] = $notice;
+    }
+    return new WP_REST_Response( $answer, $is_update ? 200 : 201 );
 }
 
 /**
