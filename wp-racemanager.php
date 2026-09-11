@@ -52,9 +52,12 @@ function rm_activate() {
     rm_maybe_bootstrap_vapid_keys();
 
     // Create Registration Table
+    require_once plugin_dir_path(__FILE__) . 'includes/pilot-key.php';
     require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php';
     rm_create_registration_table();
     create_event_registration_cf7_form();
+    // The namespace of the pilot keys, before the first registration is downloaded.
+    rm_pilot_namespace();
 
     // Create the service worker and manifest files
     require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php';
@@ -143,6 +146,7 @@ final class WP_RaceManager {
         require_once plugin_dir_path(__FILE__) . 'includes/block-loader.php';
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; //
         include_once plugin_dir_path(__FILE__) . 'includes/race-archive.php'; // Race archive page (ordering by event start date)
+        require_once plugin_dir_path(__FILE__) . 'includes/pilot-key.php'; // one reproducible key per registered email address
         require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php'; // Admin functions for registrations
         include_once plugin_dir_path(__FILE__) . 'includes/sc-cf7-event-dropdown.php'; // SC for Contact Form 7
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php'; // cpt admin functions

@@ -11,14 +11,48 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 global $rm_gui_columns;
 // Define the allowed keys for display
 $rm_gui_columns = array(
-    'pilot_name_1', 
-    'pilot_nickname_1', 
-    'pilot_phone_1', 
-    'pilot_mail_1', 
+    'pilot_name_1',
+    'pilot_nickname_1',
+    'pilot_phone_1',
+    'pilot_mail_1',
     'acceptance-communication',
-    'user_id', 
-    'form_date'
+    'user_id',
+    'form_date',
+    'pilot_key', // last, so a CSV column that was there before keeps its place
 );
+
+/**
+ * The registrations of a race as the admin list, the CSV export and get-pilots show them.
+ *
+ * One place for what used to be three copies of the same loop -- which is what the pilot key
+ * needs: a field that the download for RotorHazard carries and the admin list did not would be
+ * a key nobody could check against the registrations it came from.
+ *
+ * @param array[] $results Rows of the registrations table, as ARRAY_A.
+ * @return array[] The whitelisted form fields of each, plus user_id, form_date, id and pilot_key.
+ */
+function rm_registration_rows( $results ) {
+    global $rm_gui_columns;
+
+    $rows = array();
+    foreach ( (array) $results as $row ) {
+        $data = maybe_unserialize( $row['form_value'] );
+        if ( ! is_array( $data ) ) {
+            $data = array();
+        }
+        // Only the whitelisted form fields.
+        $filtered_data = array_intersect_key( $data, array_flip( $rm_gui_columns ) );
+        // Plus the record's own.
+        $filtered_data['user_id']   = $row['user_id'];
+        $filtered_data['form_date'] = $row['form_date'];
+        $filtered_data['id']        = $row['id']; // required for checkboxes.
+        // Derived, never stored: the same address gives the same key on every call.
+        $filtered_data['pilot_key'] = rm_pilot_key( isset( $data['pilot_mail_1'] ) && is_string( $data['pilot_mail_1'] ) ? $data['pilot_mail_1'] : '' );
+        $rows[] = $filtered_data;
+    }
+
+    return $rows;
+}
 
 function rm_create_registration_table() {
     global $wpdb;
@@ -206,28 +240,9 @@ function rm_render_race_registrations() {
         $race_id
     ), ARRAY_A );
     
-    // Process the results: unserialize the form data and add extra fields.
-    // TODO: Move this to a separate function to avoid code duplication.
-    // Define the allowed keys for display
     global $rm_gui_columns;
-    $rows = array();
+    $rows = rm_registration_rows( $results );
 
-    if ( $results ) {
-        foreach ( $results as $row ) {
-            $data = maybe_unserialize($row['form_value']);
-            if (!is_array($data)) {
-                $data = array();
-            }
-            // Filter the array so only allowed keys remain
-            $filtered_data = array_intersect_key($data, array_flip($rm_gui_columns));
-            // Add extra fields from the record.
-            $filtered_data['user_id']   = $row['user_id'];
-            $filtered_data['form_date'] = $row['form_date'];
-            $filtered_data['id']        = $row['id']; // required for checkboxes.
-            $rows[] = $filtered_data;
-        }
-    }
-    
     // Use the whitelist as headers so that only these columns are shown.
     //$headers = $allowed_columns;
     $headers = $rm_gui_columns;
@@ -351,27 +366,8 @@ function rm_download_csv($race_id, $selected_ids = array()) {
         $results = $wpdb->get_results( $wpdb->prepare("SELECT * FROM $registrations_table WHERE race_id = %d", $race_id), ARRAY_A );
     }
     
-    // Process the results: unserialize the form data and add extra fields.
-    // TODO: Move this to a separate function to avoid code duplication.
-    // Define the allowed keys for display
-    global $rm_gui_columns;
-    $rows = array();
-    if ( $results ) {
-        foreach ( $results as $row ) {
-            $data = maybe_unserialize($row['form_value']);
-            if (!is_array($data)) {
-                $data = array();
-            }
-            // Filter the array so only allowed keys remain
-            $filtered_data = array_intersect_key($data, array_flip($rm_gui_columns));
-            // Add extra fields from the record.
-            $filtered_data['user_id']   = $row['user_id'];
-            $filtered_data['form_date'] = $row['form_date'];
-            $filtered_data['id']        = $row['id']; // required for checkboxes.
-            $rows[] = $filtered_data;
-        }
-    }
-    
+    $rows = rm_registration_rows( $results );
+
     if ( empty($rows) ) {
         wp_die( __('No registrations to download.', 'wp-racemanager') );
     }
