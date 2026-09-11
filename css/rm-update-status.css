@@ -26,7 +26,8 @@
  * Bottom centre, not bottom right: back-to-top buttons, chat bubbles and cookie banners
  * all live in the right corner, and this has to survive a theme it has never seen. It
  * floats rather than reserving a row, so it never pushes a theme's layout around, and
- * it clears the iPhone home indicator via env(safe-area-inset-bottom).
+ * it clears the iPhone home indicator via env(safe-area-inset-bottom). On a phone the
+ * view tabs (css/rm-view-tabs.css) take the very bottom, and the pill floats above them.
  *
  * The element is a <button>: the whole pill is the control. It ships with the `hidden`
  * attribute and the module removes it, so without JavaScript there is nothing at all --
@@ -53,7 +54,9 @@
 
 	position: fixed;
 	left: 50%;
-	bottom: calc( 0.9rem + env( safe-area-inset-bottom, 0px ) );
+	/* --rm-view-tabs-space is set by css/rm-view-tabs.css where the view tabs are on the page,
+	   and already includes the safe area; without the tabs the pill keeps its own distance. */
+	bottom: calc( 0.9rem + var( --rm-view-tabs-space, env( safe-area-inset-bottom, 0px ) ) );
 	transform: translateX( -50% );
 	z-index: 1200;
 

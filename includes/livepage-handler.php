@@ -143,6 +143,57 @@ function rm_update_status_markup() {
 }
 
 /**
+ * The row of view tabs fixed to the foot of a phone's screen (L9 in
+ * docs/live-webapp-improvements.md): one tap to another view of the same race.
+ *
+ * Measured on production before it existed: below 600 px the theme's navigation folds the view
+ * links into its burger, so every switch took two taps, and nothing on the page said the other
+ * views were there at all. The row lists the live page's child pages in their page order, links
+ * each one to the current race with rm_live_url(), and marks the current one with aria-current.
+ * Plain links, so it needs no JavaScript.
+ *
+ * Emitted once per request, for the same reason as the pill: it is fixed, so a second copy would
+ * lie on top of the first. And its stylesheet is enqueued only here, which is what allows that
+ * stylesheet to make room at the foot of the page and to lift the pill above the row -- wherever
+ * the stylesheet is loaded, the row is on the page.
+ *
+ * @return string Markup for the first caller in a request that has a race, an empty string otherwise.
+ */
+function rm_view_tabs_markup() {
+    if ( ! empty( $GLOBALS['rm_view_tabs_emitted'] ) ) {
+        return '';
+    }
+
+    $race   = rm_get_current_race();
+    $titles = rm_get_live_view_titles();
+    // One view has nowhere to switch to.
+    if ( ! $race || count( $titles ) < 2 ) {
+        return '';
+    }
+    $GLOBALS['rm_view_tabs_emitted'] = true;
+
+    wp_enqueue_style(
+        'rm-view-tabs-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-view-tabs.css',
+        array(),
+        WP_RACEMANAGER_VERSION
+    );
+
+    $current = rm_current_view_slug();
+    $tabs    = '';
+    foreach ( $titles as $view => $title ) {
+        $tabs .= sprintf(
+            '<a class="rm-view-tabs__tab" href="%s"%s>%s</a>',
+            esc_url( rm_live_url( $race, $view ) ),
+            $view === $current ? ' aria-current="page"' : '',
+            esc_html( $title )
+        );
+    }
+
+    return '<nav id="rm-view-tabs" class="rm-view-tabs" aria-label="Race views">' . $tabs . '</nav>';
+}
+
+/**
  * Shortcode to display pilots data.
  * Usage: [rm_pilots]
  */
@@ -189,6 +240,7 @@ function rm_pilots_shortcode( $atts ) {
 
     ob_start();
     ?>
+        <?php echo rm_view_tabs_markup(); ?>
         <?php echo rm_update_status_markup(); ?>
         <!-- <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
@@ -261,6 +313,7 @@ function rm_bracket_shortcode( $atts ) {
 
   ob_start();
   ?>
+        <?php echo rm_view_tabs_markup(); ?>
         <?php echo rm_update_status_markup(); ?>
         <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
@@ -329,6 +382,7 @@ function rm_stats_shortcode( $atts ) {
 
     ob_start();
     ?>
+        <?php echo rm_view_tabs_markup(); ?>
         <?php echo rm_update_status_markup(); ?>
         <div class="web-controls">
             <label for="pilotSelector">Highlight Pilot: </label>
@@ -356,7 +410,8 @@ function rm_nextup_shortcode( $atts ) {
     // TODO: show final results when race is locked
     $race_live = get_post_meta( $race_id, '_race_live', true );
     if ( ! $race_live ) {
-        return '<p>This race is over.</p>';
+        // Nothing to come on a finished race, but the other views still have its results.
+        return rm_view_tabs_markup() . '<p>This race is over.</p>';
     }
     
     wp_enqueue_style(
@@ -403,6 +458,7 @@ function rm_nextup_shortcode( $atts ) {
 
     ob_start();
     ?>
+    <?php echo rm_view_tabs_markup(); ?>
     <?php echo rm_update_status_markup(); ?>
     <div id="nextup-display" class="raceclass-container"></div>
     <div id="ranking-container"></div>

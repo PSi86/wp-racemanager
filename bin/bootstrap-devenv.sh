@@ -276,6 +276,34 @@ fi
 wp rewrite flush >/dev/null
 ok "rewrite rules flushed"
 
+# ------------------------------------------------------------- live navigation
+# Production's live pages carry a navigation with these six links, in this order.
+# rm_rewrite_live_links() puts the race into them, rm_mark_live_navigation() marks
+# the navigation for css/rm-live-nav.css -- neither can be seen working without
+# one. A block theme's header navigation that names no menu of its own shows the
+# most recently published wp_navigation, so creating this one is all Twenty
+# Twenty-Five needs. Another theme may need it picked in the site editor.
+step "Live navigation"
+
+NAV_ID="$(wp post list --post_type=wp_navigation --post_status=publish --title='Live navigation' \
+    --field=ID 2>/dev/null | head -n 1 | tr -d '\r\n')"
+if [ -n "$NAV_ID" ]; then
+    ok "the live navigation exists (ID $NAV_ID)"
+else
+    HOME_URL="$(wp option get home 2>/dev/null | tr -d '\r\n')"
+    nav_link() { # label, url, page id
+        printf '<!-- wp:navigation-link {"label":"%s","type":"page","id":%s,"url":"%s","kind":"post-type"} /-->' "$1" "$3" "$2"
+    }
+    NAV_CONTENT='<!-- wp:home-link {"label":"Home"} /-->'
+    NAV_CONTENT+="$(nav_link 'Select Race' "$HOME_URL/live/" "$LIVE_ID")"
+    for view in pilots bracket stats next-up; do
+        NAV_CONTENT+="$(nav_link "$(view_title "$view")" "$HOME_URL/live/$view/" "$(page_id "$view" "$LIVE_ID")")"
+    done
+    NAV_ID="$(wp post create --post_type=wp_navigation --post_status=publish --post_title='Live navigation' \
+        --post_content="$NAV_CONTENT" --porcelain | tr -d '\r\n')"
+    did "created the live navigation (ID $NAV_ID): Home, Select Race, Pilots, Bracket, Stats, Next up"
+fi
+
 # --------------------------------------------------------------------- summary
 step "Result"
 
@@ -298,6 +326,6 @@ Next:
   ddev launch           open it
   ddev launch -m        Mailpit, where the registration mails land
 
-The live pages hold only their shortcode. Add a navigation block to /live/ by
-hand if you want to click between the four views.
+The header shows the live navigation, as production's does; on a phone the race
+pages add their own view tabs at the foot of the screen.
 EOF

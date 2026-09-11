@@ -46,6 +46,25 @@
 	transition: 0.1s linear all;
 	padding: 1px;
 	width: auto;
+	/* Measured on a phone: 29 px tall. 44 is the smallest tap target the platforms ask for. */
+	min-height: 44px;
+}
+
+/*
+ * Both labels as rows a thumb can hit. The checkbox measured 13 x 13 px; its label wraps it and
+ * so was always a target as well, but at 32 px it was short of 44 too.
+ */
+.web-controls label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5em;
+	min-height: 44px;
+}
+
+.web-controls #filterCheckbox {
+	width: 1.25rem;
+	height: 1.25rem;
+	margin: 0;
 }
 
 /*

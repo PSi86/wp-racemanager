@@ -26,19 +26,21 @@ function rm_live_page_id() {
 }
 
 /**
- * Cached routing facts: the live page path and the slugs of its child pages.
+ * Cached routing facts: the live page path and the slugs and titles of its child pages.
  *
  * Rebuilt whenever the live page changes or one of its children is saved or deleted.
  * Cached because rm_live_rewrite_rules() runs on every request.
  *
- * @return array{page_id: int, path: string, views: string[]}
+ * A cache without titles was written before the view tabs needed them, and is rebuilt once.
+ *
+ * @return array{page_id: int, path: string, views: string[], titles: array<string,string>}
  */
 function rm_live_routing_cache() {
     $page_id = rm_live_page_id();
     $cache   = get_option( 'rm_live_routing', array() );
 
-    if ( is_array( $cache ) && isset( $cache['page_id'] ) && (int) $cache['page_id'] === $page_id ) {
-        return wp_parse_args( $cache, array( 'page_id' => $page_id, 'path' => '', 'views' => array() ) );
+    if ( is_array( $cache ) && isset( $cache['page_id'], $cache['titles'] ) && (int) $cache['page_id'] === $page_id ) {
+        return wp_parse_args( $cache, array( 'page_id' => $page_id, 'path' => '', 'views' => array(), 'titles' => array() ) );
     }
 
     return rm_rebuild_live_routing_cache();
@@ -47,11 +49,11 @@ function rm_live_routing_cache() {
 /**
  * Recompute and store the routing cache.
  *
- * @return array{page_id: int, path: string, views: string[]}
+ * @return array{page_id: int, path: string, views: string[], titles: array<string,string>}
  */
 function rm_rebuild_live_routing_cache() {
     $page_id = rm_live_page_id();
-    $cache   = array( 'page_id' => $page_id, 'path' => '', 'views' => array() );
+    $cache   = array( 'page_id' => $page_id, 'path' => '', 'views' => array(), 'titles' => array() );
 
     if ( $page_id && 'page' === get_post_type( $page_id ) ) {
         $cache['path'] = trim( (string) get_page_uri( $page_id ), '/' );
@@ -70,7 +72,8 @@ function rm_rebuild_live_routing_cache() {
 
         foreach ( $children as $child ) {
             if ( '' !== $child->post_name ) {
-                $cache['views'][] = $child->post_name;
+                $cache['views'][]                     = $child->post_name;
+                $cache['titles'][ $child->post_name ] = (string) $child->post_title;
             }
         }
     }
@@ -98,6 +101,21 @@ function rm_live_path() {
 function rm_get_live_view_slugs() {
     $cache = rm_live_routing_cache();
     return $cache['views'];
+}
+
+/**
+ * The views with their page titles, in view order -- what the view tabs label themselves with.
+ *
+ * @return array<string,string> Slug => title; the slug stands in for an empty title.
+ */
+function rm_get_live_view_titles() {
+    $cache  = rm_live_routing_cache();
+    $titles = array();
+    foreach ( $cache['views'] as $slug ) {
+        $title           = isset( $cache['titles'][ $slug ] ) ? trim( $cache['titles'][ $slug ] ) : '';
+        $titles[ $slug ] = '' !== $title ? $title : $slug;
+    }
+    return $titles;
 }
 
 /**
@@ -385,6 +403,49 @@ function rm_live_selection_url() {
  * @return string|null View slug, '' for the landing page itself, or null if outside the live area.
  */
 function rm_match_live_view( $url ) {
+    $rest = rm_live_path_segments( $url );
+
+    if ( null === $rest ) {
+        return null;
+    }
+    if ( array() === $rest ) {
+        return '';
+    }
+
+    // /live/{view}/ -- a bare view link, the case the navigation produces.
+    if ( 1 === count( $rest ) && rm_is_live_view( $rest[0] ) ) {
+        return $rest[0];
+    }
+
+    // /live/{race}/{view}/ -- already carries a race; leave it alone.
+    return null;
+}
+
+/**
+ * Whether a URL opens one of the live views, with or without a race in it.
+ *
+ * Unlike rm_match_live_view() this also answers yes for /live/{race}/{view}/ -- which is what the
+ * links of a navigation look like by the time the navigation block itself is rendered, its links
+ * having been rewritten one by one before it.
+ *
+ * @param string $url Absolute or root-relative URL.
+ * @return bool
+ */
+function rm_is_live_view_link( $url ) {
+    $rest = rm_live_path_segments( $url );
+    if ( ! $rest || count( $rest ) > 2 ) {
+        return false;
+    }
+    return rm_is_live_view( $rest[ count( $rest ) - 1 ] );
+}
+
+/**
+ * The path segments of a URL below the live page.
+ *
+ * @param string $url Absolute or root-relative URL.
+ * @return string[]|null An empty array for the landing page itself, null outside the live area.
+ */
+function rm_live_path_segments( $url ) {
     if ( ! is_string( $url ) || '' === $url ) {
         return null;
     }
@@ -412,22 +473,14 @@ function rm_match_live_view( $url ) {
     $path = trim( $path, '/' );
 
     if ( $path === $live_path ) {
-        return '';
+        return array();
     }
 
     if ( ! str_starts_with( $path, $live_path . '/' ) ) {
         return null;
     }
 
-    $rest = explode( '/', substr( $path, strlen( $live_path ) + 1 ) );
-
-    // /live/{view}/ -- a bare view link, the case the navigation produces.
-    if ( 1 === count( $rest ) && rm_is_live_view( $rest[0] ) ) {
-        return $rest[0];
-    }
-
-    // /live/{race}/{view}/ -- already carries a race; leave it alone.
-    return null;
+    return explode( '/', substr( $path, strlen( $live_path ) + 1 ) );
 }
 
 /* -------------------------------------------------------------------------
@@ -608,6 +661,70 @@ function rm_rewrite_live_links( $block_content ) {
 add_filter( 'render_block', 'rm_rewrite_live_links' );
 // Classic menus never pass through render_block, so cover wp_nav_menu() as well.
 add_filter( 'wp_nav_menu', 'rm_rewrite_live_links' );
+
+/**
+ * Give a navigation block that switches between live views the class rm-live-nav.
+ *
+ * css/rm-live-nav.css needs something to hang its rules on: a current view that can be seen, and
+ * items in the burger overlay a thumb can hit. Production's navigation carries a class of its own
+ * (nav-live-area), but that is a setting in the site editor, gone the day someone rebuilds the
+ * header -- and the plugin already recognises this navigation by its links. So it names it: a
+ * navigation block with at least one link to a live *view*. A link to the selection page alone
+ * does not count, because a site's main menu has one of those too.
+ *
+ * @param string $block_content Rendered block HTML.
+ * @param array  $block         The block being rendered.
+ * @return string
+ */
+function rm_mark_live_navigation( $block_content, $block ) {
+    if ( is_admin() || ! is_array( $block ) || 'core/navigation' !== ( $block['blockName'] ?? '' )
+        || ! is_string( $block_content ) || '' === $block_content ) {
+        return $block_content;
+    }
+
+    $live_path = rm_live_path();
+    if ( '' === $live_path || ! str_contains( $block_content, '/' . $live_path . '/' ) ) {
+        return $block_content;
+    }
+
+    $links          = new WP_HTML_Tag_Processor( $block_content );
+    $switches_views = false;
+    while ( ! $switches_views && $links->next_tag( 'a' ) ) {
+        $switches_views = rm_is_live_view_link( $links->get_attribute( 'href' ) );
+    }
+    if ( ! $switches_views ) {
+        return $block_content;
+    }
+
+    $nav = new WP_HTML_Tag_Processor( $block_content );
+    if ( ! $nav->next_tag( 'nav' ) ) {
+        return $block_content;
+    }
+    $nav->add_class( 'rm-live-nav' );
+
+    return $nav->get_updated_html();
+}
+add_filter( 'render_block', 'rm_mark_live_navigation', 10, 2 );
+
+/**
+ * The stylesheet for that navigation, on every live page -- the selection page included, which
+ * has the same burger and no view tabs.
+ *
+ * @return void
+ */
+function rm_enqueue_live_nav_style() {
+    if ( '' === rm_live_path() || ! \RaceManager\WP_RaceManager::is_live_page() ) {
+        return;
+    }
+
+    wp_enqueue_style(
+        'rm-live-nav-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-live-nav.css',
+        array(),
+        WP_RACEMANAGER_VERSION
+    );
+}
+add_action( 'wp_enqueue_scripts', 'rm_enqueue_live_nav_style' );
 
 /**
  * Remember the current race client-side and honour the PWA's ?resume=1 start URL.

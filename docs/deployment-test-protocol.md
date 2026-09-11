@@ -86,6 +86,13 @@ The largest change. Best tried on a copy first.
       with the race preselected. The legacy redirect nearly hijacked this link.
 - [ ] **Buttons on a race page.** On `/races/{slug}/`: *Results* leads to the new live URL,
       *Join now!* to your own domain — no longer the hard-wired `copterrace.com`.
+- [ ] **The view tabs on a phone (L9).** Open a race on a phone: a row of tabs sits at the foot
+      of the screen, the current view marked; one tap opens another view of the same race. On a
+      live race the pill floats just above the row, and the last heat scrolls clear of it. On a
+      desktop there is no row. The burger menu marks the current view in bold and underlined.
+- [ ] **The tabs' order.** They follow the view pages' **Order** (Page Attributes), then their
+      titles. To match the header menu — Pilots, Bracket, Stats, Next up — give the four pages
+      the orders 1 to 4 in that sequence; with all four at 0 the tabs read alphabetically.
 
 ## 4 · PWA
 
