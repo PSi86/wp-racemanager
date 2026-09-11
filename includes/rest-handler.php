@@ -802,11 +802,19 @@ function handle_notification_request( \WP_REST_Request $request ) {
 
     // Authenticated, let's proceed with the notification
 
+    // The link the race log shows with the message. Without one from the timer it is the race's
+    // own live page: WordPress knows its canonical URL, and the timer does not -- its default used
+    // to be another host in the legacy ?race_id= form (D6 in the RotorHazard plugin's roadmap).
+    $msg_url = isset( $body['msg_url'] ) ? esc_url_raw( $body['msg_url'] ) : '';
+    if ( '' === $msg_url ) {
+        $msg_url = rm_live_url( $race_id );
+    }
+
     // Build notification data for storing in post meta
     $notification = array(
         'msg_title'   => isset( $body['msg_title'] ) ? sanitize_text_field( $body['msg_title'] ) : '',
         'msg_body'    => isset( $body['msg_body'] ) ? sanitize_textarea_field( $body['msg_body'] ) : '',
-        'msg_url'     => isset( $body['msg_url'] ) ? esc_url_raw( $body['msg_url'] ) : '',
+        'msg_url'     => $msg_url,
         'msg_icon'    => isset( $body['msg_icon'] ) ? esc_url_raw( $body['msg_icon'] ) : '',
         'msg_time'    => current_time( 'mysql' ),
     );

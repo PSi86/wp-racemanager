@@ -100,6 +100,11 @@ function rm_get_race_data_dir( $create = true ) {
 function rm_normalize_event_datetime( $value ) {
     return date( 'Y-m-d H:i:s', (int) $value );
 }
+// The race's canonical live URL, as includes/live-routing.php builds it; that file is not loaded
+// here.
+function rm_live_url( $race, $view = '' ) {
+    return 'https://example.test/live/race-' . ( is_object( $race ) ? $race->ID : (int) $race ) . '/';
+}
 // Who flies next: nobody, unless a case sets rm_upcoming -- null is what the real function
 // answers when the data lacks a section it needs.
 function rm_getUpcomingRacePilots( $data ) {
@@ -445,6 +450,33 @@ rm_rs_reset();
 rm_rs_race( 2578, 'Autumn Cup' );
 $response = rm_rs_upload( rm_rs_event( 'Autumn Cup' ), array( 'race_id' => '2578' ) );
 rm_test_check( 'an upload whose notifications went fine carries no notice', ! isset( $response->data['notice'] ) );
+
+/* --------------------------------------------------------------------------
+ * notify-racers: the link in the race log (D6 in the RotorHazard plugin's roadmap)
+ * ----------------------------------------------------------------------- */
+
+rm_test_section( 'notify-racers: the link in the race log' );
+
+// The timer's default click URL pointed at another host in the legacy ?race_id= form. WordPress
+// knows the race's canonical live URL; the timer does not.
+function rm_rs_notify( $body ) {
+    return handle_notification_request( new WP_REST_Request( json_encode( $body ) ) );
+}
+function rm_rs_logged_url( $race_id ) {
+    $log = get_post_meta( $race_id, '_race_notification_log', true );
+    return is_array( $log ) && isset( $log[0]['msg_url'] ) ? $log[0]['msg_url'] : null;
+}
+$message = array( 'race_id' => '2578', 'msg_title' => 'Break', 'msg_body' => 'Back at 3pm.' );
+
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+rm_rs_notify( $message + array( 'msg_url' => '' ) );
+rm_test_check( 'no click URL from the timer: the race\'s live page',
+    'https://example.test/live/race-2578/' === rm_rs_logged_url( 2578 ), var_export( rm_rs_logged_url( 2578 ), true ) );
+rm_rs_notify( $message );
+rm_test_check( 'none sent at all: the same', 'https://example.test/live/race-2578/' === rm_rs_logged_url( 2578 ) );
+rm_rs_notify( $message + array( 'msg_url' => 'https://example.test/live/autumn-cup/stats/' ) );
+rm_test_check( 'one the timer names is kept', 'https://example.test/live/autumn-cup/stats/' === rm_rs_logged_url( 2578 ) );
 
 rm_test_section( 'rm_race_error_response()' );
 
