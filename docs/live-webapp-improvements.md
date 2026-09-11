@@ -24,7 +24,7 @@ IDs are stable and referenced from commits and pull requests, the same way the a
 | L1 | P1 | ✅ nothing to do — the host already sends `br` | Serve the race JSON compressed |
 | L5 | P1 | ✅ done | Freshness indicator: is this current, when was it last checked, is it checking now |
 | L4 | P1 | ✅ done | Visibility-aware, jittered, backing-off polling |
-| L9 | P1 | the theme's rendered markup | A stylesheet for the mobile navigation |
+| L9 | P1 | ✅ done | A stylesheet for the mobile navigation |
 | L2 | P2 | ✅ done — and worth less than this list claimed | Conditional requests alongside `cache: 'no-store'` |
 | L3 | P2 | ✅ done | `localStorage` instead of per-tab `sessionStorage` |
 | L6 | P2 | ✅ done | A service worker that caches, so the installed PWA survives bad reception |
@@ -347,7 +347,43 @@ Not needed at current scale; listed so the option is known.
 
 ## Separate from the data path
 
-### L9 · The mobile menu needs a stylesheet
+### L9 · The mobile menu needs a stylesheet — done
+
+**Done**: view tabs at the foot of a phone's screen, and 44 px targets wherever the measurements
+below found smaller ones. `tests/e2e/view-tabs.cjs` covers it; against the plugin as it was, 16 of
+the 20 checks that run there fail.
+
+What was built, against the proposal further down:
+
+- **A row of view tabs, at the bottom.** The proposal put a segment row sticky under the header and
+  left the question of the pill open. Building it turned up that the header is already sticky (see
+  the third measurement below): a second sticky row under its 88 px would have taken 132 px of an
+  844 px screen, and would have had to know how tall the theme draws its header. Decided on
+  2026-09-11: the row goes to the bottom, where the thumb is, and the pill floats above it rather
+  than moving into it. `rm_view_tabs_markup()` emits it with every live view, once per page, and a
+  finished race's next-up view keeps it; `css/rm-view-tabs.css` shows it below 600 px, the width at
+  which core's navigation block folds the views into its burger. Plain links, no JavaScript.
+- **Two stylesheets rather than the one proposed.** `rm-view-tabs.css` is loaded only where the row
+  is, which is what lets it keep the foot of the page clear and lift the pill
+  (`--rm-view-tabs-space`) without needing `:has()`. `rm-live-nav.css` is loaded on every live page
+  and handles the theme's navigation.
+- **The plugin names the navigation itself.** The proposal hung its rules on production's
+  `nav-live-area` class, which is a site-editor setting. `rm_mark_live_navigation()` gives
+  `rm-live-nav` to any navigation block with a link to a live view. `rm-live-nav.css` marks the
+  current view there (weight and underline), makes the overlay's items 44 px tall, and gives the
+  burger and close buttons a 44 px hit area without changing how they look.
+- **The pilot filter**: dropdown and both labels 44 px, the checkbox 20 px inside its label.
+
+Known limits:
+
+- **The tabs follow the pages' order** (Page Attributes → Order), then their titles. On production
+  all four view pages have order 0, so the tabs read Bracket, Next up, Pilots, Stats, while the
+  header menu reads Pilots, Bracket, Stats, Next up. Setting the order there — Pilots 1, Bracket 2,
+  Stats 3, Next up 4 — makes them agree. Nothing else depends on it; the default view is `bracket`
+  by name.
+- The next-up view's push form was not part of any measurement and is unchanged.
+
+The proposal and the measurements it was built from, as they were written:
 
 The plugin ships exactly one navigation style: `css/rm_live_page_link.css`, twenty lines for the
 blinking dot on the live link. Everything else about the live navigation is the theme's, and on a
@@ -428,6 +464,18 @@ The freshness pill from L5 is new on this page too: `position: fixed` at the foo
 and hidden here because this race is not flagged live. The bottom-edge decision in the list above
 therefore only arises during a live race.
 
+**Measured a third time on 2026-09-11**, while building it, on production and locally with the same
+device settings. Three statements above do not hold:
+
+- **The header is sticky.** Both entries call it `position: static`, and so it is — the `<header>`
+  element itself. A group wrapped around it is `position: sticky; top: 0`, and after scrolling
+  1200 px the header, burger included, is still at the top of the screen. Problem 2 is therefore
+  half wrong: the navigation stays reachable; the pilot filter does not.
+- **A view switch took two taps, not three**: burger, then item. The next view loads without the
+  overlay, on production as locally; the close button only comes into it when the visitor changes
+  their mind.
+- **The burger itself is 30 × 30 px**, a fourth target under 44 px that neither entry listed.
+
 ### Pilot dropdown (D1) · resolved
 
 `rm-m-pilotSelector.js` now rebuilds its list instead of appending to it, and falls back to the
@@ -505,9 +553,8 @@ In order, and each one is a self-contained piece of work:
 4. ~~**L6 · the service worker.**~~ — done, see the entry. The two decisions this step named are
    in: a versioned cache name with an eviction step in `activate`, and the race JSON — the
    timestamp above all — left to the network.
-5. **L9** — still unblocked, and the measurement says it is worth more than its P1 rating
-   suggested: on a phone the live area is effectively a single view unless the visitor knows to
-   open the burger.
+5. ~~**L9**~~ — done, see the entry: view tabs at the foot of a phone's screen. One thing is left
+   for production itself, the order of the four view pages, which the tabs follow.
 6. **L7**, and then **L8** with it. Both are unblocked, and designing them together is the point:
    the uploader already speaks in the sections L7 would split the file into.
 

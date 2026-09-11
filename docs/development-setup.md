@@ -299,8 +299,14 @@ these, and renames an older `nextup` page to `next-up` rather than creating a se
 it.
 
 `bin/bootstrap-devenv.sh` does exactly this, and skips whatever already exists; run it with
-`--recreate-live-pages` to tear the four pages down and rebuild them. What it does not do is add a
-navigation block to the Live page listing the four views — do that by hand in the editor.
+`--recreate-live-pages` to tear the four pages down and rebuild them.
+
+It also creates the navigation production's live pages carry: a `wp_navigation` called *Live
+navigation* with Home, Select Race, Pilots, Bracket, Stats and Next up, in that order. Without one
+neither the link rewriting nor the `rm-live-nav` marking of L9 can be seen working, and
+`npm run test:view-tabs` skips its navigation checks. A block theme's header navigation that names
+no menu of its own shows the most recently published one, so under Twenty Twenty-Five it appears in
+the header by itself; under another theme it may have to be picked in the site editor.
 
 Worth knowing while testing:
 

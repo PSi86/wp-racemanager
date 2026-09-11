@@ -6,7 +6,8 @@ Two runners, and they answer different questions.
 installation required, so it runs anywhere and it is fast.
 
 **`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`**,
-**`test:update-status`**, **`test:flaky-network`**, **`test:stats-filter`** and **`test:offline`**
+**`test:update-status`**, **`test:flaky-network`**, **`test:stats-filter`**, **`test:offline`** and
+**`test:view-tabs`**
 use a real browser, because some behaviour is what the DOM, the network, the service worker and the
 browser's own storage do rather than what the source says. They are deliberately kept out
 of the PHP runner — see [Browser checks](#browser-checks) at the end.
@@ -26,8 +27,8 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | Suite | Guards against |
 |---|---|
 | `live-routing` | The `/live/{race}/{view}/` rewrite rule, above all what it must **not** match — `/live/page/2/` (the race list's own pagination), `/live/{race}/feed/`, `/live/bracket/`. Plus URL building, race resolution, draft visibility, and that the legacy `?race_id` redirect stays inside the live area so `/register/?race_id=` keeps working. |
-| `live-links` | Rewriting the live navigation so every item carries the current race, run against the **real** `WP_HTML_Tag_Processor`. Includes the full "visitor on race 66" scenario and the cases that must stay untouched. |
-| `live-shortcodes` | The four live-page shortcodes against the **verbatim WordPress 7.1 signatures** of the script module API. This is the regression guard for the 6.9 breakage: `wp_register_script_module()` gained a fifth `array $args` parameter, and anything else there is an uncaught `TypeError` that kills the whole page. |
+| `live-links` | Rewriting the live navigation so every item carries the current race, run against the **real** `WP_HTML_Tag_Processor`. Includes the full "visitor on race 66" scenario and the cases that must stay untouched. Plus the `rm-live-nav` marking of a navigation with view links — with its links already rewritten, which is how the navigation block meets them — and that the filter is registered for both of its arguments. |
+| `live-shortcodes` | The four live-page shortcodes against the **verbatim WordPress 7.1 signatures** of the script module API. This is the regression guard for the 6.9 breakage: `wp_register_script_module()` gained a fifth `array $args` parameter, and anything else there is an uncaught `TypeError` that kills the whole page. Also the view tabs every view emits: one row per page, a tab per view in page order, the current one marked, none without a race, one on a finished race's next-up view, and a routing cache from before the tabs rebuilt with the page titles. |
 | `asset-versions` | That every asset the plugin enqueues carries `WP_RACEMANAGER_VERSION`. Read from the source with the tokenizer rather than from a rendered page, so it reaches the call sites no other suite executes — the admin, the navigation, the service worker registration — and a new file is covered the day it is added. Bundled libraries under `assets/` are versioned by the release in their directory name; the legacy `[rm_viewer]` shortcode is exempt by name, and the suite fails once that exemption has nothing left to cover. |
 | `pwa-files` | `manifest.json` and `pwa-sw.js` as the plugin writes them into the WordPress root: every placeholder a template uses has a value, the worker's cache is named for the plugin version and the template, and a template changed **without** a version bump is written out all the same — it used to stay on disk as it was, because the signature that decides about rewriting did not cover the templates. Works on a copy of `templates/` so it can change one. |
 | `vapid` | Key generation, the refusal to generate while subscriptions exist, key and contact validation, and constants beating the database. Runs against the real `minishlink/web-push`. |
@@ -73,6 +74,7 @@ npm run test:update-status                          # against https://racemanage
 npm run test:flaky-network                          # against https://racemanager.ddev.site
 npm run test:stats-filter                           # against https://racemanager.ddev.site
 npm run test:offline                                # against https://racemanager.ddev.site
+npm run test:view-tabs                              # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -217,6 +219,30 @@ which `page.route` does not. What it covers:
 The order is not free. After a failure the worker answers a page's *files* from its copies for 30 s,
 so the checks that need the network to win (5 and 9) run before the one that holds every request
 (7).
+
+### `tests/e2e/view-tabs.cjs`
+
+The live views on a phone (L9), at 390 × 844 with touch. Measured on production before the change:
+every switch between views went through the theme's burger, the overlay's items were 32 px tall,
+the burger 30 px, the pilot dropdown 29 px and the filter checkbox 13 px, and the current view was
+marked only in the markup.
+
+1. **The view tabs** are fixed to the foot of the screen across its full width: a tab per view, each
+   at least 44 px tall and pointing at this race, exactly one current and marked by weight and a
+   bar rather than colour alone, the foot of the page padded by the row's height, and the pill —
+   where it shows — above the row rather than on it.
+2. **One tap** on another tab opens that view, where that tab is then the current one.
+3. **The pilot filter**: dropdown and checkbox label at least 44 px, and a tap on the label's text
+   toggles the box.
+4. **The theme's navigation**, if it has view links (`bin/bootstrap-devenv.sh` creates one; without
+   it the section skips): the burger answers 20 px from its centre, the overlay's items are 44 px
+   tall, the current view looks different, and the open overlay covers the tabs.
+5. **A wide screen** shows no tabs and pads nothing.
+6. **No race, no tabs**; a finished race's next-up view keeps them.
+7. **No JavaScript**: the tabs are plain links and still there.
+
+Against the plugin as it was, 16 of the 20 checks that run fail; the navigation section skips,
+since nothing marked the navigation then.
 
 ### `tests/e2e/stats-filter.cjs`
 
