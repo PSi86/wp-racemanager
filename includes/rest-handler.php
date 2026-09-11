@@ -740,29 +740,9 @@ function rm_get_registration_data( WP_REST_Request $request) {
         //return new WP_Error('no_form_data', 'No data found for the matching form.', ['status' => 404]);
     }
 
-    // Process the results: unserialize the form data and add extra fields.
-    // TODO: Move this to a separate function to avoid code duplication.
-    // Define the allowed keys for display
-    global $rm_gui_columns;
-    $rows = array();
-
-    if ( $results ) {
-        foreach ( $results as $row ) {
-            $data = maybe_unserialize($row['form_value']);
-            if (!is_array($data)) {
-                $data = array();
-            }
-            // Filter the array so only allowed keys remain
-            $filtered_data = array_intersect_key($data, array_flip($rm_gui_columns));
-            // Add extra fields from the record.
-            $filtered_data['user_id']   = $row['user_id'];
-            $filtered_data['form_date'] = $row['form_date'];
-            $filtered_data['id']        = $row['id']; // required for checkboxes.
-            $rows[] = $filtered_data;
-        }
-    }
-
-    return rest_ensure_response($rows);
+    // The same rows the admin list shows, pilot_key included: the identity RotorHazard matches
+    // a returning pilot by (docs/pilot-identity.md).
+    return rest_ensure_response( rm_registration_rows( $results ) );
 }
 
 /**

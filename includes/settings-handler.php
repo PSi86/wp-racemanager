@@ -32,6 +32,7 @@ function rm_settings_page() {
         <?php
         // Rendered as sibling forms, not nested inside the options.php form above.
         rm_settings_render_vapid_generator();
+        rm_settings_render_pilot_namespace();
         rm_settings_render_event_date_migration();
         ?>
     </div>
@@ -85,6 +86,38 @@ function rm_settings_render_vapid_generator() {
             <?php submit_button( __( 'Generate new key pair', 'wp-racemanager' ), 'delete', 'submit', false ); ?>
         <?php endif; ?>
     </form>
+    <?php
+}
+
+/**
+ * Show the namespace the pilot keys are derived in, and how to keep it.
+ *
+ * Read-only on purpose. Changing it would give every pilot a new key, and RotorHazard would take
+ * each of them for a new pilot; the only thing to do with it here is copy it somewhere safe.
+ */
+function rm_settings_render_pilot_namespace() {
+    $source    = rm_pilot_namespace_source();
+    $namespace = rm_pilot_namespace();
+    ?>
+    <hr>
+    <h2><?php esc_html_e( 'Pilot keys', 'wp-racemanager' ); ?></h2>
+    <p>
+        <?php esc_html_e( 'Every registration carries a pilot key: the same email address always gives the same key, so RotorHazard can tell a returning pilot from a new one without anyone needing an account. The keys are derived in the namespace below. A different namespace gives every pilot a different key.', 'wp-racemanager' ); ?>
+    </p>
+    <?php if ( 'constant-invalid' === $source ) : ?>
+        <div class="notice notice-error inline" style="margin:0 0 1em;">
+            <p><?php echo wp_kses( __( '<code>RM_PILOT_NAMESPACE</code> in <code>wp-config.php</code> is not a UUID. No pilot keys are handed out until it is corrected.', 'wp-racemanager' ), array( 'code' => array() ) ); ?></p>
+        </div>
+    <?php else : ?>
+        <p><code><?php echo esc_html( $namespace ); ?></code></p>
+        <p class="description">
+            <?php if ( 'constant' === $source ) : ?>
+                <?php echo wp_kses( __( 'Set by <code>RM_PILOT_NAMESPACE</code> in <code>wp-config.php</code>.', 'wp-racemanager' ), array( 'code' => array() ) ); ?>
+            <?php else : ?>
+                <?php echo wp_kses( __( 'Stored in the database and backed up with it. To keep the keys even through a site rebuilt from scratch, define it in <code>wp-config.php</code> as <code>RM_PILOT_NAMESPACE</code>, which takes precedence.', 'wp-racemanager' ), array( 'code' => array() ) ); ?>
+            <?php endif; ?>
+        </p>
+    <?php endif; ?>
     <?php
 }
 
