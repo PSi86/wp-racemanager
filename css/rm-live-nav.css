@@ -1,0 +1,50 @@
+/**
+ * The theme's navigation on the live pages, where it switches between the views (L9 in
+ * docs/live-webapp-improvements.md).
+ *
+ * rm_mark_live_navigation() gives that navigation the class rm-live-nav -- any navigation block
+ * with a link to a live view -- so nothing here depends on how a theme or a site editor happens to
+ * name it. Loaded on every live page, the selection page included.
+ *
+ * What was measured on production at 390 x 844 px, and what each rule below answers:
+ *
+ *   - The current view was marked in the markup (aria-current, current-menu-item) but drawn like
+ *     every other item: same colour, same weight, no underline.
+ *   - The burger overlay's items were 32 px tall.
+ *   - The burger button itself was 30 x 30 px.
+ *
+ * 44 px is the smallest tap target the platforms ask for. The overlay items grow to it; the
+ * buttons get an invisible hit area of that size instead, so the header looks as it did.
+ */
+
+/* The current view, told apart by weight and an underline rather than by colour alone -- in the
+   overlay on a phone and in the inline menu on a wide screen alike. */
+.rm-live-nav .current-menu-item > .wp-block-navigation-item__content {
+	font-weight: 700;
+	text-decoration: underline;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 0.3em;
+}
+
+.rm-live-nav .wp-block-navigation__responsive-container.is-menu-open .wp-block-navigation-item__content {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+}
+
+/* Hit areas: a transparent 44 px square centred on each button. The open button is static in
+   core's styles and needs a containing block; the close button is already absolute. */
+.rm-live-nav .wp-block-navigation__responsive-container-open {
+	position: relative;
+}
+
+.rm-live-nav .wp-block-navigation__responsive-container-open::after,
+.rm-live-nav .wp-block-navigation__responsive-container-close::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 44px;
+	height: 44px;
+	transform: translate( -50%, -50% );
+}

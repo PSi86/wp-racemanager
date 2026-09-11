@@ -10,6 +10,7 @@
       "test:flaky-network": "node tests/e2e/flaky-network.cjs",
       "test:stats-filter": "node tests/e2e/stats-filter.cjs",
       "test:offline": "node tests/e2e/offline.cjs",
+      "test:view-tabs": "node tests/e2e/view-tabs.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"

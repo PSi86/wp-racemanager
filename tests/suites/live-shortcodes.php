@@ -24,7 +24,11 @@ function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $m
     $GLOBALS['rm_style_versions'][ $handle ]  = $ver;
 }
 
-function get_post_meta( $id, $key, $single = false ) { return '_race_live' === $key ? '1' : ''; }
+function get_post_meta( $id, $key, $single = false ) {
+    return '_race_live' === $key ? ( $GLOBALS['rm_test_race_live'] ?? '1' ) : '';
+}
+// The page being rendered, which is how rm_current_view_slug() knows which view tab is current.
+function get_queried_object() { return $GLOBALS['rm_test_queried'] ?? null; }
 function wp_upload_dir() {
     return array(
         'basedir' => sys_get_temp_dir() . '/rm-tests',
@@ -44,9 +48,19 @@ require_once RM_TEST_DIR . '/stubs/wordpress.php';
 
 rm_test_post( 7,  'page', 'live' );
 rm_test_post( 11, 'page', 'bracket', 'publish', 7 );
-rm_test_post( 12, 'page', 'stats',   'publish', 7 );
-rm_test_post( 13, 'page', 'nextup',  'publish', 7 );
+// An ampersand in a title, so the view tabs have something to escape.
+rm_test_post( 12, 'page', 'stats',   'publish', 7, 'Stats & Laps' );
+rm_test_post( 13, 'page', 'nextup',  'publish', 7, 'Next up' );
+rm_test_post( 14, 'page', 'pilots',  'publish', 7 );
 rm_test_post( 182, 'race', 'spring-cup-2026', 'publish', 0, 'Spring Cup 2026' );
+
+// Which page each shortcode lives on, for the current-view marking.
+$view_page = array(
+    'rm_pilots_shortcode'  => 14,
+    'rm_bracket_shortcode' => 11,
+    'rm_stats_shortcode'   => 12,
+    'rm_nextup_shortcode'  => 13,
+);
 
 require_once RM_PLUGIN_DIR . '/includes/race-data-functions.php';
 require_once RM_PLUGIN_DIR . '/includes/live-routing.php';
@@ -65,6 +79,8 @@ foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortc
     // status indicator is reset between them. Rendering four in one process is an artefact of
     // this suite; on a real site each of these is a separate load.
     $GLOBALS['rm_update_status_emitted'] = false;
+    $GLOBALS['rm_view_tabs_emitted']     = false;
+    $GLOBALS['rm_test_queried']          = get_post( $view_page[ $fn ] );
     // Which sheets *this* shortcode asked for, and only this one. Reading the shared list would
     // let one view's enqueue answer for another's -- which is exactly how a check that the stats
     // view loads the right stylesheet passed while it was loading the wrong one. Emptied rather
@@ -150,6 +166,60 @@ $without_status_css = array_keys( array_filter( $styles,
 rm_test_check( 'the stylesheet travels with it, in every view',
     array() === $without_status_css, implode( ', ', $without_status_css ) );
 
+rm_test_section( 'The view tabs come with every view (L9)' );
+// A row of plain links fixed to the foot of a phone's screen: one per child page of the live
+// page, in page order, each pointing at this race, the page's own view marked as current.
+$expected_hrefs = array();
+foreach ( array( 'bracket', 'stats', 'nextup', 'pilots' ) as $view ) {
+    $expected_hrefs[ $view ] = 'https://example.test/live/spring-cup-2026/' . $view . '/';
+}
+foreach ( $rendered as $fn => $html ) {
+    rm_test_check( "$fn emits the tabs, once", 1 === substr_count( $html, 'id="rm-view-tabs"' ),
+        substr_count( $html, 'id="rm-view-tabs"' ) . ' found' );
+    preg_match_all( '#<a class="rm-view-tabs__tab" href="([^"]+)"( aria-current="page")?>#', $html, $tabs, PREG_SET_ORDER );
+    rm_test_check( "$fn: a tab per view, in page order, each for this race",
+        array_values( $expected_hrefs ) === array_column( $tabs, 1 ), implode( ' ', array_column( $tabs, 1 ) ) );
+    $current = array_values( array_filter( $tabs, static fn( $tab ) => ! empty( $tab[2] ) ) );
+    $own     = $expected_hrefs[ get_post( $view_page[ $fn ] )->post_name ];
+    rm_test_check( "$fn: its own tab is the current one, and no other",
+        1 === count( $current ) && $own === $current[0][1], wp_json_encode( array_column( $current, 1 ) ) );
+    rm_test_check( "$fn: the tabs' stylesheet travels with them", isset( $styles[ $fn ]['rm-view-tabs-css'] ),
+        implode( ', ', array_keys( $styles[ $fn ] ) ) );
+}
+rm_test_check( 'the labels are the page titles, escaped',
+    str_contains( $rendered['rm_bracket_shortcode'], '>Stats &amp; Laps</a>' )
+    && str_contains( $rendered['rm_bracket_shortcode'], '>Next up</a>' ), $rendered['rm_bracket_shortcode'] );
+rm_test_check( 'the row is a named navigation landmark',
+    1 === preg_match( '#<nav id="rm-view-tabs" class="rm-view-tabs" aria-label="[^"]+">#', $rendered['rm_bracket_shortcode'] ) );
+
+rm_test_section( 'No race, no tabs; a finished race keeps them' );
+$GLOBALS['rm_query_vars']['rm_race'] = '';
+rm_reset_current_race();
+$GLOBALS['rm_view_tabs_emitted'] = false;
+$no_race = rm_bracket_shortcode( array() );
+rm_test_check( 'without a race there is nothing for them to link to',
+    str_contains( $no_race, 'No race selected' ) && ! str_contains( $no_race, 'rm-view-tabs' ), $no_race );
+$GLOBALS['rm_query_vars']['rm_race'] = 'spring-cup-2026';
+rm_reset_current_race();
+// Next up has nothing to show once a race is over, but the other views still have its results.
+$GLOBALS['rm_test_race_live']    = '';
+$GLOBALS['rm_view_tabs_emitted'] = false;
+$GLOBALS['rm_test_queried']      = get_post( 13 );
+$over = rm_nextup_shortcode( array() );
+rm_test_check( "a finished race's next-up view still offers the other views",
+    str_contains( $over, 'This race is over.' ) && 1 === substr_count( $over, 'id="rm-view-tabs"' ), $over );
+unset( $GLOBALS['rm_test_race_live'] );
+
+rm_test_section( 'A routing cache from before the tabs is rebuilt once' );
+// Production's rm_live_routing option was written without titles. Read as it is, every tab would
+// be labelled with its slug until someone happened to edit a live page.
+$GLOBALS['rm_options']['rm_live_routing'] = array( 'page_id' => 7, 'path' => 'live', 'views' => array( 'bracket', 'stats', 'nextup', 'pilots' ) );
+$titles = rm_get_live_view_titles();
+rm_test_check( 'it answers with the titles',
+    array( 'bracket' => 'Bracket', 'stats' => 'Stats & Laps', 'nextup' => 'Next up', 'pilots' => 'Pilots' ) === $titles,
+    wp_json_encode( $titles ) );
+rm_test_check( 'and keeps them for the next request', isset( $GLOBALS['rm_options']['rm_live_routing']['titles'] ) );
+
 rm_test_section( 'The pilot filter, on the bracket view and now on the stats view' );
 // Both halves have to be present for either to be useful: the dropdown marks a pilot, the
 // checkbox drops the rest. js/rm-m-displayStats.js reads both by the ids below.
@@ -189,10 +259,13 @@ rm_test_check( 'the pilots view still has no active filter, which is deliberate'
 // and it is the same case rm_add_js_module_config() exists for. A second element would duplicate
 // the id and, because the indicator is positioned fixed, stack a second pill on the first.
 $GLOBALS['rm_update_status_emitted'] = false;
+$GLOBALS['rm_view_tabs_emitted']     = false;
 $one_page = rm_pilots_shortcode( array() ) . rm_bracket_shortcode( array() );
 rm_test_check( 'two shortcodes on one page emit exactly one indicator',
     1 === substr_count( $one_page, 'id="rm-update-status"' ),
     substr_count( $one_page, 'id="rm-update-status"' ) . ' found' );
+rm_test_check( 'and exactly one row of view tabs', 1 === substr_count( $one_page, 'id="rm-view-tabs"' ),
+    substr_count( $one_page, 'id="rm-view-tabs"' ) . ' found' );
 rm_test_check( 'and the second shortcode still asks for the module',
     in_array( 'rm-updateStatus', $GLOBALS['rm_modules_enqueued'], true ),
     implode( ', ', $GLOBALS['rm_modules_enqueued'] ) );

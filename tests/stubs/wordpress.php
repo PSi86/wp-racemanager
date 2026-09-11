@@ -312,6 +312,9 @@ if ( ! function_exists( 'is_wp_error' ) ) {
 if ( ! function_exists( 'add_filter' ) ) {
     function add_filter( $hook, $callback, $priority = 10, $args = 1 ) {
         $GLOBALS['rm_filters'][] = $hook;
+        // With the number of arguments: a callback registered for fewer than it reads never gets
+        // the rest, which no test of the callback itself can notice.
+        $GLOBALS['rm_filter_callbacks'][ $hook ][] = array( $callback, $args );
     }
 }
 if ( ! function_exists( 'add_action' ) ) {

@@ -1,0 +1,133 @@
+/**
+ * The view tabs: one row fixed to the foot of a phone's screen, one tap to another view of the
+ * same race (L9 in docs/live-webapp-improvements.md).
+ *
+ * Only below 600 px. That is where core's navigation block folds its links into the burger, so it
+ * is exactly the width at which the views stop being visible anywhere else; above it the theme's
+ * navigation shows them, and a second row would only repeat it.
+ *
+ * rm_view_tabs_markup() enqueues this file and nothing else does, so wherever it is loaded the row
+ * is on the page. That is what lets it do the two things a fixed row needs done around it: keep
+ * the foot of the page clear, so the last heat is not hidden behind the row, and set
+ * --rm-view-tabs-space, which css/rm-update-status.css adds to the pill's distance from the bottom
+ * so the pill floats above the row instead of on it.
+ *
+ * The pill's design language: a solid surface and a real shadow, no backdrop-filter. The current
+ * view is told apart by more than colour -- by weight, and by a bar along its top edge.
+ */
+
+.rm-view-tabs {
+	display: none;
+}
+
+@media ( max-width: 599px ) {
+	:root {
+		/* 52 px of tab; the safe area comes on top, below the tabs rather than inside them. */
+		--rm-view-tabs-height: 3.25rem;
+		--rm-view-tabs-space: calc( var( --rm-view-tabs-height ) + env( safe-area-inset-bottom, 0px ) );
+	}
+
+	body {
+		padding-bottom: var( --rm-view-tabs-space );
+	}
+
+	.rm-view-tabs {
+		--rm-tabs-ink: #57606a;
+		--rm-tabs-ink-current: #1f2328;
+		--rm-tabs-mark: #0969da;
+		--rm-tabs-surface: #fff;
+		--rm-tabs-edge: rgba( 0, 0, 0, 0.14 );
+
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		/* Under the pill (1200), and far under core's open menu overlay (100000). */
+		z-index: 1100;
+
+		display: flex;
+		/* A live page with more views than fit scrolls sideways rather than squeezing them. */
+		overflow-x: auto;
+		scrollbar-width: none;
+		padding-bottom: env( safe-area-inset-bottom, 0px );
+
+		background: var( --rm-tabs-surface );
+		border-top: 1px solid var( --rm-tabs-edge );
+		box-shadow: 0 -4px 16px rgba( 0, 0, 0, 0.08 );
+	}
+
+	.rm-view-tabs::-webkit-scrollbar {
+		display: none;
+	}
+
+	.rm-view-tabs__tab {
+		position: relative;
+		/* Equal widths while they fit; never narrower than their label. */
+		flex: 1 0 0;
+		min-width: max-content;
+		min-height: var( --rm-view-tabs-height );
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.75rem;
+
+		font-size: 0.9375rem;
+		line-height: 1.2;
+		text-align: center;
+		white-space: nowrap;
+		text-decoration: none;
+		color: var( --rm-tabs-ink );
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.rm-view-tabs__tab:active {
+		background: rgba( 0, 0, 0, 0.05 );
+	}
+
+	.rm-view-tabs__tab[ aria-current="page" ] {
+		color: var( --rm-tabs-ink-current );
+		font-weight: 700;
+	}
+
+	.rm-view-tabs__tab[ aria-current="page" ]::before {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 22%;
+		right: 22%;
+		height: 3px;
+		border-radius: 0 0 3px 3px;
+		background: var( --rm-tabs-mark );
+	}
+
+	.rm-view-tabs__tab:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: -4px;
+	}
+}
+
+@media ( max-width: 599px ) and ( prefers-color-scheme: dark ) {
+	.rm-view-tabs {
+		--rm-tabs-ink: #9198a1;
+		--rm-tabs-ink-current: #e6edf3;
+		--rm-tabs-mark: #58a6ff;
+		--rm-tabs-surface: #1c2128;
+		--rm-tabs-edge: rgba( 255, 255, 255, 0.18 );
+		box-shadow: 0 -4px 18px rgba( 0, 0, 0, 0.45 );
+	}
+
+	.rm-view-tabs__tab:active {
+		background: rgba( 255, 255, 255, 0.06 );
+	}
+}
+
+/* A printed standing needs no controls, and no room kept for them. */
+@media print {
+	.rm-view-tabs {
+		display: none;
+	}
+
+	body {
+		padding-bottom: 0;
+	}
+}

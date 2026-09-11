@@ -111,6 +111,45 @@ rm_test_check( 'render_block filter registered', in_array( 'render_block', $GLOB
 rm_test_check( 'wp_nav_menu filter registered (classic themes)', in_array( 'wp_nav_menu', $GLOBALS['rm_filters'], true ),
     implode( ',', array_unique( $GLOBALS['rm_filters'] ) ) );
 
+rm_test_section( 'The navigation that switches views is marked rm-live-nav (L9)' );
+// css/rm-live-nav.css hangs off that class. The rewritten case is the one that matters: the
+// navigation block is rendered after its links, which have been through rm_rewrite_live_links()
+// one by one -- so by the time it is marked, its links already carry the race, and a matcher that
+// only knew /live/{view}/ would find nothing to mark.
+$as_nav = array( 'blockName' => 'core/navigation' );
+rm_test_check( 'with bare view links',
+    str_contains( rm_mark_live_navigation( $live_nav, $as_nav ), 'class="wp-block-navigation rm-live-nav"' ),
+    rm_mark_live_navigation( $live_nav, $as_nav ) );
+$marked66 = rm_mark_live_navigation( $nav66, $as_nav );
+rm_test_check( 'with links that already carry the race', str_contains( $marked66, 'rm-live-nav' ), $marked66 );
+rm_test_check( 'links and labels untouched by the marking',
+    str_replace( ' rm-live-nav', '', $marked66 ) === $nav66, $marked66 );
+rm_test_check( 'marking twice adds the class once',
+    1 === substr_count( rm_mark_live_navigation( $marked66, $as_nav ), 'rm-live-nav' ) );
+// A site's main menu links to the selection page as well; that is not a view switcher.
+$main_menu = '<nav class="wp-block-navigation"><ul><li><a href="/live/">Live</a></li><li><a href="/about/">About</a></li></ul></nav>';
+rm_test_check( 'not a menu that only links to the selection page',
+    rm_mark_live_navigation( $main_menu, $as_nav ) === $main_menu );
+rm_test_check( 'not a block other than a navigation',
+    rm_mark_live_navigation( $live_nav, array( 'blockName' => 'core/group' ) ) === $live_nav );
+// Registered for one argument, WordPress would never hand it the block, and it would mark nothing.
+rm_test_check( 'registered on render_block for both arguments, block included',
+    in_array( array( 'rm_mark_live_navigation', 2 ), $GLOBALS['rm_filter_callbacks']['render_block'] ?? array(), true ),
+    wp_json_encode( $GLOBALS['rm_filter_callbacks']['render_block'] ?? array() ) );
+
+rm_test_section( 'rm_is_live_view_link() knows both forms of a view link' );
+foreach ( array(
+    '/live/stats/'                                        => true,
+    'https://example.test/live/sommer-cup-66/nextup/'     => true,
+    '/live/'                                              => false,
+    '/live/sommer-cup-66/'                                => false,
+    '/live/sommer-cup-66/stats/extra/'                    => false,
+    'https://evil.test/live/stats/'                       => false,
+    '/races/spring-cup-2026/'                             => false,
+) as $url => $expected ) {
+    rm_test_check( ( $expected ? 'yes: ' : 'no:  ' ) . $url, $expected === rm_is_live_view_link( $url ) );
+}
+
 rm_test_section( 'The selection marker can be switched off' );
 $GLOBALS['rm_filter_overrides']['rm_selection_link_carries_race'] = false;
 $off = rm_rewrite_live_links( $live_nav );
