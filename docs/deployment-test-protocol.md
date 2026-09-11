@@ -93,6 +93,10 @@ The largest change. Best tried on a copy first.
 - [ ] **The tabs' order.** They follow the view pages' **Order** (Page Attributes), then their
       titles. To match the header menu — Pilots, Bracket, Stats, Next up — give the four pages
       the orders 1 to 4 in that sequence; with all four at 0 the tabs read alphabetically.
+- [ ] **The bracket's titles stay put (1.5.3).** On a phone, swipe the elimination bracket
+      sideways to its end: *Elimination: Winner Bracket* and *Looser Bracket* stay at the left
+      edge while the races and their lines move; *Qualifying* and *Training* likewise. A line
+      that crosses a title runs behind it, not through the text.
 
 ## 4 · PWA
 
