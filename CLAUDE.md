@@ -75,9 +75,11 @@ Consequences worth keeping in mind when changing this:
   hand-written version has to be remembered on every edit and never is: `rm-update-status.css` was
   rewritten twice while the `'1.1.0'` beside it stayed put, and two stylesheets carried no version
   at all. A returning visitor then keeps the cached copy and runs the previous release, which
-  looks like nothing is wrong because the old file still works. `live-shortcodes` fails if a
-  literal comes back. This cannot cover `rm-m-dataLoader.js`, reached through a relative `import`
-  that WordPress does not version — see `docs/deployment.md`.
+  looks like nothing is wrong because the old file still works. `asset-versions` reads every
+  enqueue in the source and fails on a literal or a missing version — three had survived the rule
+  because no suite rendered them. A bundled library under `assets/` is versioned by the release in
+  its directory name instead. This cannot cover `rm-m-dataLoader.js`, reached through a relative
+  `import` that WordPress does not version — see `docs/deployment.md`.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -114,6 +116,26 @@ when any of that is missing.
 **When changing the live routing, run `php tests/run.php live` and make sure `live-links` does
 not skip** — that suite needs a WordPress checkout, and it is the one that would catch a
 navigation regression.
+
+## The local site
+
+A DDEV site at `https://racemanager.ddev.site` runs this working copy, and it may be started and
+used at any time — for measuring, for the browser suites, for trying a change before it is
+committed. `ddev start` has to run from the project directory one level up, because `ddev` finds
+its project by walking up from the working directory; `bin/dev-doctor.sh` then says whether the
+site still looks like production.
+
+The Windows host has no PHP, so the PHP suites run in the container:
+
+```bash
+MSYS_NO_PATHCONV=1 ddev exec -d /var/www/html/wp-app/wp-content/plugins/wp-racemanager php tests/run.php
+```
+
+`MSYS_NO_PATHCONV=1` is for Git Bash, which otherwise rewrites the `-d` path into a Windows one;
+PowerShell needs nothing. Three races carry real result data from production. The theme differs —
+Twenty Twenty-Five here, Frost on production — which matters for anything the navigation renders.
+The rest of the setup, and what deliberately does not match production, is in
+[`docs/development-setup.md`](docs/development-setup.md).
 
 ## Building the blocks
 
@@ -198,15 +220,20 @@ id** because three view modules build their own keys and `data-race-id` attribut
 
 ## Known open items
 
-Two lists, and they answer different questions:
+Three lists, and they answer different questions:
 
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
-  updates broke or exposed. 24 findings, all resolved. **The maintenance to-do list.**
+  updates broke or exposed. 24 findings, all resolved. Closed.
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
-  could get better, above all its data path. L1–L10, none started, four questions to answer first.
-  [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
+  could get better, above all its data path. L1–L5 are done; L6 (a service worker that caches),
+  L9 (a stylesheet for the mobile navigation) and L7/L8 (per-section files, then per-section
+  uploads) are open, in the order its *Next steps* give; L10 (a CDN) is not needed at this audience
+  size. [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
+- [`docs/pilot-identity.md`](docs/pilot-identity.md) — a stable per-pilot identifier in
+  `get-pilots`, so RotorHazard can recognise a returning pilot. Nothing to build until one of its
+  three options is chosen.
 
-The audit is closed, so the second list is the one with work left in it. The audit stays worth
+The audit is closed, so the other two are the ones with work left in them. The audit stays worth
 reading for *why* things are the way they are — several entries record a wrong first diagnosis
 next to the corrected one.
 

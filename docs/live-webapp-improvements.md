@@ -327,7 +327,7 @@ And the plugin's own controls on that page, which the entry above did not accoun
 |---|---|---|
 | `.web-controls` | 380 × 73 px | the row holding both controls |
 | `#pilotSelector` | 165 × 29 px | below the 44 px minimum |
-| `#filterCheckbox` | **13 × 13 px** | far below it, and the label is not wired as a tap target |
+| `#filterCheckbox` | **13 × 13 px** | far below it. Its `<label>` wraps it and catches a tap too — see the correction below |
 
 So the concrete problems, in the order they hurt:
 
@@ -335,13 +335,38 @@ So the concrete problems, in the order they hurt:
    nothing. This is the one the proposed segment row fixes.
 2. **Nothing is sticky.** The bracket is long; once scrolled, there is no way back to the
    navigation or to the pilot filter without scrolling to the top.
-3. **Three tap targets are under 44 px**, the checkbox drastically so at 13 px.
-4. **The current view is not marked** anywhere, in the overlay or outside it.
+3. **Three tap targets are under 44 px**: the overlay items at 32 px, the dropdown at 29 px, and
+   the checkbox at 13 px, which its 32 px tall label only partly makes up for.
+4. **The current view is not visibly marked**, in the overlay or outside it. The markup does mark
+   it — see the second measurement below — so this is styling, not logic.
 
 A note found on the way: production still serves the **old** URL form. `/live/bracket/?race_id=2402`
 answers 200 while `/live/winter-whooprace-2025/bracket/` answers 404, so the path-based router
 (finding B1) has never been deployed there. That is direct evidence for step 1 of the next-steps
 list below, not an assumption.
+
+> **Superseded on 2026-09-10.** Production has since been updated to 1.2.0:
+> `/live/winter-whooprace-2025/bracket/` answers 200, `/live/bracket/?race_id=2402` answers 301 to
+> it, and the plugin's assets carry `?ver=1.2.0`.
+
+**Measured again on 2026-09-10**, against 1.2.0 on production, with the same device settings, at
+`/live/winter-whooprace-2025/bracket/`. The collapsed 0 × 0 links, the six overlay items at 32 px
+and 18 px, the static 88 px header and the three control sizes are all unchanged. Two things read
+differently from the first entry:
+
+- **The current view is marked in the markup.** The Bracket item carries `aria-current="page"` and
+  `current-menu-item`, and Frost draws it exactly like the other five — same colour, weight 300, no
+  underline, no background. So the marking L9 wants is one rule on
+  `.nav-live-area .current-menu-item`, with nothing for JavaScript to do. Whether the old code's
+  markup carried it as well was not recorded.
+- **The checkbox label is a tap target, and always was.** The first entry said the label was "not
+  wired as a tap target". The `<label>` has wrapped the checkbox since before 2026, and a tap on
+  its text, well away from the box, checks it. The label is 200 × 32 px: still short of 44 px, but
+  not the 13 px problem the first entry described.
+
+The freshness pill from L5 is new on this page too: `position: fixed` at the foot of the viewport,
+and hidden here because this race is not flagged live. The bottom-edge decision in the list above
+therefore only arises during a live race.
 
 ### Pilot dropdown (D1) · resolved
 
@@ -356,7 +381,7 @@ a change to how subscribers are notified reaches it too.
 
 ---
 
-## What had to be answered first — three of four are answered
+## What had to be answered first — all four are answered
 
 Each one changes what gets built. They were measured on 2026-09-09 against the three real races
 now in the local environment (see [`development-setup.md`](development-setup.md)).
@@ -407,9 +432,10 @@ now in the local environment (see [`development-setup.md`](development-setup.md)
 
 In order, and each one is a self-contained piece of work:
 
-1. **Deploy what is already merged.** Nothing on this list should be built on top of a production
-   site that still runs the June 2025 code. See [`deployment.md`](deployment.md). This is now a
-   year of accumulated work — the whole audit, the dependency catch-up and `apiVersion: 3`.
+1. ~~**Deploy what is already merged.**~~ — done. Production serves 1.2.0, measured on
+   2026-09-10 (see the L9 entry). That was a year of accumulated work — the whole audit, the
+   dependency catch-up and `apiVersion: 3` — and nothing on this list is built on top of the June
+   2025 code any more.
 2. ~~**Measure**~~ and ~~**L1**~~ — done, see the answers above.
 3. ~~**L2, L3**~~ and ~~**L4, L5**~~ — done, in one pass rather than two releases. They were
    planned as separate steps and turned out to be one: all four touch the same sixty lines of

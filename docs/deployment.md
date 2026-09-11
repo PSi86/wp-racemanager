@@ -184,7 +184,12 @@ Everything the hook does can also be done by hand, and section 7 does exactly th
 
 ---
 
-## 6a · The update pending in September 2026 — what makes it different
+## 6a · The September 2026 update — what made it different
+
+> **Done.** Production serves 1.2.0, measured on 2026-09-10: `/live/winter-whooprace-2025/bracket/`
+> answers 200, the old `/live/bracket/?race_id=2402` answers 301 to it, and the plugin's assets
+> carry `?ver=1.2.0`. The section stays as the record of what made that update unusual; it was
+> written before it, in the present tense of the time.
 
 Production still runs the June 2025 code. Confirmed rather than assumed: on
 `copterrace.com`, `/live/bracket/?race_id=2402` answers 200 while
@@ -267,11 +272,13 @@ Also worth a look on the first deployment after a longer break:
 
 ### Assets, and which of them a release actually refreshes
 
-Everything the plugin **enqueues** — every stylesheet, every script module — carries
-`WP_RACEMANAGER_VERSION`, so bumping the plugin version refreshes all of them at once and the
-`live-shortcodes` suite fails if a hand-written literal creeps back in. That is why the version
-bump is not optional for a release: without it, returning visitors keep the cached assets and run
-the previous release against the new PHP.
+Everything the plugin **enqueues** — every stylesheet, every script, every script module —
+carries `WP_RACEMANAGER_VERSION`, so bumping the plugin version refreshes all of them at once. The
+`asset-versions` suite reads every enqueue in the source and fails if a hand-written literal or a
+missing version creeps back in; the bundled Swiper is versioned by the release in its path, and
+the legacy `[rm_viewer]` shortcode is exempt by name. That is why the version bump is not optional
+for a release: without it, returning visitors keep the cached assets and run the previous release
+against the new PHP.
 
 The exception is below, and it is the one to check by hand.
 

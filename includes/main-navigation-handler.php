@@ -18,8 +18,10 @@ function rm_indicate_live_race( $block_content, $block ) {
         // Replace the custom class with one that includes your blinking dot indicator.
         $block_content = str_replace( 'rm-live-page-link', 'rm-live-page-link has-blinking-dot', $block_content );
         wp_enqueue_style(
-            'rm-live-page-link-css', 
-            plugin_dir_url( __DIR__ ) . 'css/rm_live_page_link.css'
+            'rm-live-page-link-css',
+            plugin_dir_url( __DIR__ ) . 'css/rm_live_page_link.css',
+            array(),
+            WP_RACEMANAGER_VERSION
         );
     }
     return $block_content;
