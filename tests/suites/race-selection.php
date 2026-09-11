@@ -187,6 +187,9 @@ function rm_rs_reset() {
     $GLOBALS['rm_caps']            = array( 'edit_posts', 'publish_posts' );
     $GLOBALS['rm_editable']        = array();
     $GLOBALS['rm_data_dir_broken'] = false;
+    // Files outlive a case otherwise, and "nothing written" could never hold for an ID an
+    // earlier case wrote.
+    array_map( 'unlink', glob( $GLOBALS['rm_data_dir'] . '*' ) ?: array() );
 }
 
 function rm_rs_race( $id, $title, $live = true, $status = 'publish' ) {
@@ -326,11 +329,27 @@ rm_test_section( 'POST /races' );
 
 rm_rs_reset();
 rm_rs_race( 2578, 'Autumn Cup' );
-$response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) );
+$response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Spring Cup' ) ) ) );
 rm_test_check( 'creates a race: 201', 201 === $response->status, print_r( $response->data, true ) );
-rm_test_check( 'a new one, although the title exists', 1 === count( $GLOBALS['rm_inserted'] ) && 2578 !== $response->data['id'] );
-rm_test_check( 'answers with the new ID', $GLOBALS['rm_inserted'][0] === $response->data['id'] );
+rm_test_check( 'answers with the new ID', array( $response->data['id'] ) === $GLOBALS['rm_inserted'] );
 rm_test_check( 'with the event\'s files from the start', rm_rs_written( $response->data['id'] ) );
+
+// A second race of a name that exists is what D3 was about; the organiser chooses that race.
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+$response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) );
+rm_test_check( 'a title another race has: 409', 409 === $response->status, print_r( $response->data, true ) );
+rm_test_check( 'naming that race', 2578 === $response->data['id'] );
+rm_test_check( 'and creating nothing', array() === $GLOBALS['rm_inserted'] && ! rm_rs_written( 2578 ) );
+$response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( ' <b>Autumn Cup</b> ' ) ) ) );
+rm_test_check( 'the title as it would be stored is what counts', 409 === $response->status && array() === $GLOBALS['rm_inserted'] );
+$GLOBALS['rm_editable'] = array();
+rm_test_check( 'a race the user may not edit still has its title', 409 === rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) )->status );
+
+rm_rs_reset();
+rm_rs_race( 2579, 'Autumn Cup', true, 'trash' );
+$response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) );
+rm_test_check( 'a title only a race in the bin has is free', 201 === $response->status );
 
 rm_rs_reset();
 $response = rm_handle_create_race( new WP_REST_Request( '{"race_name": ' ) );

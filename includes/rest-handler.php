@@ -257,8 +257,9 @@ function rm_list_races( WP_REST_Request $request ) {
  * Callback for POST /rm/v1/races: creates a race on purpose, from the event.
  *
  * The body is the event the upload sends. A new race gets its files right away, because a race
- * without them shows up empty in every listing. It is created even if a race of that title
- * exists: the organiser asked for a new one.
+ * without them shows up empty in every listing. A title another race has is refused with 409 and
+ * that race's ID: two races of one name are what D3 in the RotorHazard plugin's roadmap was about,
+ * and the organiser can choose the one that exists.
  *
  * @param WP_REST_Request $request
  * @return WP_REST_Response
@@ -278,6 +279,15 @@ function rm_handle_create_race( WP_REST_Request $request ) {
             'status'  => 'error',
             'message' => $maybe_error->get_error_message(),
         ], 400 );
+    }
+
+    $existing = rm_find_race_by_title( sanitize_text_field( $data['race_name'] ) );
+    if ( $existing ) {
+        return rm_race_error_response( new WP_Error(
+            'race_exists',
+            __( 'There is a race with this title already.', 'wp-racemanager' ),
+            array( 'status' => 409, 'id' => $existing )
+        ) );
     }
 
     $race_result = rm_create_race( $data );
@@ -350,21 +360,27 @@ function rm_validate_required_fields( $data ) {
  * Returns WP_Error on failure.
  */
 function rm_find_or_create_race( $data ) {
-    $race_name = sanitize_text_field( $data['race_name'] );
-
-    // Search for an existing Race with this exact title
-    $existing_query = new WP_Query( [
-        'post_type'      => 'race',
-        'post_status'    => 'any',
-        'title'          => $race_name,
-        'posts_per_page' => 1,
-        'fields'         => 'ids', // return only IDs
-    ] );
-
-    if ( $existing_query->have_posts() ) {
-        return rm_update_race( (int) $existing_query->posts[0], $data );
+    $existing = rm_find_race_by_title( sanitize_text_field( $data['race_name'] ) );
+    if ( $existing ) {
+        return rm_update_race( $existing, $data );
     }
     return rm_create_race( $data );
+}
+
+/**
+ * The race titled $title, in any status but the bin: its ID, or 0. What an upload by title
+ * updates, and what makes POST /races refuse -- one lookup, so both agree on what "the same
+ * title" is. WP_Query compares post_title in SQL, so the column's collation decides about case.
+ */
+function rm_find_race_by_title( $title ) {
+    $query = new WP_Query( [
+        'post_type'      => 'race',
+        'post_status'    => 'any',
+        'title'          => $title,
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+    ] );
+    return $query->have_posts() ? (int) $query->posts[0] : 0;
 }
 
 /**
