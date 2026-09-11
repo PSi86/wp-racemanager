@@ -6,8 +6,8 @@ Two runners, and they answer different questions.
 installation required, so it runs anywhere and it is fast.
 
 **`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`**,
-**`test:update-status`**, **`test:flaky-network`**, **`test:stats-filter`**, **`test:offline`** and
-**`test:view-tabs`**
+**`test:update-status`**, **`test:flaky-network`**, **`test:stats-filter`**, **`test:offline`**,
+**`test:view-tabs`** and **`test:bracket-titles`**
 use a real browser, because some behaviour is what the DOM, the network, the service worker and the
 browser's own storage do rather than what the source says. They are deliberately kept out
 of the PHP runner — see [Browser checks](#browser-checks) at the end.
@@ -76,6 +76,7 @@ npm run test:flaky-network                          # against https://racemanage
 npm run test:stats-filter                           # against https://racemanager.ddev.site
 npm run test:offline                                # against https://racemanager.ddev.site
 npm run test:view-tabs                              # against https://racemanager.ddev.site
+npm run test:bracket-titles                         # against https://racemanager.ddev.site
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -244,6 +245,24 @@ marked only in the markup.
 
 Against the plugin as it was, 16 of the 20 checks that run fail; the navigation section skips,
 since nothing marked the navigation then.
+
+### `tests/e2e/bracket-titles.cjs`
+
+The bracket view scrolled sideways on a phone. Every race class is a horizontally scrolling
+container, and the elimination bracket of a real race runs some 750 px past a phone's screen. The
+class titles — *Elimination: Winner Bracket*, *Elimination: Looser Bracket*, *Qualifying*,
+*Training* — stay where they are while the races and their connecting lines scroll under them.
+
+For every class wider than the screen, scrolled to its end: each title is where it was, left and
+top, to the pixel, and whole in view; the row it sits in holds no race; the races and the lines
+moved by exactly the distance scrolled; and the title has an opaque background, because its row
+does hold lines — scrolled to the end, the drop from the winner bracket into the looser final
+crosses *Elimination: Looser Bracket*, and the suite reports it.
+
+Against the bracket as it was, 8 of the 16 checks of the first version fail: all four titles
+scroll away. Without the background, the 4 background checks fail. The spanning of the titles over
+every column leaves the layout alone — every race box, every line and every grid size came out
+identical to the old code at phone and desktop width, measured once when the change was made.
 
 ### `tests/e2e/stats-filter.cjs`
 

@@ -84,6 +84,28 @@
 }
 
 /*
+ * The class titles -- "Elimination: Winner Bracket", "Elimination: Looser Bracket",
+ * "Qualifying", "Training" -- stay where they are while the bracket scrolls sideways: only the
+ * races and their connecting lines move. rm-m-displayHeats.js marks them .pinned-title and lets
+ * each span every column of its grid, which is the room a sticky element needs to stay put;
+ * max-content keeps it as narrow as its text so that it can. The rows they sit in hold no races.
+ * bracketV25.js, the legacy viewer, sets no such class and is unchanged.
+ *
+ * They do hold lines, though: scrolled to the end, the drop from the winner bracket into the
+ * looser final runs straight through "Elimination: Looser Bracket". The page's own background
+ * behind the text lets the line pass behind the title instead.
+ */
+.raceclass-container .pinned-title {
+    position: sticky;
+    left: 0;
+    justify-self: start;
+    width: max-content;
+    padding-right: 0.4em;
+    background-color: var( --wp--preset--color--base, #fff );
+    z-index: 3;
+}
+
+/*
     Styles for the nextup-display
 */
 #nextup-display .class-title {

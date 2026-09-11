@@ -632,16 +632,20 @@ class DisplayHeats {
         // Map to store node elements for connection lines
         // TODO rework usage of nodeElements, try to eliminate it
         let nodeElements = {};
-        // TODO add title to the gridContainer in row 1 and in row winnerMaxRow+1 for bracket classes
-        // add style: "grid-column: span 2" to the title element
-        
+
+        // The titles span every column of the bracket. css/rm_viewer.css keeps a .pinned-title
+        // where it is while the races and their lines scroll sideways under it, with position:
+        // sticky -- and a sticky element never leaves its grid area, so an area of two columns
+        // would have let the title go after the second stage. At least two, as before, so a
+        // bracket of one column keeps the layout it had.
+        const lastColumn = Math.max(0, ...nodes.data.map(node => parseInt(node.gridColumn, 10) || 0));
+        const titleColumns = `1 / span ${Math.max(2, lastColumn)}`;
+
         // Create title element
         const classTitleDiv = document.createElement("div");
-        //nodeDiv.style.gridColumn = "1";
         classTitleDiv.style.gridRow = "1";
-        classTitleDiv.style.gridColumn = "span 2";
-        //classTitleDiv.className = "class-title";
-        classTitleDiv.classList.add("class-title");
+        classTitleDiv.style.gridColumn = titleColumns;
+        classTitleDiv.classList.add("class-title", "pinned-title");
         classTitleDiv.id = "winner-bracket";
         if(nodes.settings.template === "default") {
             classTitleDiv.textContent = raceClassCapital; // use only the class name for the default template
@@ -747,9 +751,8 @@ class DisplayHeats {
                 lowestRow -= 1; // One row above the looser bracket
                 const looserTitleDiv = document.createElement("div");
                 looserTitleDiv.style.gridRow = lowestRow;
-                looserTitleDiv.style.gridColumn = "span 2";
-                //looserTitleDiv.className = "class-title";
-                looserTitleDiv.classList.add("class-title");
+                looserTitleDiv.style.gridColumn = titleColumns;
+                looserTitleDiv.classList.add("class-title", "pinned-title");
                 looserTitleDiv.id = "looser-bracket";
                 looserTitleDiv.textContent = raceClassCapital+": Looser Bracket"; // hard coded for now
                 gridContainer.appendChild(looserTitleDiv);
