@@ -8,15 +8,18 @@ are not obvious from any single file.
 RotorHazard                WordPress                      uploads/races/            Browser
 -----------                ---------                      --------------            -------
 POST /rm/v1/upload   -->   rm_handle_upload()
-  whole JSON               rm_process_race()         -->  182-timestamp.json   <--  poll every 10 s
+  ?race_id=182             rm_update_race()          -->  182-timestamp.json   <--  poll every 10 s
+  whole JSON
   (limit: 10 MB)           rm_write_files()          -->  182-data.json        <--  full download
                            rm_notify_nextup()                                       on any change
 ```
 
 ## The upload
 
-`POST /wp-json/rm/v1/upload`, authenticated as a WordPress user with `edit_posts`
-([`includes/rest-handler.php`](../includes/rest-handler.php)).
+`POST /wp-json/rm/v1/upload?race_id=…`, authenticated as a WordPress user with `edit_posts`
+([`includes/rest-handler.php`](../includes/rest-handler.php)). With `race_id` it writes exactly
+that race; without — an older connector — it finds the race by title and creates one if there is
+none, for one more release.
 
 The body is the **complete** result JSON, every time — there is no partial or incremental form.
 `rm_validate_and_decode_json()` rejects anything above 10 MB. The relevant top-level keys:
@@ -30,9 +33,10 @@ The body is the **complete** result JSON, every time — there is no partial or 
 | `current_heat.current_heat` | Which heat is up | every heat |
 | `notifications` | Added server-side by `add_notifications_to_race_json()` | on every push |
 
-`rm_process_race()` then either updates the existing `race` post (requires `_race_live` to be
-`'1'`, otherwise the race is locked) or creates one, and `rm_write_files()` writes **two** files
-into `wp-content/uploads/races/`:
+`rm_update_race()` then writes into the race the upload names (requires `_race_live` to be `'1'`,
+otherwise the race is locked); an upload without `race_id` goes through `rm_find_or_create_race()`,
+which updates the race of that title or has `rm_create_race()` make one. Either way
+`rm_write_files()` writes **two** files into `wp-content/uploads/races/`:
 
 - `{race_id}-timestamp.json` — `{"time":"2026-08-30 14:32:10"}`, a few dozen bytes
 - `{race_id}-data.json` — the whole payload, re-encoded

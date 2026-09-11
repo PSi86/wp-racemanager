@@ -628,10 +628,12 @@ the Dev Containers extension against `.ddev/`.
 
 ## 9 · Testing what a real timer would send
 
-RotorHazard talks to three REST endpoints, all of which require an authenticated WordPress user:
+RotorHazard talks to five REST endpoints, all of which require an authenticated WordPress user:
 
 ```
-POST /wp-json/rm/v1/upload             race data upload
+POST /wp-json/rm/v1/upload?race_id=…   race data upload, to the race the timer chose
+GET  /wp-json/rm/v1/races              the races the timer can choose from
+POST /wp-json/rm/v1/races              a race created from the event, on purpose
 GET  /wp-json/rm/v1/get-pilots         registration download
 POST /wp-json/rm/v1/notify-racers      push notification
 ```
