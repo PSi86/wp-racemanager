@@ -15,9 +15,9 @@
  *   2. What is kept is the page and its scripts and styles -- and not the race JSON, which the
  *      loader keeps itself and has to fetch from the network for the freshness pill to be honest.
  *   3. A reload without a connection shows the page, styled, with the standing from localStorage,
- *      and the pill does not claim to be current.
+ *      and the pill is there, saying the device is offline rather than claiming to be current.
  *  3b. Launching the installed app without a connection -- start_url, the selection page, which
- *      the visitor never opened -- goes on to the race last viewed.
+ *      the visitor never opened -- goes on to the race last viewed, and the pill says offline.
  *   4. A page never opened on this device gets a stated answer instead of the browser's error.
  *   5. Back online, the page comes from the network again, not from the cache.
  *   6. Caches left by an older worker are deleted; a cache that is not ours is left alone.
@@ -27,10 +27,15 @@
  *   8. A page the server marks no-store -- what WordPress sends a logged-in user -- is not kept.
  *   9. Online, the network decides, even for a file whose URL carries ?ver=: a file changed
  *      without a version bump is served as it is now.
+ *  10. A finished race keeps its pill out of the way while its data is confirmed. Reloaded
+ *      without a connection nothing confirms it, and the pill is back, saying offline.
  *
- * The sections run in the order 1, 2, 6, 3, 3b, 4, 5, 9, 7, 8. After a failure the worker answers a
- * page's *files* from its cache for a while, so the checks that need the network to win come
- * before the one that holds every request.
+ * The sections run in the order 1, 2, 6, 3, 3b, 4, 5, 9, 7, 8, 10. After a failure the worker
+ * answers a page's *files* from its cache for a while, so the checks that need the network to win
+ * come before the one that holds every request.
+ *
+ * Offline, the pill has to be there and say so. When the data on screen was made is not asked
+ * for: offline, "since when" is not the question.
  *
  * Needs a started DDEV site with a race that carries result data. It skips rather than fails when
  * that is missing. Exit codes follow the PHP suites: 0 passed, 1 failed, 2 skipped.
@@ -114,10 +119,10 @@ const view = ( page ) =>
 		await browser.close();
 		skip( `${ BASE } is not reachable -- is the DDEV project started?` );
 	}
-	const path = await scoutPage.evaluate( () => {
-		const link = document.querySelector( '.race-select-item a[href]' );
-		return link ? new URL( link.href ).pathname : null;
-	} );
+	const racePaths = await scoutPage.evaluate( () =>
+		Array.from( document.querySelectorAll( '.race-select-item a[href]' ) ).map( ( link ) => new URL( link.href ).pathname )
+	);
+	const path = racePaths[ 0 ] || null;
 	await scout.close();
 	if ( ! path ) {
 		await browser.close();
@@ -208,6 +213,8 @@ const view = ( page ) =>
 	check( 'and the last known standing, out of the loader\'s own cache', !! offline.hasStanding, JSON.stringify( offline ) );
 	check( 'while the pill does not claim it is current',
 		offline.tone !== 'live' && ! /Up to date/i.test( offline.says || '' ), JSON.stringify( offline ) );
+	check( 'but is there, saying the device is offline',
+		!! offline.pillShown && /offline/i.test( offline.says || '' ), JSON.stringify( offline ) );
 
 	// ============================================== 3b · launching the installed app offline
 	section( 'Launching the installed app without a connection lands on the race' );
@@ -226,6 +233,8 @@ const view = ( page ) =>
 	const launched = await view( launch ).catch( () => ( {} ) );
 	check( 'it goes on to the race last viewed', launch.url() === raceUrl, launchError || launch.url() );
 	check( 'and shows its standing', !! launched.hasStanding, JSON.stringify( launched ) );
+	check( 'with the pill saying the device is offline',
+		!! launched.pillShown && /offline/i.test( launched.says || '' ), JSON.stringify( launched ) );
 	await launch.close();
 
 	// ====================================================== 4 · a page never opened here
@@ -342,6 +351,52 @@ const view = ( page ) =>
 		! Object.values( afterPrivate ).flat().includes( otherView ),
 		Object.values( afterPrivate ).flat().filter( ( u ) => /\/live\//.test( u ) ).join( ' ' ) );
 	await privatePage.close();
+
+	// ======================================== 10 · a finished race, reloaded offline
+	section( 'A finished race reloaded without a connection brings the pill back' );
+	// The pill of a race that is not live stays hidden while its data is confirmed: that data is
+	// final. Reloaded offline nothing confirms it, and the viewer has to be told.
+	let finishedUrl = null;
+	for ( const candidate of racePaths.slice( 1 ) ) {
+		await page.goto( `${ BASE }${ candidate }`, { waitUntil: 'networkidle' } );
+		const interval = await page.evaluate( () =>
+			window.RmJsConfig && window.RmJsConfig.dataLoader ? window.RmJsConfig.dataLoader.refreshInterval : null
+		);
+		if ( 0 === interval ) {
+			finishedUrl = `${ BASE }${ candidate }`;
+			break;
+		}
+	}
+	if ( ! finishedUrl ) {
+		note( 'the selection page lists no race that is not live -- nothing to check here' );
+	} else {
+		let keptFinished = false;
+		for ( let i = 0; i < 20 && ! keptFinished; i++ ) {
+			keptFinished = Object.values( await cacheContents( page ) ).flat().includes( finishedUrl );
+			if ( ! keptFinished ) {
+				await page.waitForTimeout( 500 );
+			}
+		}
+		const quiet = await view( page );
+		check( 'online, with its data confirmed, the pill stays out of the way', quiet.hasPill && ! quiet.pillShown,
+			JSON.stringify( quiet ) );
+		await ctx.setOffline( true );
+		await page.reload( { waitUntil: 'domcontentloaded', timeout: 15000 } ).catch( () => null );
+		let finished = {};
+		for ( let i = 0; i < 20; i++ ) {
+			finished = await view( page ).catch( () => ( {} ) );
+			if ( finished.hasStanding && finished.pillShown ) {
+				break;
+			}
+			await page.waitForTimeout( 250 );
+		}
+		note( `the pill says: ${ finished.says }` );
+		check( 'offline, the page and its standing are there', keptFinished && !! finished.hasStanding,
+			JSON.stringify( { keptFinished, ...finished } ) );
+		check( 'and the pill is back, saying the device is offline',
+			!! finished.pillShown && /offline/i.test( finished.says || '' ), JSON.stringify( finished ) );
+		await ctx.setOffline( false );
+	}
 
 	await ctx.close();
 	await browser.close();

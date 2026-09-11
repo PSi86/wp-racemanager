@@ -17,7 +17,7 @@
  *   3. The status line never claims freshness it does not have -- checked against the pure
  *      describe() function over a table of states, so every branch is reachable here even
  *      though most of them need a broken network to occur naturally.
- *   4. Offline is reported as offline.
+ *   4. Offline is reported as offline, by a pill that is there to be seen.
  *
  * Exit codes follow the PHP suites: 0 passed, 1 failed, 2 skipped.
  */
@@ -369,6 +369,8 @@ const statusLine = ( page ) =>
 	check( 'while a race is live the pill is always there',
 		table.fresh.visible === true && table.checking.visible === true && table.stale.visible === true,
 		JSON.stringify( [ table.fresh.visible, table.checking.visible, table.stale.visible ] ) );
+	// Offline is when a viewer most needs to know the standing may be behind.
+	check( 'offline above all', table.offline.visible === true, JSON.stringify( table.offline ) );
 	check( 'a finished race with confirmed data shows nothing',
 		table.doneQuiet.visible === false, JSON.stringify( table.doneQuiet ) );
 	check( 'nor while it is still loading -- that is a moment, not a problem',
@@ -422,11 +424,10 @@ const statusLine = ( page ) =>
 	await page.waitForTimeout( 300 );
 	const offlineLine = await statusLine( page );
 	check( 'a failed check is reported, not hidden',
-		offlineLine.tone === 'error' && ! /Up to date/i.test( offlineLine.text || '' ),
+		offlineLine.hidden === false && offlineLine.tone === 'error' && ! /Up to date/i.test( offlineLine.text || '' ),
 		JSON.stringify( offlineLine ) );
-	check( 'and the data already on screen is still named',
-		/data from/i.test( offlineLine.text || '' ) || /offline/i.test( offlineLine.text || '' ),
-		offlineLine.text );
+	// Offline, "since when" does not matter; that the device is offline does.
+	check( 'and it says the device is offline', /offline/i.test( offlineLine.text || '' ), offlineLine.text );
 	// A silent failure would be the worse bug: it is what leaves a viewer staring at an old
 	// standing with no way to tell.
 	check( 'the failure is logged rather than swallowed',
