@@ -367,11 +367,19 @@ rm_rs_race( 2578, 'Autumn Cup' );
 $response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) );
 rm_test_check( 'a title another race has: 409', 409 === $response->status, print_r( $response->data, true ) );
 rm_test_check( 'naming that race', 2578 === $response->data['id'] );
+rm_test_check( 'which the user may edit, and saying so', true === ( $response->data['editable'] ?? null ), print_r( $response->data, true ) );
 rm_test_check( 'and creating nothing', array() === $GLOBALS['rm_inserted'] && ! rm_rs_written( 2578 ) );
 $response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( ' <b>Autumn Cup</b> ' ) ) ) );
 rm_test_check( 'the title as it would be stored is what counts', 409 === $response->status && array() === $GLOBALS['rm_inserted'] );
+
+// Races may be created by other accounts. The timer cannot choose one its account may not edit
+// -- GET /races leaves it out -- so the answer has to say which kind of race holds the title.
 $GLOBALS['rm_editable'] = array();
-rm_test_check( 'a race the user may not edit still has its title', 409 === rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) )->status );
+$response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event( 'Autumn Cup' ) ) ) );
+rm_test_check( 'a race the user may not edit still has its title', 409 === $response->status && 2578 === $response->data['id'] );
+rm_test_check( 'and the answer says the user may not edit it',
+    false === ( $response->data['editable'] ?? null ) && str_contains( $response->data['message'], 'may not edit' ),
+    print_r( $response->data, true ) );
 
 rm_rs_reset();
 rm_rs_race( 2579, 'Autumn Cup', true, 'trash' );
@@ -399,6 +407,7 @@ rm_test_check( 'status and ID from the error',
     404 === rm_race_error_response( new WP_Error( 'not_found', 'x', array( 'status' => 404 ) ) )->status );
 $locked = rm_race_error_response( new WP_Error( 'race_locked', 'x', array( 'status' => 400, 'id' => 5 ) ) );
 rm_test_check( 'a locked race keeps its ID in the answer', 400 === $locked->status && 5 === $locked->data['id'] );
+rm_test_check( 'and nothing about editing it, which only a taken title answers', ! array_key_exists( 'editable', $locked->data ) );
 $plain = rm_race_error_response( new WP_Error( 'other', 'x' ) );
 rm_test_check( 'an error without status is a 400 without ID', 400 === $plain->status && 0 === $plain->data['id'] );
 
