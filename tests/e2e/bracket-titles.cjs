@@ -16,6 +16,9 @@
  *   2. The races moved by exactly the distance scrolled, and the connecting lines by the same.
  *   3. The row a title sits in holds no race, so a title that stays never lies on one.
  *   4. The title is fully visible in its container, before and after.
+ *   5. It has an opaque background. Its row does hold lines: scrolled to the end, the drop from
+ *      the winner bracket into the looser final crosses "Elimination: Looser Bracket", and
+ *      without a background it would run straight through the text.
  *
  * Needs a started DDEV site with a race that carries result data. Exit codes follow the PHP
  * suites: 0 passed, 1 failed, 2 skipped.
@@ -65,7 +68,27 @@ const measure = ( page ) =>
 					const r = n.getBoundingClientRect();
 					return r.top < box.bottom - 1 && r.bottom > box.top + 1;
 				} ).length;
-				return { text: t.textContent.trim(), ...box, sharing };
+				// Vertical line segments (M x,y H midX V y2 H x2) passing through the title's box.
+				const svg = container.querySelector( 'svg' );
+				let crossing = 0;
+				if ( svg ) {
+					const s = svg.getBoundingClientRect();
+					svg.querySelectorAll( 'path' ).forEach( ( p ) => {
+						const m = ( p.getAttribute( 'd' ) || '' ).match( /M([\d.]+),([\d.]+) H([\d.]+) V([\d.]+)/ );
+						if ( ! m ) {
+							return;
+						}
+						const x = s.left + parseFloat( m[ 3 ] );
+						const y1 = s.top + parseFloat( m[ 2 ] );
+						const y2 = s.top + parseFloat( m[ 4 ] );
+						if ( x > box.left && x < box.right && Math.min( y1, y2 ) < box.bottom && Math.max( y1, y2 ) > box.top ) {
+							crossing++;
+						}
+					} );
+				}
+				const bg = getComputedStyle( t ).backgroundColor;
+				const alpha = /rgba\([^)]*,\s*([\d.]+)\)/.test( bg ) ? parseFloat( bg.match( /,\s*([\d.]+)\)$/ )[ 1 ] ) : ( bg === 'transparent' ? 0 : 1 );
+				return { text: t.textContent.trim(), ...box, sharing, crossing, opaque: alpha === 1 };
 			} );
 			const svg = container.querySelector( 'svg' );
 			return {
@@ -147,6 +170,10 @@ const measure = ( page ) =>
 				t.left >= b.box.left - 1 && t.right <= b.box.right + 1 && now.left >= a.box.left - 1 && now.right <= a.box.right + 1,
 				`title ${ Math.round( now.left ) }..${ Math.round( now.right ) }, container ${ Math.round( a.box.left ) }..${ Math.round( a.box.right ) }` );
 			check( `its row holds no race`, t.sharing === 0, `${ t.sharing } race(s) in the title's row` );
+			if ( now.crossing ) {
+				note( `scrolled to the end, ${ now.crossing } line(s) cross "${ now.text }"` );
+			}
+			check( 'and it has an opaque background, so a line crossing its row passes behind it', now.opaque );
 		} );
 		check( 'the races moved by the distance scrolled',
 			!! b.firstNode && Math.abs( ( b.firstNode.left - a.firstNode.left ) - scrolled ) <= 1,
