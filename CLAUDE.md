@@ -31,6 +31,7 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/rest-handler.php` | The REST endpoints RotorHazard talks to. |
 | `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
+| `includes/pilot-key.php` | The pilot key: one version-5 UUID per registered email address, the same every time, derived in a namespace of this site's own. What RotorHazard is to match a returning pilot by, since `user_id` is 0 for everyone without an account. `rm_registration_rows()` in `admin-registrations.php` puts it into the admin list, the CSV and `get-pilots` alike. |
 | `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. Two channels out: `subscribe()` for the data, `onState()` for what the loader is doing. |
 | `js/rm-m-updateStatus.js` | The freshness pill floating at the foot of every live view — the only consumer of `onState()`. `describe()` is pure and exported so the state machine can be tested without a broken network, and `isRelevant()` beside it decides whether the pill appears at all: on a race that is **not** flagged live it stays hidden unless the data could not be loaded. `rm_update_status_markup()` emits it **once per page**, not once per shortcode. |
 | `templates/template-pwa-sw.js` | The service worker: push, and since L6 the kept copies of the live pages and their files for when the network does not answer. Network first for everything, the race JSON never touched. Written to the WordPress root as `pwa-sw.js` by `rm_maybe_refresh_pwa_files()` on `admin_init`, whenever a value or a template changed. |
@@ -190,6 +191,7 @@ either — DDEV greps the whole file. See "Building the blocks" in
 | `rm_live_page_id` | The live area's parent page. Everything under `/live/` hangs off it. |
 | `rm_live_routing` | Cached view slugs and the live path; rebuilt when the live pages change. |
 | `rm_vapid` | Web Push key pair and subject, unless the `RM_VAPID_*` constants are set. |
+| `rm_pilot_namespace` | The namespace the pilot keys are derived in: a random UUID, generated once, unless `RM_PILOT_NAMESPACE` is set in `wp-config.php`. **Never change it** — every pilot would get a new key, and RotorHazard would take each for a new pilot. |
 | `rm_registration_email` | Sender/Reply-To/Bcc of the registration mail. Empty = derive from the site domain. |
 | `rm_cf7_form_id` | The CF7 example form the activation hook created, so it is created only once. |
 | `rm_seo` | Default title, description and keywords. |
@@ -234,8 +236,9 @@ Three lists, and they answer different questions:
   could get better, above all its data path. L1–L6 and L9 are done; L7/L8 (per-section files,
   then per-section uploads) are open; L10 (a CDN) is not needed at this audience size. [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
 - [`docs/pilot-identity.md`](docs/pilot-identity.md) — a stable per-pilot identifier in
-  `get-pilots`, so RotorHazard can recognise a returning pilot. Nothing to build until one of its
-  three options is chosen.
+  `get-pilots`, so RotorHazard can recognise a returning pilot. Decided on 2026-09-11: no account
+  needed, none created, one reproducible key per email address. The WordPress half is done
+  (`pilot_key`); the connector still has to match on it.
 
 The audit is closed, so the other two are the ones with work left in them. The audit stays worth
 reading for *why* things are the way they are — several entries record a wrong first diagnosis

@@ -262,6 +262,17 @@ Do these four in order, then work through
    check that the start URL points at the current live page. If they are stale or missing, the
    WordPress root is not writable — fix the permission and re-save the settings page, which
    regenerates both.
+5. **Pilot namespace** (from 1.5.0). **Settings → RaceManager** shows it under *Pilot keys*; it is
+   created on the first admin request after the update. Copy it into `wp-config.php`:
+
+   ```php
+   define( 'RM_PILOT_NAMESPACE', '…' );
+   ```
+
+   It is what every pilot key is derived from. In the database it goes with every backup; in
+   `wp-config.php` it also survives a site rebuilt from scratch. Never replace it with a new one:
+   every pilot would get a new key, and RotorHazard would take each for a new pilot. See
+   [`pilot-identity.md`](pilot-identity.md).
 
 Also worth a look on the first deployment after a longer break:
 
