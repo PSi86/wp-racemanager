@@ -769,6 +769,10 @@ function rm_create_race( $data ) {
         );
     }
 
+    // Live before its first files: rm_write_files() stores the parts and the race log of a live
+    // race only, and a new race is one.
+    update_post_meta( $race_id, '_race_live', 1 );
+
     $written = rm_write_files( $race_id, $data, 1 );
     if ( is_wp_error( $written ) ) {
         // The post exists but carries no data, so it would show up empty in every
@@ -777,7 +781,6 @@ function rm_create_race( $data ) {
         return $written;
     }
 
-    update_post_meta( $race_id, '_race_live', 1 );
     update_post_meta( $race_id, '_race_last_upload', $timestamp );
     update_post_meta( $race_id, '_race_reg_closed', true );
 
@@ -944,6 +947,23 @@ function handle_notification_request( \WP_REST_Request $request ) {
         return new \WP_REST_Response(
             [ 'error' => 'Unauthorized. The current user cannot access this post.' ],
             403
+        );
+    }
+
+    // Like the upload: a race, and one that is live. An archived race keeps no race log and follows
+    // no event any more (decided on 2026-09-12), so a message is refused before anything is stored
+    // or pushed; the timer shows the reason. It used to be logged and pushed, and filled the log of
+    // a finished race again.
+    if ( 'race' !== get_post_type( $race_id ) || 'trash' === get_post_status( $race_id ) ) {
+        return new \WP_REST_Response(
+            [ 'error' => __( 'There is no race with this ID.', 'wp-racemanager' ) ],
+            404
+        );
+    }
+    if ( ! rm_race_is_live( $race_id ) ) {
+        return new \WP_REST_Response(
+            [ 'error' => 'Race is locked and takes no messages.' ],
+            400
         );
     }
 
