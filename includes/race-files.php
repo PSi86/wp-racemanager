@@ -4,8 +4,23 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+/**
+ * Store a race's data: the whole of it, and the timestamp that announces it.
+ *
+ * Browsers poll the timestamp and download the data when it changed (docs/data-flow.md), so the
+ * timestamp is a promise that the data it announces is there, and it is written last. It used to
+ * be written first: a browser polling between the two writes took the new timestamp with the old
+ * data, and so did every browser after a data write that failed -- each held the old standing
+ * under the new timestamp until the next upload. The loader made the same mistake until 2026, the
+ * other way round.
+ *
+ * @param int   $race_id              The race.
+ * @param array $json_data            The upload, decoded.
+ * @param int   $create_wp_attachment Whether to register the files as attachments of the race.
+ * @return true|WP_Error WP_Error with status 500 when a file cannot be written; the timestamp is
+ *                       then left as it was.
+ */
 function rm_write_files( $race_id, $json_data, $create_wp_attachment = 0 ) {
-    // Write the timestamp and data to a file
     $timestamp = current_time('mysql');
 
     // Resolves through wp_upload_dir() and creates the directory if it is missing.
@@ -20,34 +35,49 @@ function rm_write_files( $race_id, $json_data, $create_wp_attachment = 0 ) {
     // add the notifications data to the JSON
     $json_data = add_notifications_to_race_json( $json_data, $race_id );
 
-    $file_saved = file_put_contents( $filename_timestamp, wp_json_encode(['time' => $timestamp]));
-    if ( $file_saved === false ) {
-        // Cleanup if needed
-        //wp_delete_post( $race_id, true );
-        return new WP_Error(
-            'file_write_error',
-            'Failed to write JSON file to uploads:'.$filename_timestamp,
-            array('status' => 500)
-        );
+    $files = array(
+        $filename_data      => wp_json_encode( $json_data ),
+        $filename_timestamp => wp_json_encode( array( 'time' => $timestamp ) ),
+    );
+    foreach ( $files as $filename => $contents ) {
+        if ( ! rm_write_file_whole( $filename, $contents ) ) {
+            return new WP_Error(
+                'file_write_error',
+                'Failed to write JSON file to uploads:'.$filename,
+                array('status' => 500)
+            );
+        }
     }
 
-    // Encode the race json data for writing to file
-    $encoded_json_data = wp_json_encode( $json_data );
-    $file_saved = file_put_contents( $filename_data, $encoded_json_data );
-    if ( $file_saved === false ) {
-        // Cleanup if needed
-        //wp_delete_post( $race_id, true );
-        return new WP_Error(
-            'file_write_error',
-            'Failed to write JSON file to uploads:'.$filename_data,
-            array('status' => 500)
-        );
-    }
     // if no errors occured, create the wp attachment if requested
     if($create_wp_attachment) {
         rm_create_wp_attachment( $race_id, $filename_timestamp );
         rm_create_wp_attachment( $race_id, $filename_data );
     }
+    return true;
+}
+
+/**
+ * Replace a file whole, or leave it as it was.
+ *
+ * Written beside it and renamed over it: a browser reading the file meanwhile gets the old one or
+ * the new one, whole. Written in place, it could get a file cut short, and a payload of 1.6 MB takes
+ * long enough to write for that to happen. The name starts with a dot and ends in .tmp, so nothing
+ * that looks for a race's files takes it for one.
+ *
+ * @param string $filename Path of the file.
+ * @param string $contents What it is to hold.
+ * @return bool Whether the file holds $contents now.
+ */
+function rm_write_file_whole( $filename, $contents ) {
+    $temp = dirname( $filename ) . '/.' . basename( $filename ) . '.' . bin2hex( random_bytes( 4 ) ) . '.tmp';
+    if ( false === @file_put_contents( $temp, $contents ) || ! @rename( $temp, $filename ) ) {
+        $error = error_get_last();
+        error_log( 'rm_write_file_whole: ' . $filename . ': ' . ( $error ? $error['message'] : 'not written' ) );
+        @unlink( $temp );
+        return false;
+    }
+    return true;
 }
 
 function rm_create_wp_attachment( $race_id, $filepath ) {
