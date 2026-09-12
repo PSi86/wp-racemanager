@@ -154,6 +154,19 @@ else
     did "installed WordPress at $SITE_URL (admin / admin)"
 fi
 
+step "Archiving by itself"
+
+# The plugin archives a live race a day after its end (1.9.0). The races this site
+# imports from production are months old, and the browser suites need one of them
+# live: it would be archived within the hour, and again after every reset. Set
+# before the plugin is active, so that no page ever schedules it.
+if wp config has RM_AUTO_ARCHIVE --type=constant 2>/dev/null; then
+    ok "RM_AUTO_ARCHIVE is set in wp-config.php"
+else
+    wp config set RM_AUTO_ARCHIVE false --raw --type=constant
+    did "set RM_AUTO_ARCHIVE to false in wp-config.php -- races stay live until archived by hand"
+fi
+
 # ----------------------------------------------------------------- the plugin
 step "Plugin dependencies"
 

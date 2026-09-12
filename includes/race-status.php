@@ -21,6 +21,10 @@ add_action( 'added_post_meta', 'rm_on_race_first_results', 10, 4 );
 // A race deleted for good takes its push subscriptions with it.
 add_action( 'before_delete_post', 'rm_on_race_deleted' );
 
+// A race nobody archives is archived a day after its end, by the hour (WP-Cron).
+add_action( 'init', 'rm_schedule_auto_archive' );
+add_action( 'rm_auto_archive_races', 'rm_auto_archive_races' );
+
 // The races that were archived before 1.8.1, once.
 add_action( 'admin_init', 'rm_maybe_clear_archived_races' );
 
@@ -241,6 +245,98 @@ function rm_on_race_deleted( $post_id ) {
     if ( 'race' === get_post_type( $post_id ) ) {
         rm_forget_race_followers( (int) $post_id );
     }
+}
+
+/**
+ * How long a live race stays live past its end and past its last upload, in seconds: a day.
+ */
+const RM_AUTO_ARCHIVE_AFTER = 86400;
+
+/**
+ * Whether races are archived by themselves: yes, unless wp-config.php defines RM_AUTO_ARCHIVE as
+ * false.
+ *
+ * For a development site, whose races are months old and one of which has to stay live for the
+ * browser suites -- it would be archived within the hour, and again after every reset -- and for an
+ * organiser who would rather archive by hand.
+ *
+ * @return bool
+ */
+function rm_auto_archive_enabled() {
+    return ! defined( 'RM_AUTO_ARCHIVE' ) || false !== RM_AUTO_ARCHIVE;
+}
+
+/**
+ * Schedule the archiving of races nobody archived, by the hour, unless it is scheduled -- or take the
+ * schedule away where it is switched off.
+ *
+ * On init rather than on activation: a ZIP replace runs no activation hook. The plugin's
+ * deactivation hook takes the schedule away as well.
+ *
+ * @return void
+ */
+function rm_schedule_auto_archive() {
+    if ( ! rm_auto_archive_enabled() ) {
+        if ( wp_next_scheduled( 'rm_auto_archive_races' ) ) {
+            wp_clear_scheduled_hook( 'rm_auto_archive_races' );
+        }
+        return;
+    }
+    if ( ! wp_next_scheduled( 'rm_auto_archive_races' ) ) {
+        wp_schedule_event( time(), 'hourly', 'rm_auto_archive_races' );
+    }
+}
+
+/**
+ * Archive every live race whose end and last upload are both more than a day ago.
+ *
+ * Decided on 2026-09-12. A race nobody archives stayed live for good: its visitors polled every 10
+ * seconds, it carried the "Live:" and the dot, and a timer could still upload to it months later
+ * -- it is among the 15 newest races the timer is offered. Archiving it sets the flag, and the hooks
+ * do the rest: files, race log, subscriptions, page cache (rm_on_race_live_changed()).
+ *
+ * @return void
+ */
+function rm_auto_archive_races() {
+    if ( ! rm_auto_archive_enabled() ) {
+        return;
+    }
+    // The site's wall clock, read and written back in the same zone: a day earlier, as stored.
+    $deadline = date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - RM_AUTO_ARCHIVE_AFTER );
+    $races    = get_posts( array(
+        'post_type'   => 'race',
+        'post_status' => 'any',
+        'numberposts' => -1,
+        'fields'      => 'ids',
+        'meta_key'    => '_race_live',
+        'meta_value'  => '1',
+    ) );
+    foreach ( $races as $race_id ) {
+        if ( rm_race_due_for_archive( (int) $race_id, $deadline ) ) {
+            update_post_meta( (int) $race_id, '_race_live', '0' );
+        }
+    }
+}
+
+/**
+ * Whether a live race is to be archived: its end before $deadline, and its last upload too.
+ *
+ * Both, because the end can be wrong. A race an upload creates gets "today, 19:00" as its end, which
+ * the organiser is expected to correct; an event running on into a second day would be locked in
+ * the middle of it if the end alone counted. Uploads go on while it runs. A race without an end
+ * says nothing about when it is over, and stays.
+ *
+ * @param int    $race_id
+ * @param string $deadline Site-local wall clock, 'Y-m-d H:i:s': now, less a day.
+ * @return bool
+ */
+function rm_race_due_for_archive( $race_id, $deadline ) {
+    if ( ! rm_race_is_live( $race_id ) ) {
+        return false;
+    }
+    $end    = rm_normalize_event_datetime( get_post_meta( $race_id, '_race_event_end', true ) );
+    $upload = (string) get_post_meta( $race_id, '_race_last_upload', true );
+    return '' !== $end && $end < $deadline && ( '' === $upload || $upload < $deadline );
 }
 
 /**

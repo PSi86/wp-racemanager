@@ -75,6 +75,16 @@ register_activation_hook(
     __NAMESPACE__ . '\\rm_activate'  // "RaceManager\\rm_activate"
 );
 
+// The hourly archiving of races nobody archived (includes/race-status.php) goes with the plugin;
+// activating it again schedules it again, on init.
+function rm_deactivate() {
+    wp_clear_scheduled_hook( 'rm_auto_archive_races' );
+}
+register_deactivation_hook(
+    __FILE__,
+    __NAMESPACE__ . '\\rm_deactivate'
+);
+
 
 final class WP_RaceManager {
 

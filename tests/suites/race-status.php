@@ -42,6 +42,18 @@ function delete_post_meta( $id, $key, $value = '' ) {
 function wp_doing_ajax() {
     return false;
 }
+function wp_next_scheduled( $hook ) {
+    return $GLOBALS['rm_cron'][ $hook ]['next'] ?? false;
+}
+function wp_schedule_event( $timestamp, $recurrence, $hook ) {
+    $GLOBALS['rm_cron'][ $hook ] = array( 'next' => $timestamp, 'recurrence' => $recurrence );
+    $GLOBALS['rm_scheduled'][]   = $hook;
+    return true;
+}
+function wp_clear_scheduled_hook( $hook ) {
+    unset( $GLOBALS['rm_cron'][ $hook ] );
+    return 1;
+}
 
 // Hooks as core runs them, as far as these go: a callback gets as many arguments as it asked for,
 // and every action fired is recorded.
@@ -103,6 +115,7 @@ class WP_Query {
 
 require_once RM_TEST_DIR . '/stubs/wordpress.php';
 require_once RM_PLUGIN_DIR . '/includes/race-data-functions.php';
+require_once RM_PLUGIN_DIR . '/includes/race-dates.php';
 require_once RM_PLUGIN_DIR . '/includes/race-files.php';
 
 function rm_rs_purges() {
@@ -188,6 +201,71 @@ rm_test_check( 'recorded as schema 2, and 1.8.1\'s record removed',
 $GLOBALS['rm_forgotten'] = array();
 rm_maybe_clear_archived_races();
 rm_test_check( 'and not run again', array() === $GLOBALS['rm_forgotten'] );
+
+/* --------------------------------------------------------------------------
+ * Archiving by itself
+ * ----------------------------------------------------------------------- */
+
+rm_test_section( 'A race nobody archives is archived a day after its end' );
+
+// Decided on 2026-09-12: a race nobody archived stayed live for good -- polled every 10 s, marked
+// live, and open to an upload from a timer that picked it by mistake.
+rm_test_check( 'scheduled on init', in_array( array( 'rm_schedule_auto_archive', 1 ), $GLOBALS['rm_hooks']['init'] ?? array(), true ) );
+$GLOBALS['rm_cron'] = array();
+$GLOBALS['rm_scheduled'] = array();
+rm_schedule_auto_archive();
+rm_schedule_auto_archive();
+rm_test_check( 'by the hour, and once', array( 'rm_auto_archive_races' ) === $GLOBALS['rm_scheduled']
+    && 'hourly' === $GLOBALS['rm_cron']['rm_auto_archive_races']['recurrence'] );
+rm_test_check( 'which runs rm_auto_archive_races()', in_array( array( 'rm_auto_archive_races', 1 ), $GLOBALS['rm_hooks']['rm_auto_archive_races'] ?? array(), true ) );
+
+// Now is 2026-09-12 10:00:00, so a day ago is 2026-09-11 10:00:00.
+$deadline = '2026-09-11 10:00:00';
+$cases    = array(
+    // label => array( live, end, last upload, due )
+    'ended two days ago, last upload then'                       => array( '1', '2026-09-10 19:00:00', '2026-09-10 18:30:00', true ),
+    'ended two days ago, never uploaded to'                      => array( '1', '2026-09-10 19:00:00', '', true ),
+    'ended less than a day ago'                                  => array( '1', '2026-09-11 19:00:00', '2026-09-11 18:30:00', false ),
+    'ended two days ago, uploaded to within a day (a second day)' => array( '1', '2026-09-10 19:00:00', '2026-09-11 12:00:00', false ),
+    'no end'                                                     => array( '1', '', '2026-09-10 18:30:00', false ),
+    'an end in the input\'s form, 2026-09-10T19:00'              => array( '1', '2026-09-10T19:00', '', true ),
+    'an end that is a date only, taken as its midnight'          => array( '1', '2026-09-10', '', true ),
+    'an end that cannot be read'                                 => array( '1', 'soon', '', false ),
+    'archived already'                                           => array( '0', '2026-09-10 19:00:00', '', false ),
+);
+foreach ( $cases as $label => $case ) {
+    $GLOBALS['rm_meta'][70] = array( '_race_live' => $case[0], '_race_event_end' => $case[1], '_race_last_upload' => $case[2] );
+    rm_test_check( ( $case[3] ? 'due: ' : 'not due: ' ) . $label, $case[3] === rm_race_due_for_archive( 70, $deadline ) );
+}
+
+$GLOBALS['rm_posts'] = array();
+rm_test_post( 60, 'race', 'autumn-cup', 'publish', 0, 'Autumn Cup' );
+rm_test_post( 61, 'race', 'winter-cup', 'publish', 0, 'Winter Cup' );
+$GLOBALS['rm_meta'][60] = array( '_race_live' => '1', '_race_event_end' => '2026-09-10 19:00:00', '_race_last_upload' => '2026-09-10 18:30:00' );
+$GLOBALS['rm_meta'][61] = array( '_race_live' => '1', '_race_event_end' => '2026-09-12 19:00:00', '_race_last_upload' => '2026-09-12 09:50:00' );
+$GLOBALS['rm_fired']     = array();
+$GLOBALS['rm_forgotten'] = array();
+rm_auto_archive_races();
+rm_test_check( 'the run archives the race that is due', '0' === get_post_meta( 60, '_race_live', true ) );
+rm_test_check( 'through the flag, so the hooks archive it: subscriptions gone', array( 60 ) === $GLOBALS['rm_forgotten'] );
+rm_test_check( 'and the page cache emptied', 1 === rm_rs_purges() );
+rm_test_check( 'the race still running is left live', '1' === get_post_meta( 61, '_race_live', true ) );
+
+$main = file_get_contents( RM_PLUGIN_DIR . '/wp-racemanager.php' );
+rm_test_check( 'deactivating the plugin takes the schedule away',
+    str_contains( $main, 'register_deactivation_hook(' ) && str_contains( $main, "wp_clear_scheduled_hook( 'rm_auto_archive_races' );" ) );
+
+// Last in this section: a constant cannot be undefined again.
+rm_test_section( 'RM_AUTO_ARCHIVE false in wp-config.php switches it off' );
+define( 'RM_AUTO_ARCHIVE', false );
+rm_schedule_auto_archive();
+rm_test_check( 'the schedule is taken away', false === wp_next_scheduled( 'rm_auto_archive_races' ) );
+$GLOBALS['rm_scheduled'] = array();
+rm_schedule_auto_archive();
+rm_test_check( 'and not made again', array() === $GLOBALS['rm_scheduled'] );
+$GLOBALS['rm_meta'][61] = array( '_race_live' => '1', '_race_event_end' => '2026-09-10 19:00:00', '_race_last_upload' => '2026-09-10 18:30:00' );
+rm_auto_archive_races();
+rm_test_check( 'a run left over archives nothing, not even a race that is due', '1' === get_post_meta( 61, '_race_live', true ) );
 
 /* --------------------------------------------------------------------------
  * The dot on the live link
