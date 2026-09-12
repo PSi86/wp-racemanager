@@ -374,6 +374,11 @@ instead of the fixed `#elimination-display`, `#qualifying-display` and `#trainin
 CSS in the theme or the Site Editor that targets the old ids no longer applies; look for it before
 deploying.
 
+1.10.1 changes `rm-m-bracketModel.js` and `rm-m-bracketStandings.js` alone: a Chase the Ace round
+flown after the deciding one no longer counts. Both are reached unversioned; a browser that still
+holds the 1.10.0 copies counts such a round until it fetches them again - its wins in the final
+("3/2") and, without the timer's ranking, the places behind the winner. Nothing else differs.
+
 ---
 
 ## 8 · Rollback

@@ -168,6 +168,12 @@ const ranges = ( standing ) => {
 		// P2 wins twice. Points 1/2/3/4: P1 1+2+3 = 6, P3 3+4+2 = 9, P4 4+3+4 = 11.
 		check( 'two wins decide, then points', byRounds.rows.slice( 0, 4 ).map( ( r ) => r.pilotId ).join( ',' ) === '2,1,3,4' && everyPlaceOnce( byRounds, 16 ),
 			byRounds.rows.slice( 0, 4 ).map( ( r ) => `${ place( r ) } P${ r.pilotId }` ).join( ' | ' ) );
+		// P1 wins rounds 1 and 2. P2 and P3 then have 5 points each, and the deciding round puts P3
+		// first. A third round flown after it would put P2 ahead (7 points to 8); Class Rank: Brackets
+		// stops at the round that decided.
+		const after = standingOf( races.chaseTheAce( flown(), finalId, [ [ 1, 2, 3, 4 ], [ 1, 3, 2, 4 ], [ 4, 2, 3, 1 ] ] ) );
+		check( 'a round flown after the decision does not count', after.rows.slice( 0, 4 ).map( ( r ) => r.pilotId ).join( ',' ) === '1,3,2,4',
+			after.rows.slice( 0, 4 ).map( ( r ) => `${ place( r ) } P${ r.pilotId }` ).join( ' | ' ) );
 		const timer = standingOf( races.chaseTheAce( flown(), finalId, [ [ 4, 3, 2, 1 ] ], { ranking: [ 4, 3, 2, 1 ] } ) );
 		check( "the timer's ranking as it is", timer.source === 'timer' && timer.rows.slice( 0, 4 ).map( ( r ) => r.pilotId ).join( ',' ) === '4,3,2,1',
 			JSON.stringify( timer.rows.slice( 0, 4 ) ) );
