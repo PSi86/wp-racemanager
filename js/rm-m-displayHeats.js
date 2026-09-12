@@ -9,6 +9,8 @@
 // for byte, next to its own dataLoader, which reads RotorHazard's socket. A change has to work
 // there as well.
 //
+// Config: RmJsConfig.displayHeats.filterCheckboxId; flagBaseUrl, where the flags are ({code}.svg),
+// to show a pilot's flag by the callsign - WP RaceManager's pages set it, the timer does not.
 // Exports const displayHeatsInstance = new DisplayHeats(); (at the bottom)
 // Empty slots are flagged as slot.pilot_id = null (newer RotorHazard) or 0 (earlier versions).
 
@@ -36,6 +38,7 @@ class DisplayHeats {
 
         // Optional properties
         this.filterCheckboxId = configData.filterCheckboxId || 'filterCheckbox';
+        this.flagBaseUrl = typeof configData.flagBaseUrl === 'string' ? configData.flagBaseUrl : '';
         this.filterCheckboxElement = document.getElementById(`${this.filterCheckboxId}`);
 
         // currently not using the race_id in the key (making it globally reusable)
@@ -107,6 +110,10 @@ class DisplayHeats {
             return;
         }
         this.syncSections(data);
+        // Whether any pilot has a flag: then those without keep its place.
+        const profiles = data.pilot_profiles;
+        this.anyCountry = !!(this.flagBaseUrl && profiles && typeof profiles === 'object' && !Array.isArray(profiles) &&
+            Object.values(profiles).some(p => p && typeof p.country === 'string'));
         for (const container of [...document.getElementsByClassName("raceclass-container")]) {
             if (container.style.display === "none") {
                 continue; // only visible class displays
@@ -266,7 +273,16 @@ class DisplayHeats {
                 }
             }
         }
-        return { id, name, result, classes: [] };
+        return { id, name, result, classes: [], country: this.countryOf(data, id) };
+    }
+
+    // The pilot's country, for the flag: only where the page says where the flags are.
+    countryOf(data, pilotId) {
+        if (!this.flagBaseUrl || !pilotId || typeof bracketModel.pilotProfile !== 'function') {
+            return null;
+        }
+        const profile = bracketModel.pilotProfile(data, pilotId);
+        return profile ? profile.country : null;
     }
 
     // The heats the pilot filter keeps: those with the pilot, and the heats they feed.
@@ -451,8 +467,16 @@ class DisplayHeats {
                         foundSelectedPilot = true;
                     }
                     const nameDiv = document.createElement("div");
-                    nameDiv.textContent = pilot.name;
                     nameDiv.className = "pilot-name";
+                    if (pilot.country) {
+                        nameDiv.appendChild(this.flagImage(pilot.country));
+                    } else if (pilot.id && this.anyCountry) {
+                        // The flag's place, so that the callsigns stand in line.
+                        const none = document.createElement("span");
+                        none.className = "pilot-flag pilot-flag-none";
+                        nameDiv.appendChild(none);
+                    }
+                    nameDiv.appendChild(document.createTextNode(pilot.name));
                     pilotDataDiv.appendChild(nameDiv);
 
                     const resultDiv = document.createElement("div");
@@ -499,6 +523,20 @@ class DisplayHeats {
             }
             grid.appendChild(svgContainer);
         }
+    }
+
+    // A country's flag (flag-icons, 4:3), with its code for those who cannot see it.
+    flagImage(country) {
+        const img = document.createElement("img");
+        img.className = "pilot-flag";
+        img.src = `${this.flagBaseUrl}${country.toLowerCase()}.svg`;
+        img.alt = country;
+        img.title = country;
+        img.width = 16;
+        img.height = 12;
+        img.loading = "lazy";
+        img.decoding = "async";
+        return img;
     }
 
     // Attach event listeners to each element

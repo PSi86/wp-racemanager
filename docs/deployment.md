@@ -251,6 +251,44 @@ was verified against WordPress 7.1's iframed editor.
 
 Beyond that, the ordinary sequence in sections 3, 4 and 7 applies unchanged.
 
+## 6b · 1.11.0 — nationality and photo in the registration form
+
+1.11.0 shows a pilot's flag next to the callsign and the photo in the standing, from two optional
+fields of the registration form. The plugin creates its example form only once, so **a site's own
+form gets them by hand** (Contact Form 7 → the form → Form):
+
+```
+Nationalität (optional): [rm_country pilot_country_1]
+
+Foto (optional, JPG, PNG oder WebP, bis 5 MB): [file pilot_photo_1 limit:5mb filetypes:jpg|jpeg|png|webp]
+```
+
+The field names are what the plugin reads; the labels are free. Both are published under the consent
+`acceptance-media` alone, and only for a registration that ticked it, so **its text has to name the
+nationality**: "Ich bin mit der Veröffentlichung von Name, Alter, Nationalität und Bild im Rahmen des
+Wettkampfs einverstanden." A registration without the consent removes what the pilot gave before,
+and so does deleting the pilot's last registration in the admin: the photo from every race at once,
+since there is one file per pilot; the country from the files of a race when it is next written,
+which for an archived race is not again. The confirmation mail can list the
+country with `Nationalität: [pilot_country_1]`; the photo is never attached to it.
+
+What the host needs:
+
+- **GD or Imagick** for the photos. Without either, a photo is ignored and the registration stored
+  as it is.
+- **exif** for GD to turn a phone photo the way it was taken; Imagick reads the orientation itself.
+- **intl** for the country names in the site's language; without it they are English.
+
+Tools → Site Health → Info → Media Handling and Server show all three. The photos go to
+`wp-content/uploads/rm-pilots/{pilot key}.jpg`, 256 px square at most, without the camera's metadata,
+and the directory gets an `index.php`. The flags ship with the plugin (`assets/flag-icons-7.5.0/`,
+250 SVGs, about 2 MB, MIT).
+
+A race's files carry its pilots' flags and photos from its next write on: a live race with the next
+upload, and a race archived before 1.11.0 not at all, until it is written again. Only pilots whose
+timer sends their pilot key can have them: the RotorHazard connector does from its 2.0.0 betas on.
+The timer's own `/bracketview` shows no flags.
+
 ---
 
 ## 7 · After deploying
@@ -378,6 +416,11 @@ deploying.
 flown after the deciding one no longer counts. Both are reached unversioned; a browser that still
 holds the 1.10.0 copies counts such a round until it fetches them again - its wins in the final
 ("3/2") and, without the timer's ranking, the places behind the winner. Nothing else differs.
+
+1.11.0 gives `rm-m-bracketModel.js` a new export, `pilotProfile()`, which `rm-m-displayHeats.js`
+and `rm-m-displayStandings.js` check for before they call it. A browser holding an older model shows
+no flags and photos until it fetches the new one; the next-up view reaches both displays
+unversioned as well, with the same effect. Nothing breaks.
 
 ---
 

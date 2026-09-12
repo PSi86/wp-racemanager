@@ -301,6 +301,60 @@
     font-style: italic;
 }
 
+/* A pilot's flag and photo (1.11.0). The flag lets the pointer through, so that hovering it still
+   highlights the pilot, which the view reads from the element under the pointer. */
+.pilot-flag {
+    width: 1.33em;
+    height: 1em;
+    margin-right: 0.35em;
+    vertical-align: -0.12em;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+}
+
+/* In a heat the rows are 1em high: a smaller flag keeps a gap between them. A pilot without a
+   country keeps the flag's place, so that the callsigns stand in line. */
+.node .pilot-flag {
+    width: 1.07em;
+    height: 0.8em;
+    vertical-align: -0.05em;
+}
+
+.pilot-flag-none {
+    display: inline-block;
+    box-shadow: none;
+}
+
+.rm-standings-table .pilot {
+    white-space: nowrap;
+}
+
+.rm-avatar {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.5em;
+    vertical-align: middle;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #dcdcdc;
+    color: #444;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.rm-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 input:disabled {
     background-color: lightgray !important;
     color: gray !important;

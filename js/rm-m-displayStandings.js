@@ -5,7 +5,11 @@
 // bracket view, live and archived, and as the "Final Ranking" of the next-up view. The places
 // come from rm-m-bracketStandings.js.
 //
-// Config: RmJsConfig.displayStandings.containerId (default "standings-display").
+// With the race's pilot profiles (1.11.0), each pilot's photo - or, where a pilot has none, the
+// initials - when any pilot of the standing has one, and the flag.
+//
+// Config: RmJsConfig.displayStandings.containerId (default "standings-display"); flagBaseUrl, where
+// the flags are ({code}.svg).
 // Exports const displayStandingsInstance = new DisplayStandings(); (at the bottom)
 
 import { dataLoaderInstance } from './rm-m-dataLoader.js';
@@ -14,10 +18,18 @@ import { computeStandings } from './rm-m-bracketStandings.js';
 
 const PODIUM = [ 'rm-place-first', 'rm-place-second', 'rm-place-third' ];
 
+// Two letters for a pilot without a photo: of the first two words, else the first two.
+function initials( callsign ) {
+    const words = String( callsign || '' ).split( /\s+/ ).map( ( w ) => w.replace( /[^\p{L}\p{N}]/gu, '' ) ).filter( Boolean );
+    const letters = words.length > 1 ? words[ 0 ][ 0 ] + words[ 1 ][ 0 ] : ( words[ 0 ] || '' ).slice( 0, 2 );
+    return letters.toUpperCase();
+}
+
 class DisplayStandings {
     constructor() {
         const configData = ( window.RmJsConfig && window.RmJsConfig.displayStandings ) || {};
         this.containerId = configData.containerId || 'standings-display';
+        this.flagBaseUrl = typeof configData.flagBaseUrl === 'string' ? configData.flagBaseUrl : '';
 
         if ( document.readyState === 'complete' ) {
             this.initialize();
@@ -55,13 +67,13 @@ class DisplayStandings {
             const bracket = bracketModel.buildBracket( data, cls.id );
             const standing = computeStandings( data, bracket );
             if ( standing && ( standing.rows.length || standing.notice ) ) {
-                out.push( { cls, bracket, standing, cta: bracketModel.ctaState( data, bracket ) } );
+                out.push( { data, cls, bracket, standing, cta: bracketModel.ctaState( data, bracket ) } );
             }
         }
         return out;
     }
 
-    table( { cls, bracket, standing, cta } ) {
+    table( { data, cls, bracket, standing, cta } ) {
         const wrap = document.createElement( 'section' );
         wrap.className = 'rm-standings';
         wrap.dataset.classId = String( cls.id );
@@ -93,6 +105,8 @@ class DisplayStandings {
             th.textContent = label;
             head.appendChild( th );
         }
+        const profiles = new Map( standing.rows.map( ( row ) => [ row.pilotId, this.profileOf( data, row.pilotId ) ] ) );
+        const withPhotos = [ ...profiles.values() ].some( ( p ) => p && p.photo );
         const body = table.createTBody();
         for ( const row of standing.rows ) {
             const tr = body.insertRow();
@@ -111,11 +125,55 @@ class DisplayStandings {
             for ( const [ className, text ] of cells ) {
                 const td = tr.insertCell();
                 td.className = className;
-                td.textContent = text;
+                if ( className === 'pilot' ) {
+                    this.pilotCell( td, row, profiles.get( row.pilotId ), withPhotos );
+                } else {
+                    td.textContent = text;
+                }
             }
         }
         wrap.appendChild( table );
         return wrap;
+    }
+
+    profileOf( data, pilotId ) {
+        return typeof bracketModel.pilotProfile === 'function' ? bracketModel.pilotProfile( data, pilotId ) : null;
+    }
+
+    // The photo - over the initials, which show where there is none or it fails to load - the flag,
+    // and the callsign.
+    pilotCell( td, row, profile, withPhotos ) {
+        if ( withPhotos ) {
+            const avatar = document.createElement( 'span' );
+            avatar.className = 'rm-avatar';
+            avatar.setAttribute( 'aria-hidden', 'true' );
+            avatar.textContent = initials( row.callsign );
+            if ( profile && profile.photo ) {
+                const img = document.createElement( 'img' );
+                img.src = profile.photo;
+                img.alt = '';
+                img.width = 32;
+                img.height = 32;
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                img.addEventListener( 'error', () => img.remove() );
+                avatar.appendChild( img );
+            }
+            td.appendChild( avatar );
+        }
+        if ( this.flagBaseUrl && profile && profile.country ) {
+            const flag = document.createElement( 'img' );
+            flag.className = 'pilot-flag';
+            flag.src = `${ this.flagBaseUrl }${ profile.country.toLowerCase() }.svg`;
+            flag.alt = profile.country;
+            flag.title = profile.country;
+            flag.width = 16;
+            flag.height = 12;
+            flag.loading = 'lazy';
+            flag.decoding = 'async';
+            td.appendChild( flag );
+        }
+        td.appendChild( document.createTextNode( row.callsign ) );
     }
 
     placeText( row ) {

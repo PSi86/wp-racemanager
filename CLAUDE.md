@@ -93,6 +93,12 @@ Consequences worth keeping in mind when changing this:
   `js/class_templates_V1.js` serves only the legacy `[rm_viewer]` (and timer copies taken before
   1.10.0). `rm-m-bracketModel.js` is pure and only ever grows its exports - its importers use
   `import * as`, because a module reached by a relative import carries no version.
+- **A pilot's nationality and photo (1.11.0) are published only under the consent
+  `acceptance-media`**, kept per pilot key (`includes/pilot-profiles.php`), and go when a
+  registration comes without the consent or the pilot's last registration is deleted. A stored photo
+  never carries its metadata: `rm_jpeg_without_metadata()` takes it off after the image editor,
+  because WordPress's Imagick keeps EXIF (GPS included) on purpose. Flags show only where a page sets
+  `flagBaseUrl` — never on the timer.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -120,11 +126,12 @@ when any of that is missing.
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
-| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it; nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
+| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it, flags and photos by pilot key (no flag without `flagBaseUrl`); nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
 | `npm run test:bracket-model` | the bracket worked out of the seeding: every regulation bracket RotorHazard ships as what it is, round names, no bracket for ladders, a layout without overlaps, hand-edited and circular brackets reported not thrown, seeds by index, Chase the Ace. Node only |
 | `npm run test:bracket-standings` | a bracket's standing: places 1..N also when not full, the rulebook ranges, ranges while a round runs, FAI and MultiGP order, Chase the Ace, and on the local site's real events the places of the ranking before 1.10.0. Node only |
 | `npm run test:loader-subscribe` | a subscriber that throws on the cached data `subscribe()` hands over at once does not escape `subscribe()`. Browser only, no WordPress |
 | `npm run test:stats-ranking` | the stats view's class ranking panel: a ranking from the timer as a table, a method that ranked nobody as a sentence. Browser only, no WordPress |
+| `npm run test:pilot-profiles` | nationality and photo sent through the real registration form: the country stored, the photo square, 256 px, upright and without metadata with GD and with Imagick, carried in a race's files, gone with the registration. Makes and removes its race, form and page through WP-CLI |
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage; *Live:* on exactly the live races, and the installed app resuming straight on only into a race that is still live |
 | `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have — and, offline, is there and says so |
 | `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |

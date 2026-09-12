@@ -41,6 +41,7 @@
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 require_once __DIR__ . '/race-files.php'; // rm_race_part_filename(), for the loader's configuration
+require_once __DIR__ . '/countries.php'; // rm_flag_base_url(): where the views find the flags
 
 $rm_js_config = null; // Global variable to store the JS configuration object
 
@@ -308,9 +309,11 @@ function rm_bracket_shortcode( $atts ) {
         ],
         'displayHeats' => [
             'filterCheckboxId'   => 'filterCheckbox',
+            'flagBaseUrl'        => rm_flag_base_url(), // a pilot's flag next to the callsign (1.11.0)
         ],
         'displayStandings' => [
             'containerId'        => 'standings-display',
+            'flagBaseUrl'        => rm_flag_base_url(),
         ],
     ) );
     // Enqueue the modules.
@@ -452,9 +455,11 @@ function rm_nextup_shortcode( $atts ) {
         ],
         'displayHeats' => [
             'filterCheckboxId'   => 'none', // no filter checkbox here
+            'flagBaseUrl'        => rm_flag_base_url(), // a pilot's flag next to the callsign (1.11.0)
         ],
         'displayStandings' => [
             'containerId'        => 'ranking-container', // the "Final Ranking" under next up
+            'flagBaseUrl'        => rm_flag_base_url(),
         ],
         'displayLog' => [
             'containerId'     => 'log-container', // ID of the container for the log display

@@ -69,7 +69,7 @@ const PILOT_SELECTOR_STUB = `
 	export const pilotSelectInstance = { pilotSelectorId: 'pilotSelector', selectedPilotId: 0 };
 `;
 
-const page = ( containers ) => `<!doctype html>
+const page = ( containers, config = { displayHeats: { filterCheckboxId: 'filterCheckbox' } } ) => `<!doctype html>
 <html><body>
 <select id="pilotSelector"><option value="0">-- Select a Pilot --</option></select>
 <input type="checkbox" id="filterCheckbox">
@@ -77,7 +77,7 @@ ${ containers }
 <script>
 	window.__rmSubscribers = [];
 	window.__rmModuleError = null;
-	window.RmJsConfig = { displayHeats: { filterCheckboxId: 'filterCheckbox' } };
+	window.RmJsConfig = ${ JSON.stringify( config ) };
 </script>
 <script type="module">
 	try {
@@ -96,6 +96,14 @@ const FIXED_PAGE = page( `
 <div id="elimination-display" class="raceclass-container"></div>
 <div id="qualifying-display" class="raceclass-container"></div>
 <div id="training-display" class="raceclass-container"></div>` );
+// As WP RaceManager's bracket page configures it since 1.11.0: where the flags are.
+const FLAGS = 'http://rm.test/assets/flag-icons-7.5.0/flags/4x3/';
+const FLAGS_PAGE = page( '<div id="raceclass-sections"></div><div id="standings-display"></div>', {
+	displayHeats: { filterCheckboxId: 'filterCheckbox', flagBaseUrl: FLAGS },
+	displayStandings: { containerId: 'standings-display', flagBaseUrl: FLAGS },
+} );
+// A photo that loads: a PNG of one pixel.
+const PHOTO_PNG = Buffer.from( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64' );
 
 /* ------------------------------------------------------------------------------------------ *
  * Hand-built races, in the upload's shapes
@@ -187,6 +195,10 @@ function planRace( key, options ) {
 			if ( url.endsWith( '/js/rm-m-pilotSelector.js' ) ) return js( PILOT_SELECTOR_STUB );
 			const file = url.match( /\/js\/([\w.-]+\.js)$/ );
 			if ( file ) return js( read( `js/${ file[ 1 ] }` ) );
+			const flag = url.match( /\/assets\/flag-icons-7\.5\.0\/flags\/4x3\/([a-z]{2})\.svg$/ );
+			if ( flag ) return route.fulfill( { contentType: 'image/svg+xml', body: read( `assets/flag-icons-7.5.0/flags/4x3/${ flag[ 1 ] }.svg` ) } );
+			if ( /\/photos\/ok\.png/.test( url ) ) return route.fulfill( { contentType: 'image/png', body: PHOTO_PNG } );
+			if ( /\/photos\//.test( url ) ) return route.fulfill( { status: 404, body: '' } );
 			return route.fulfill( { contentType: 'text/html', body: html } );
 		} );
 		await tab.goto( 'http://rm.test/index.html' );
@@ -316,6 +328,69 @@ function planRace( key, options ) {
 		// P16 flies Race 1 (out 4th), Race 5 (LB, out 4th): those two and what they feed.
 		check( "the pilot's heats and the heats they feed", shown.includes( 'Race 1' ) && shown.includes( 'Race 5' ) && ! shown.includes( 'Race 2' ) && shown.length < 14, shown.join( ', ' ) );
 		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
+		await tab.close();
+	}
+
+	section( 'Flags and photos' );
+	{
+		// Pilot keys as the connector sends them, P1's in upper case; profiles as WP RaceManager's
+		// race files carry them (1.11.0): P1 flag and photo, P2 a flag, P3 a photo that is gone.
+		const key = ( n ) => `aaaaaaaa-0000-5000-8000-${ String( n ).padStart( 12, '0' ) }`;
+		const withProfiles = ( profiles ) => {
+			const data = races.fly( planRace( 'double-fai16' ) );
+			data.pilot_data.pilots.forEach( ( p ) => {
+				p.pilot_key = p.pilot_id === 1 ? key( 1 ).toUpperCase() : key( p.pilot_id );
+			} );
+			data.pilot_profiles = profiles;
+			return data;
+		};
+		const profiles = {
+			[ key( 1 ) ]: { country: 'AT', photo: 'http://rm.test/photos/ok.png?v=0a1b2c3d' },
+			[ key( 2 ) ]: { country: 'DE' },
+			[ key( 3 ) ]: { photo: 'http://rm.test/photos/gone.jpg?v=1a2b3c4d' },
+			[ key( 4 ) ]: { country: 'at<script>', photo: 'javascript:alert(1)' },
+		};
+
+		let tab = await openPage();
+		await deliver( tab, withProfiles( profiles ) );
+		check( 'no flag where the page does not say where the flags are - the timer\'s case', ( await tab.$$( '.pilot-flag' ) ).length === 0 );
+		await tab.close();
+
+		tab = await openPage( FLAGS_PAGE );
+		await deliver( tab, withProfiles( profiles ) );
+		const flagsOf = ( selector ) => tab.$$eval( selector, ( els ) => els.map( ( el ) => {
+			const img = el.querySelector( 'img.pilot-flag' );
+			return { text: el.textContent, src: img ? img.getAttribute( 'src' ) : null, alt: img ? img.alt : null };
+		} ) );
+		const names = await flagsOf( '#class-3-display .pilotid-1 .pilot-name' );
+		check( 'the flag by the callsign in every heat of the pilot, found by key whatever its case',
+			names.length > 0 && names.every( ( n ) => n.src === `${ FLAGS }at.svg` && n.alt === 'AT' && n.text === 'P1' ), JSON.stringify( names ) );
+		check( 'no flag for a pilot without a country', ( await flagsOf( '#class-3-display .pilotid-3 .pilot-name' ) ).every( ( n ) => n.src === null ) );
+		check( 'nor for one that is no code', ( await flagsOf( '#class-3-display .pilotid-4 .pilot-name' ) ).every( ( n ) => n.src === null ) );
+		await tab.waitForTimeout( 300 ); // the photos load, or fail to
+		const cells = await tab.$$eval( '#standings-display tbody .pilot', ( tds ) => Object.fromEntries( tds.map( ( td ) => {
+			const avatar = td.querySelector( '.rm-avatar' );
+			const photo = avatar && avatar.querySelector( 'img' );
+			const flag = td.querySelector( 'img.pilot-flag' );
+			return [ td.textContent.replace( avatar ? avatar.textContent : '', '' ), {
+				initials: avatar ? avatar.textContent : null,
+				photo: photo ? photo.getAttribute( 'src' ) : null,
+				loaded: photo ? photo.complete && photo.naturalWidth > 0 : null,
+				flag: flag ? flag.getAttribute( 'src' ) : null,
+			} ];
+		} ) ) );
+		check( 'the standing: photo and flag', cells.P1 && cells.P1.photo === 'http://rm.test/photos/ok.png?v=0a1b2c3d' && cells.P1.loaded && cells.P1.flag === `${ FLAGS }at.svg`, JSON.stringify( cells.P1 ) );
+		check( 'a pilot without a photo: the initials', cells.P2 && cells.P2.photo === null && cells.P2.initials === 'P2' && cells.P2.flag === `${ FLAGS }de.svg`, JSON.stringify( cells.P2 ) );
+		check( 'a photo that fails to load: the initials too', cells.P3 && cells.P3.photo === null && cells.P3.initials === 'P3', JSON.stringify( cells.P3 ) );
+		check( 'no photo from an address that is no web address', cells.P4 && cells.P4.photo === null && cells.P4.flag === null, JSON.stringify( cells.P4 ) );
+		check( 'the flag of every pilot with a country loads', await tab.$$eval( 'img.pilot-flag', ( imgs ) => imgs.length > 0 && imgs.every( ( i ) => i.complete && i.naturalWidth > 0 ) ) );
+
+		await deliver( tab, withProfiles( [] ) );
+		check( 'none at all - PHP writes that as [] - no flag, no photo, no initials',
+			( await tab.$$( '.pilot-flag' ) ).length === 0 && ( await tab.$$( '.rm-avatar' ) ).length === 0 );
+		// Chromium logs the photo that is gone, which this section answers with 404 on purpose.
+		const errors = tab.__errors.filter( ( e ) => ! /^Failed to load resource: .*404/.test( e ) );
+		check( 'no error', ! errors.length, errors.join( ' | ' ) );
 		await tab.close();
 	}
 
