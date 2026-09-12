@@ -126,6 +126,14 @@ function rm_getUpcomingRacePilots($rhData) {
         }
     }
 
+    // A Chase the Ace final is flown in rounds until the timer's ranking names a winner, whatever
+    // the class's number of rounds says: until then it stays the heat to come.
+    foreach (rm_open_cta_finals($rhData, $classHeats) as $finalId) {
+        if (isset($heatsById[$finalId])) {
+            $heatsById[$finalId]['next_round'] = 0;
+        }
+    }
+
     $currentHeatId = (int)$rhData['current_heat']['current_heat'];
 
     // If current heat is already "complete", jump to the next runnable one.
@@ -306,6 +314,43 @@ function rm_seededEntry($entries, $seedRank) {
         'pilot_id' => (int)$entry['pilot_id'],
         'callsign' => isset($entry['callsign']) ? (string)$entry['callsign'] : ''
     );
+}
+
+/**
+ * The Chase the Ace finals still being flown.
+ *
+ * On the timer, Chase the Ace is the ranking method "Brackets" of the community plugin Class
+ * Rank: Brackets: the class's last heat is flown again until a pilot has won two rounds, and the
+ * class's ranking then has its place 1. Its "Chase the Ace" setting is on unless switched off;
+ * RotorHazard uploads a class's ranksettings only as far as someone changed them.
+ *
+ * @param array $rhData     The upload.
+ * @param array $classHeats class_id => heat ids, ascending.
+ * @return int[] Heat ids.
+ */
+function rm_open_cta_finals($rhData, $classHeats) {
+    $open = array();
+    foreach ((array)($rhData['class_data']['classes'] ?? array()) as $class) {
+        if (!is_array($class) || ($class['win_condition'] ?? '') !== 'Brackets') continue;
+        $settings = is_array($class['ranksettings'] ?? null) ? $class['ranksettings'] : array();
+        $cta = $settings['chase_the_ace'] ?? true;
+        if ($cta === false || $cta === '0' || $cta === 0) continue;
+        $cid = (int)($class['id'] ?? 0);
+        if (empty($classHeats[$cid])) continue;
+
+        $ranking = $rhData['result_data']['classes'][(string)$cid]['ranking']['ranking'] ?? null;
+        $decided = false;
+        foreach ((array)$ranking as $entry) {
+            if (is_array($entry) && isset($entry['position']) && (int)$entry['position'] === 1) {
+                $decided = true;
+                break;
+            }
+        }
+        if (!$decided) {
+            $open[] = (int)end($classHeats[$cid]);
+        }
+    }
+    return $open;
 }
 
 /* -------------------------

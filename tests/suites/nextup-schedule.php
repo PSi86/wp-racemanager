@@ -191,4 +191,34 @@ $event = rm_test_event(
 $got = rm_test_upcoming( $event );
 rm_test_check( 'the third entry, pilot 23', array( '31:23' ) === $got, 'got ' . implode( ',', $got ) );
 
+rm_test_section( 'A Chase the Ace final' );
+// The final (heat 41) of a class ranked with "Brackets" (Class Rank: Brackets), its Chase the Ace
+// switch untouched and so on: one round flown, which the class's single round counts as done.
+$cta_event = function ( $ranking ) use ( $elimination ) {
+    $class = $elimination;
+    $class['win_condition'] = 'Brackets';
+    $class['ranksettings'] = null;
+    return rm_test_event(
+        41,
+        array(
+            rm_test_heat( 40, 3, 1, array( array( 'pilot_id' => 1 ), array( 'pilot_id' => 2 ) ) ),
+            rm_test_heat( 41, 3, 1, array( array( 'pilot_id' => 3 ), array( 'pilot_id' => 4 ) ) ),
+        ),
+        array( $class ),
+        array(
+            'classes' => array(
+                '3' => array( 'id' => 3, 'ranking' => $ranking ),
+            ),
+        )
+    );
+};
+$got = rm_test_upcoming( $cta_event( array( 'ranking' => array(), 'meta' => array() ) ) );
+rm_test_check( 'not decided yet: its pilots are announced for the next round', array( '41:3', '41:4' ) === $got, 'got ' . implode( ',', $got ) );
+$got = rm_test_upcoming( $cta_event( array( 'ranking' => array( rm_test_entry( 3, 1 ) ), 'meta' => array() ) ) );
+rm_test_check( 'decided by the timer: nobody flies next', array() === $got, 'got ' . implode( ',', $got ) );
+$switched_off = $cta_event( array( 'ranking' => array(), 'meta' => array() ) );
+$switched_off['class_data']['classes'][0]['ranksettings'] = array( 'chase_the_ace' => false );
+$got = rm_test_upcoming( $switched_off );
+rm_test_check( 'Chase the Ace switched off: the final is done after its round', array() === $got, 'got ' . implode( ',', $got ) );
+
 rm_test_finish();
