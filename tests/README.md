@@ -10,7 +10,8 @@ installation required, so it runs anywhere and it is fast.
 **`test:view-tabs`** and **`test:bracket-titles`**
 use a real browser, because some behaviour is what the DOM, the network, the service worker and the
 browser's own storage do rather than what the source says. They are deliberately kept out
-of the PHP runner — see [Browser checks](#browser-checks) at the end.
+of the PHP runner — see [Browser checks](#browser-checks) at the end, which also has
+**`test:class-templates`**, a check of JavaScript data that needs no browser.
 
 ```
 php tests/run.php            # everything
@@ -80,13 +81,21 @@ npm run test:stats-filter                           # against https://racemanage
 npm run test:offline                                # against https://racemanager.ddev.site
 npm run test:view-tabs                              # against https://racemanager.ddev.site
 npm run test:bracket-titles                         # against https://racemanager.ddev.site
+npm run test:class-templates                        # no WordPress and no browser, only Node
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
 ```
 
-All of them run through Playwright, and all of them skip rather than fail when Playwright or its
-Chromium is missing.
+All of them but `test:class-templates` run through Playwright, and all of those skip rather than
+fail when Playwright or its Chromium is missing.
+
+Three of the files under test have a copy on the timer: `rm-m-pilotSelector.js`,
+`rm-m-displayHeats.js` and `class_templates_V1.js` serve the RotorHazard connector's
+`/bracketview` too, on a `dataLoader` of its own that reads RotorHazard's socket. Since
+2026-09-12 this repository is their source, and the connector takes them over byte for byte, so a
+change here reaches the timer with its next release. What the timer needs of them is checked here
+as well.
 
 ### `tests/e2e/pilot-selector.cjs`
 
@@ -105,6 +114,24 @@ page without the control does not take the module down on import.
 
 Run against the module as it was before the fix, five of its eight checks fail — which is the
 point of it.
+
+And it covers the timer: its `dataLoader` hands a new subscriber an empty object until every
+section has come in over the socket, and the module waits that out instead of throwing. Against the
+module before that, the check fails with *Cannot read properties of undefined (reading 'pilots')*:
+on the timer, that stops the whole bracket page.
+
+### `tests/e2e/class-templates.cjs`
+
+`js/class_templates_V1.js`, the bracket templates `rm-m-displayHeats.js` lays an elimination
+class out on. Plain data, evaluated in Node; no browser.
+
+Each race of a template carries seeding labels, a seed position (`16th`) or a result
+(`2nd race 1`), which the heats' slots overwrite one by one; an entry beyond a heat's slots stays.
+Two races of the 32-pilot template carried *TestPilot1* to *4* instead, both under the IDs 49–52.
+On the live pages a race with three slots showed "TestPilot4"; on the timer, whose copy had the
+names blanked, the leftover still counted as pilot 49 to 52 when filtering by a pilot and on hover.
+The check: every entry a seeding label, every entry ID and race ID used once. Against the template
+before, both fail.
 
 ### `tests/e2e/live-resume.cjs`
 

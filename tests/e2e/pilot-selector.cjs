@@ -172,6 +172,29 @@ const raceData = ( ids ) => ( {
 
 	await page.close();
 
+	// ------------------------------------------------------ the timer's dataLoader
+	// The RotorHazard connector's /bracketview runs this module on a dataLoader of its own,
+	// which hands a new subscriber an empty object until every section has come in.
+	page = await openPage( true );
+	const thrown = await page.evaluate( () => {
+		try {
+			window.__rmSubscribers.forEach( ( cb ) => cb( {} ) );
+			return null;
+		} catch ( e ) {
+			return String( e && e.message ? e.message : e );
+		}
+	} );
+	s = await state( page );
+	check(
+		'data without pilots yet, as the timer hands it first, is waited out',
+		thrown === null && s.pilots === 0 && s.total === 1,
+		thrown ? `threw: ${ thrown }` : JSON.stringify( s )
+	);
+	await update( page, [ 3, 1, 2 ] );
+	s = await state( page );
+	check( 'and the pilots that follow fill the list', s.pilots === 3 && s.total === 4, JSON.stringify( s ) );
+	await page.close();
+
 	// ------------------------------------------------------ the missing element
 	page = await openPage( false );
 	const err = await page.evaluate( () => window.__rmModuleError );

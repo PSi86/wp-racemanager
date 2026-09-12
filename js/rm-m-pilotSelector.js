@@ -65,6 +65,13 @@ class PilotSelector {
             console.error("populatePilotSelect: Missing data");
             return null;
         }
+        // The timer's /bracketview (the RotorHazard connector) runs this module on a dataLoader
+        // of its own, which hands a new subscriber what it has so far: an empty object until
+        // every section has come in over the socket.
+        if (!data.pilot_data || !Array.isArray(data.pilot_data.pilots)) {
+            console.log('PilotSelector: no pilot data yet');
+            return null;
+        }
 
         // Extract basic Pilot data from the RHData
         const pilotsMap = data.pilot_data.pilots.map(pilot => ({
