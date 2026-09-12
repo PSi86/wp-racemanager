@@ -28,8 +28,8 @@ IDs are stable and referenced from commits and pull requests, the same way the a
 | L2 | P2 | ✅ done — and worth less than this list claimed | Conditional requests alongside `cache: 'no-store'` |
 | L3 | P2 | ✅ done | `localStorage` instead of per-tab `sessionStorage` |
 | L6 | P2 | ✅ done | A service worker that caches, so the installed PWA survives bad reception |
-| L7 | P2 | nothing | Split the payload into per-section files with an index |
-| L8 | P3 | ~~a change on the RotorHazard side~~ — the uploader is ours | Upload only the sections that changed |
+| L7 | P2 | ✅ done — split per heat and per class, not per section | Split the payload into per-section files with an index |
+| L8 | P3 | ~~a change on the RotorHazard side~~ — the uploader is ours; put off until L7 is measured at an event | Upload only the sections that changed |
 | L10 | P3 | — not needed at this audience size | A CDN in front of the JSON |
 
 `D1` (the pilot dropdown) is **resolved** — [#15](https://github.com/PSi86/wp-racemanager/pull/15),
@@ -272,7 +272,69 @@ Known limits:
 
 ## Stage 2 — split the payload, plugin side only
 
-### L7 · Per-section files with an index
+### L7 · Per-section files with an index — done
+
+**Done** in 1.8.0: [`includes/race-files.php`](../includes/race-files.php) writes the parts and the
+index, [`js/rm-m-dataLoader.js`](../js/rm-m-dataLoader.js) downloads only the parts that changed, and
+`tests/suites/race-writes.php` and `tests/e2e/race-parts.cjs` cover the two halves. How it works is
+in [`data-flow.md`](data-flow.md); what follows is why it is not what the sketch below proposed.
+
+**Measured first, and the sketch would not have paid.** Split per section, as proposed, an update
+would have cost 98 % of the whole file. `result_data` is 96–97 % of a real payload and changes with
+every upload, since every upload comes after a heat was flown; `pilot_data`, `heat_data` and
+`class_data`, which the sketch expected to save, are together 3–7 KB compressed. Most of
+`result_data` is its heats, one entry per heat, and a heat not flown since the last upload does not
+change — so the split goes one level further there, per heat and per class:
+
+| Race | whole file (Brotli) | split per section: an update | split per heat and class: an update |
+|---|---|---|---|
+| Galaxy Cup 2025 | 60.1 KB | 58.8 KB (98 %) | 11.0 KB on average (18 %) |
+| Fall Whooprace 2025 | 77.9 KB | 76.6 KB (98 %) | 10.2 KB (13 %) |
+| Winter Whooprace 2025 | 57.8 KB | 56.8 KB (98 %) | 8.4 KB (14 %) |
+
+Decided on 2026-09-12, with these numbers: per heat and per class. Measured in the browser suite on
+the local site, gzip: 11,365 bytes for an update after a heat — simulated, with `heat_data` left as it
+was, which a real upload's would not be — against 102,039 for the whole file.
+
+What else differs from the sketch, each for a reason:
+
+- **The timestamp stays the gate.** The sketch had the client poll the index instead. The index of
+  a real race is ~4 KB, ~1.2 KB compressed, against the timestamp's 30 bytes, and polls outnumber
+  changes some sixty to one — an eight-hour event is about 2,900 polls per viewer and 40-odd
+  uploads. Polled like the timestamp, the index would have cost a viewer some 3.5 MB per event,
+  more than the parts save. It is read only once the timestamp changed: one round trip more per
+  change, none per poll.
+- **The first visit downloads the whole file.** Fetched part by part, a first visit costs 141–151 %
+  of the whole file — compression loses the context the parts share — and some 60 requests. The
+  whole file carries the index as `rm_index`, so the first visit knows which parts it holds without
+  a second request that could belong to another upload.
+- **Each part carries its hash**, not only the index. A part a newer upload replaced after the index
+  was read shows it, and the index is read again; the loader never puts a payload together from two
+  uploads.
+- **No view fetches only its own sections.** Every view reads `result_data`; there was nothing to save.
+
+And one thing the sketch did not see: `rm_write_files()` wrote the timestamp **before** the data, the
+first load-bearing ordering of [`data-flow.md`](data-flow.md) broken on the server. A browser polling
+between the two writes held the old standing under the new timestamp until the next upload, and so
+did every browser after a data write that failed. Fixed first, on its own; the timestamp is now
+written last and every file whole.
+
+Known limits:
+
+- **The first visit pays about 1.3 KB more**, the index inside the whole file (102,144 B against
+  100,833 B locally). A returning visitor still pays 110 B.
+- **A race uploaded before 1.8.0 keeps the whole file** until its next upload; an archived race for
+  good. Nothing asks for its index.
+- **The timestamp has one-second resolution**, as it always had: two writes within the same second —
+  an upload and a race-log message, say — look like one to a browser that polled in between. Older
+  than L7, and no worse for it.
+- **A race deleted for good takes its index and parts with it** (`before_delete_post`, from the
+  admin and through the REST API alike). Its whole file and timestamp go with its attachments, as
+  before 1.8.0 — which only a race an upload created has. A race created in the admin and uploaded
+  to later keeps those two files after it is deleted, as it always did; measured on the local site
+  with such a race: 60 files after the upload, 2 after deleting it.
+
+The sketch, as it was written:
 
 Still no RotorHazard change: the timer keeps uploading the whole file, and `rm_write_files()`
 splits it on arrival.
@@ -309,6 +371,28 @@ every viewer, on every update.
 
 ### L8 · Upload only the sections that changed
 
+**Put off on 2026-09-12**, when L7 was built, until L7 has been measured at an event. The numbers
+it was decided on: compressed since 1.6.0, the upload of a full event is 93–125 KB; the parts that
+changed after a heat would be 11–15 KB (gzip, estimated on the three real races the way L7's table
+is). At 0.25 Mbit/s that is about 4 s against 0.5 s — on an upload that runs once per heat, in the
+background, retried when it fails, and that nobody waits for. Against that: a new request format on
+both sides, a connector release, and state shared between timer and server.
+
+What L7 settled for it, and one thing the sketch below would get wrong:
+
+- **The sections are L7's parts**, per heat and per class, with their paths as the index names
+  them. Per section, as sketched, the upload would shrink by 2 %, as the download would have.
+- **The index's hashes are no use to the timer.** They are taken over WordPress's re-encoding of the
+  payload, and the timer's own JSON differs from it throughout: the connector serialises with
+  `json.dumps()` and its default separators, a space after every comma and colon (read from its
+  `payload.py`), and PHP escapes `/` as `\/` — the stored races carry 4 to 13 of them — and turns an
+  empty object into `[]` (`{"a":{},"u":"x/y"}` becomes `{"a":[],"u":"x\/y"}`, measured on the local
+  site). A timer comparing its hashes against the index's would find every part changed, every
+  time. The manifest it asks for has to hold hashes of what the timer itself sent, stored with each
+  upload.
+
+The sketch, as it was written:
+
 Only worth doing after stage 2, because stage 2 defines the sections and the hashes this builds on.
 
 **The simple version, and the one to build:** before uploading, the timer fetches
@@ -322,7 +406,8 @@ flaky hotspot. The failure mode of "replace this section" is a repeat; the failu
 missed patch is silent corruption.
 
 Worth pairing with it: gzip the request body (`Content-Encoding: gzip`), which is a few lines on
-each side and cuts the hotspot traffic again.
+each side and cuts the hotspot traffic again. *(Done since, on its own: WordPress 1.6.0 and the
+connector — see [`data-flow.md`](data-flow.md#the-upload).)*
 
 ---
 
@@ -561,8 +646,11 @@ In order, and each one is a self-contained piece of work:
    timestamp above all — left to the network.
 5. ~~**L9**~~ — done, see the entry: view tabs at the foot of a phone's screen. One thing is left
    for production itself, the order of the four view pages, which the tabs follow.
-6. **L7**, and then **L8** with it. Both are unblocked, and designing them together is the point:
-   the uploader already speaks in the sections L7 would split the file into.
+6. ~~**L7**~~ — done, see the entry: split per heat and per class, because per section would have
+   saved 2 %. This step said "and then **L8** with it"; decided on 2026-09-12 with the numbers in
+   the L8 entry: L8 waits until L7 has been measured at an event.
+7. **Measure L7 at an event**: what an update costs a viewer there, and how often the whole file is
+   downloaded instead of the parts. That decides L8.
 
 The local environment now carries the three real races from production, so all of this can be
 built against real payloads rather than fixtures.

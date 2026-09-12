@@ -1,6 +1,6 @@
 {
     "name": "wp-racemanager",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "scripts": {
         "test": "php tests/run.php",
       "test:e2e": "node tests/e2e/editor.cjs",
@@ -8,6 +8,7 @@
       "test:live-resume": "node tests/e2e/live-resume.cjs",
       "test:update-status": "node tests/e2e/update-status.cjs",
       "test:flaky-network": "node tests/e2e/flaky-network.cjs",
+      "test:race-parts": "node tests/e2e/race-parts.cjs",
       "test:stats-filter": "node tests/e2e/stats-filter.cjs",
       "test:offline": "node tests/e2e/offline.cjs",
       "test:view-tabs": "node tests/e2e/view-tabs.cjs",

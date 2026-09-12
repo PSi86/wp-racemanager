@@ -29,10 +29,11 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/live-routing.php` | The live micro-site's URLs. Resolves the selected race from the path, builds canonical URLs, rewrites navigation links and marks the navigation that switches views (`rm-live-nav`), handles legacy redirects. Start here for anything about `/live/`. |
 | `includes/livepage-handler.php` | The four live-page shortcodes, the JS module configuration they emit, and the view tabs fixed to the foot of a phone's screen — emitted once per page, like the pill, with a stylesheet that is loaded only where the tabs are. |
 | `includes/rest-handler.php` | The REST endpoints RotorHazard talks to. |
+| `includes/race-files.php` | What an upload leaves in `uploads/races/`: the payload in parts — per section, per result heat and per class (`RM_RACE_SPLIT`) — the whole file with the index inside as `rm_index`, the index, and the timestamp **last**, each file replaced whole. `rm_race_part_filename()` names a part for writer and loader alike. A race deleted for good takes its index and parts with it. |
 | `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
 | `includes/pilot-key.php` | The pilot key: one version-5 UUID per registered email address, the same every time, derived in a namespace of this site's own. What RotorHazard is to match a returning pilot by, since `user_id` is 0 for everyone without an account. `rm_registration_rows()` in `admin-registrations.php` puts it into the admin list, the CSV and `get-pilots` alike. |
-| `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. Two channels out: `subscribe()` for the data, `onState()` for what the loader is doing. |
+| `js/rm-m-dataLoader.js` | Singleton that polls the race JSON and notifies subscribers. Every other `rm-m-*` module hangs off it. Two channels out: `subscribe()` for the data, `onState()` for what the loader is doing. Since 1.8.0 it downloads only the parts that changed and puts the payload together from them; the whole file is the first visit's and the fallback. |
 | `js/rm-m-updateStatus.js` | The freshness pill floating at the foot of every live view — the only consumer of `onState()`. `describe()` is pure and exported so the state machine can be tested without a broken network, and `isRelevant()` beside it decides whether the pill appears at all: on a race that is **not** flagged live it stays hidden unless the data could not be loaded. `rm_update_status_markup()` emits it **once per page**, not once per shortcode. |
 | `templates/template-pwa-sw.js` | The service worker: push, and since L6 the kept copies of the live pages and their files for when the network does not answer. Network first for everything, the race JSON never touched. Written to the WordPress root as `pwa-sw.js` by `rm_maybe_refresh_pwa_files()` on `admin_init`, whenever a value or a template changed. |
 
@@ -117,6 +118,7 @@ when any of that is missing.
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
 | `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have — and, offline, is there and says so |
 | `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |
+| `npm run test:race-parts` | the payload in parts (L7): a first visit's whole file and the parts it learns from it, an update after a heat downloading exactly the parts that changed and putting the payload together, a return from storage, an upload overtaking the index, a part that fails or stalls committing nothing, and the whole file where the parts will not do. Writes the race's files through WP-CLI and puts them back byte for byte |
 | `npm run test:offline` | the service worker: the first visit kept, a reload or an app launch without a connection still showing the race with the pill there and saying offline — a finished race's too — no race JSON in its cache, the kept page after the deadline on a link that delivers nothing, and neither `no-store` pages nor stale copies of changed files served while the network answers |
 | `npm run test:bracket-titles` | the bracket scrolled sideways on a phone: the class titles stay where they are, whole in view and over an opaque background, while the races and their connecting lines move by exactly the distance scrolled |
 | `npm run test:view-tabs` | the live views on a phone: the view tabs at the foot of the screen, one tap to another view, the pill above them and room kept below, 44 px targets for the pilot filter and the theme's burger, the current view marked, and no tabs on a wide screen or without a race |
@@ -212,29 +214,40 @@ either — DDEV greps the whole file. See "Building the blocks" in
 
 ## How the data reaches the viewer
 
-RotorHazard uploads the **whole** result JSON; the plugin writes it to two files per race and the
-browser polls the small one to decide whether to download the big one. The contract, its costs and
-what could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read that before changing
-`js/rm-m-dataLoader.js`, `rm_write_files()` or the upload endpoint.
+RotorHazard uploads the **whole** result JSON. The plugin stores it whole and, since 1.8.0, in
+parts — per section, per result heat and per class — with an index naming each part's hash, and a
+timestamp file announcing all of it. The browser polls the timestamp; when it changed, it reads the
+index and downloads the parts whose hash changed — after a heat 8–15 KB instead of 58–78 KB. A
+first visit downloads the whole file, which carries the index. The contract, its costs and what
+could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read that before changing
+`js/rm-m-dataLoader.js`, `includes/race-files.php` or the upload endpoint.
 
 **Two orderings in `js/rm-m-dataLoader.js` are load-bearing, and both were learned from a failure
 at a real event** — the app came up empty and stayed empty through reload after reload, and came
 back only when it was killed outright. Do not reorder either without reading the reasoning in
 `docs/data-flow.md`:
 
-- **The timestamp is committed only after the payload has arrived.** Recording it first marks a
-  version as seen that was never received, and every later check then skips the download.
-- **The abort deadline covers the body read, not just the headers.** A fading link delivers
-  headers and then stalls; a timer cleared too early leaves an in-flight flag set for ever, and
-  every later check returns at the guard that reads it.
+- **The timestamp is committed only after the payload has arrived** — for the parts, only after
+  every part the index names has arrived. Recording it first marks a version as seen that was
+  never received, and every later check then skips the download.
+- **The abort deadline covers the body read, not just the headers**, for every part as for the
+  whole file. A fading link delivers headers and then stalls; a timer cleared too early leaves an
+  in-flight flag set for ever, and every later check returns at the guard that reads it.
 
-`tests/e2e/flaky-network.cjs` covers both, and fails against the pre-2026 loader.
+The server has the same ordering: `rm_write_files()` writes the timestamp **last**, after the
+parts, the whole file and the index. It wrote it first until 1.8.0.
 
-The browser cache lives in `localStorage` under `rm_data_{race_id}` with `rm_data_{race_id}_meta`
-beside it, and a write evicts every other race first — one payload is ~1.2 MB against an origin
-budget of a few megabytes. The `rm_data_` prefix is what eviction matches; `rm_last_race` belongs
-to `js/rm-live-resume.js` and must survive it. `storageKey` in the config stays the **bare race
-id** because three view modules build their own keys and `data-race-id` attributes out of it.
+`tests/e2e/flaky-network.cjs` covers both, and fails against the pre-2026 loader;
+`tests/e2e/race-parts.cjs` covers them for the parts, and `tests/suites/race-writes.php` the
+server's order.
+
+The browser cache lives in `localStorage`. A race with an index is stored in parts,
+`rm_data_{race_id}_part_{name}` each, with `rm_data_{race_id}_meta` beside them carrying the index
+that names them; a race without one is stored whole under `rm_data_{race_id}`. A write evicts every
+other race first — one payload is ~1.2 MB against an origin budget of a few megabytes. The
+`rm_data_` prefix is what eviction matches; `rm_last_race` belongs to `js/rm-live-resume.js` and
+must survive it, and race 340's parts are not race 34's. `storageKey` in the config stays the **bare
+race id** because three view modules build their own keys and `data-race-id` attributes out of it.
 
 ## Known open items
 
@@ -243,8 +256,9 @@ Three lists, and they answer different questions:
 - [`docs/wordpress-update-audit.md`](docs/wordpress-update-audit.md) — what a year of WordPress
   updates broke or exposed. 24 findings, all resolved. Closed.
 - [`docs/live-webapp-improvements.md`](docs/live-webapp-improvements.md) — how the live app itself
-  could get better, above all its data path. L1–L6 and L9 are done; L7/L8 (per-section files,
-  then per-section uploads) are open; L10 (a CDN) is not needed at this audience size. [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
+  could get better, above all its data path. L1–L7 and L9 are done; L8 (uploading only the parts
+  that changed) waits until L7 has been measured at an event, decided on 2026-09-12; L10 (a CDN)
+  is not needed at this audience size. [`docs/data-flow.md`](docs/data-flow.md) is the baseline it changes.
 - [`docs/pilot-identity.md`](docs/pilot-identity.md) — a stable per-pilot identifier in
   `get-pilots`, so RotorHazard can recognise a returning pilot. Decided on 2026-09-11: no account
   needed, none created, one reproducible key per email address. The WordPress half is done

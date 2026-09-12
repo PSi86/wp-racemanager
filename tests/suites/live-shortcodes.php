@@ -301,4 +301,14 @@ rm_test_check( 'the head hook holds one callback',
     array( 'rm_print_js_module_config' ) === array_values( array_unique( $GLOBALS['rm_head_actions'], SORT_REGULAR ) ),
     implode( ', ', array_map( 'strval', $GLOBALS['rm_head_actions'] ) ) );
 
+rm_test_section( 'The loader is told where the index and the parts are (L7)' );
+$loader_config = $config['dataLoader'] ?? array();
+$data_url      = (string) ( $loader_config['dataUrl'] ?? '' );
+rm_test_check( 'the index beside the data file',
+    '' !== $data_url && str_replace( '-data.json', '-index.json', $data_url ) === ( $loader_config['indexUrl'] ?? null ),
+    json_encode( $loader_config ) );
+rm_test_check( 'a part named as the writer names it, "%s" for its path',
+    '' !== $data_url && dirname( $data_url ) . '/' . rm_race_part_filename( 182, array( '%s' ) ) === ( $loader_config['partUrl'] ?? null ),
+    json_encode( $loader_config ) );
+
 rm_test_finish();

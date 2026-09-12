@@ -329,6 +329,12 @@ because a stale loader still works, nothing looks broken, it just behaves like t
 release. If the header is long-lived, purge the optimisation plugin's asset cache as well as its
 page cache, and verify in a private window rather than a reloaded tab.
 
+1.8.0 was built so that this costs nothing but the saving. A loader from before it, still cached,
+downloads the whole file on every change as it always did, and hands on the index the file now
+carries, which no module reads. A 1.8.0 loader meeting files from before — a race not uploaded to
+since, or a rollback — downloads the whole file too: it turns to the index only once a whole file
+has carried one, and treats an index older than the timestamp as not there.
+
 ---
 
 ## 8 · Rollback
@@ -340,6 +346,9 @@ page cache, and verify in a private window rather than a reloaded tab.
 3. Only restore the database if the event-date migration ran and produced something unexpected.
    The migration is the sole step in a deployment that writes to existing data; everything else is
    code.
+4. Going back from 1.8.0 or later, the races' `{id}-index.json` and `{id}-part-….json` stay in
+   `uploads/races/`. The older plugin neither writes nor reads them, and a later update writes them
+   anew; they can be deleted, or left.
 
 ---
 
