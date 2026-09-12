@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// How a RotorHazard heat slot gets its pilot (Database.ProgramMethod): -1 none, 0 assigned,
+// 1 from a heat's result (seed_id = heat), 2 from a class's result (seed_id = class).
+if (!defined('RM_SLOT_HEAT_RESULT')) define('RM_SLOT_HEAT_RESULT', 1);
+if (!defined('RM_SLOT_CLASS_RESULT')) define('RM_SLOT_CLASS_RESULT', 2);
+
 /**
  * Absolute path of the directory holding the per-race JSON files.
  *
@@ -155,16 +160,22 @@ function rm_getUpcomingRacePilots($rhData) {
             $pilotId = isset($slot['pilot_id']) ? (int)$slot['pilot_id'] : 0;
             $callsign = $pilotId ? ($pilotCallsignById[$pilotId] ?? '') : '';
 
-            // If not assigned, try to resolve seed
+            // If not assigned, resolve the seed as RotorHazard will when the heat comes up: from a
+            // heat's result (method 1) or from a class's result (method 2). seed_id names a heat
+            // in the first case and a class in the second.
             if (!$pilotId && isset($slot['seed_id'], $slot['seed_rank'])) {
-                $seedHeatId = (int)$slot['seed_id'];
-                $seedRank   = (int)$slot['seed_rank'];
-                if ($seedHeatId > 0 && $seedRank > 0) {
-                    $seededPilot = rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById);
-                    if ($seededPilot !== null) {
-                        $pilotId = (int)$seededPilot['pilot_id'];
-                        $callsign = (string)($seededPilot['callsign'] ?? '');
-                    }
+                $seedId   = (int)$slot['seed_id'];
+                $seedRank = (int)$slot['seed_rank'];
+                $method   = isset($slot['method']) ? (int)$slot['method'] : 0;
+                $seededPilot = null;
+                if ($method === RM_SLOT_HEAT_RESULT) {
+                    $seededPilot = rm_getSeededPilot($seedId, $seedRank, $rhData, $heatsById);
+                } elseif ($method === RM_SLOT_CLASS_RESULT) {
+                    $seededPilot = rm_getClassSeededPilot($seedId, $seedRank, $rhData);
+                }
+                if ($seededPilot !== null) {
+                    $pilotId = (int)$seededPilot['pilot_id'];
+                    $callsign = (string)($seededPilot['callsign'] ?? '');
                 }
             }
 
@@ -189,7 +200,11 @@ function rm_getUpcomingRacePilots($rhData) {
 }
 
 /**
- * Optimized seeded pilot resolver.
+ * The pilot a slot seeded from a heat's result (method 1) will get.
+ *
+ * RotorHazard takes the entry at seed_rank - 1 of the heat's primary leaderboard
+ * (heat_automation.py), not the entry whose position equals seed_rank: a pilot who did not start
+ * is listed without a position.
  * Optional $heatsById allows early skip if seed heat has next_round <= 0 (no completed rounds).
  */
 function rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById = null) {
@@ -233,16 +248,64 @@ function rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById = null) {
         return null;
     }
 
-    foreach ($resultHeat['leaderboard'][$primaryLeaderboard] as $entry) {
-        if (isset($entry['position']) && (int)$entry['position'] === $seedRank && isset($entry['pilot_id'])) {
-            return array(
-                'pilot_id' => (int)$entry['pilot_id'],
-                'callsign' => isset($entry['callsign']) ? (string)$entry['callsign'] : ''
-            );
+    return rm_seededEntry($resultHeat['leaderboard'][$primaryLeaderboard], $seedRank);
+}
+
+/**
+ * The pilot a slot seeded from a class's result (method 2) will get.
+ *
+ * As RotorHazard does it: the class's ranking when a ranking method produced one, else the
+ * class leaderboard the class's format makes primary; the entry at seed_rank - 1 of either.
+ *
+ * @param int   $seedClassId The class the slot seeds from.
+ * @param int   $seedRank    The slot's seed_rank, 1-based.
+ * @param array $rhData      The upload.
+ * @return array|null        pilot_id and callsign, or null while nobody is there.
+ */
+function rm_getClassSeededPilot($seedClassId, $seedRank, $rhData) {
+    if ($seedClassId <= 0 || $seedRank <= 0) return null;
+
+    $classes = $rhData['result_data']['classes'] ?? null;
+    if (!is_array($classes)) return null;
+
+    $resultClass = $classes[(string)$seedClassId] ?? null;
+    if (!is_array($resultClass)) {
+        foreach ($classes as $candidate) {
+            if (is_array($candidate) && isset($candidate['id']) && (int)$candidate['id'] === $seedClassId) {
+                $resultClass = $candidate;
+                break;
+            }
         }
     }
+    if (!is_array($resultClass)) return null;
 
-    return null;
+    // RotorHazard's `if ranking:` - false without a ranking method, an array with one.
+    if (!empty($resultClass['ranking']) && is_array($resultClass['ranking'])) {
+        $positions = $resultClass['ranking']['ranking'] ?? null;
+    } else {
+        $leaderboard = $resultClass['leaderboard'] ?? null;
+        $primary = is_array($leaderboard) ? ($leaderboard['meta']['primary_leaderboard'] ?? 'by_race_time') : null;
+        $positions = $primary !== null ? ($leaderboard[$primary] ?? null) : null;
+    }
+
+    return is_array($positions) ? rm_seededEntry($positions, $seedRank) : null;
+}
+
+/**
+ * The entry at seed_rank - 1 of a leaderboard, as pilot_id and callsign.
+ *
+ * @param array $entries  Leaderboard entries, in order.
+ * @param int   $seedRank 1-based.
+ * @return array|null
+ */
+function rm_seededEntry($entries, $seedRank) {
+    $entries = array_values($entries);
+    $entry = $entries[$seedRank - 1] ?? null;
+    if (!is_array($entry) || empty($entry['pilot_id'])) return null;
+    return array(
+        'pilot_id' => (int)$entry['pilot_id'],
+        'callsign' => isset($entry['callsign']) ? (string)$entry['callsign'] : ''
+    );
 }
 
 /* -------------------------
@@ -346,7 +409,10 @@ function rm_getNextHeatId($currentHeatId, $heatsById, $classHeats, $classOrder, 
 function rm_findNextRunnableHeatId($startHeatId, $heatsById, $classHeats, $classOrder, $classRounds, $doubleRunClass) {
     $hid = $startHeatId;
     $guard = 0;
-    $guardMax = count($heatsById)-$startHeatId;
+    // One step per heat is enough to walk past every complete heat. Heat ids say nothing about how
+    // many heats are left: counting from the id returned null at the last heat, and always once a
+    // regenerated class numbered its heats above their count.
+    $guardMax = count($heatsById) + 1;
 
     // Try to skip over already-complete heats (e.g. when current_heat still points to a finished one)
     while ($hid !== null && $guard < $guardMax) {
