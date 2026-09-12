@@ -333,7 +333,7 @@ function rm_bracket_shortcode( $atts ) {
                 <input type="checkbox" id="filterCheckbox"> Filter by Selected Pilot
             </label>
         </div>
-        <!-- Every class of the race gets a section here, in the timer's order (js/rm-m-displayHeats.js) -->
+        <!-- Every class of the race gets a section here, the newest on top (js/rm-m-displayHeats.js) -->
         <div id="raceclass-sections"></div>
         <div id="standings-display"></div>
   <?php

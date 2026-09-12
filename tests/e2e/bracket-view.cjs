@@ -10,7 +10,8 @@
  * /bracketview, where RotorHazard's socket feeds it the same sections.
  *
  * What has to hold:
- *   - every class of the event gets its own section, in the timer's order, whatever its name;
+ *   - every class of the event gets its own section, the newest on top, whatever its name - and
+ *     the standings under them likewise;
  *   - a class whose heats form a bracket is drawn as that bracket: winners and losers bracket
  *     with their titles, a column per round under its name, a line per link; a single
  *     elimination in one section with its small final; the others as a row;
@@ -231,9 +232,10 @@ function planRace( key, options ) {
 		const data = planRace( 'double-fai16' );
 		const thrown = await deliver( tab, data );
 		check( 'no throw, no error', thrown === null && ! tab.__errors.length, thrown || tab.__errors.join( ' | ' ) );
-		// Qualifying has no heats in this race, so it gets no section.
-		check( 'a section per class with heats, in the timer\'s order',
-			JSON.stringify( await containers( tab ) ) === JSON.stringify( [ 'class-1-display', 'class-3-display' ] ),
+		// Qualifying has no heats in this race, so it gets no section. The newest class on top, as the
+		// fixed Elimination - Qualifying - Training containers had it before 1.10.0 (1.12.1).
+		check( 'a section per class with heats, the newest first',
+			JSON.stringify( await containers( tab ) ) === JSON.stringify( [ 'class-3-display', 'class-1-display' ] ),
 			JSON.stringify( await containers( tab ) ) );
 		check( 'the bracket drawn: 14 races', ( await nodeCount( tab, 'class-3-display' ) ) === 14 );
 		check( 'titles for both brackets',
@@ -305,6 +307,26 @@ function planRace( key, options ) {
 		await deliver( tab, data );
 		check( 'decided: the winner first, gold', ( await rows() )[ 0 ] === '1 | P1 | Grand Final | 2/2 wins' &&
 			( await tab.$eval( '#standings-display tbody tr', ( tr ) => tr.classList.contains( 'rm-place-first' ) ) ), ( await rows() )[ 0 ] );
+		// A second bracket, "Pro", flown after the Elimination: its section and its standing come first.
+		const two = races.fly( planRace( 'double-fai16' ) );
+		const pro = races.fly( races.raceFromPlan( 'single-fai16', { firstHeatId: 60 } ) );
+		pro.heat_data.heats.forEach( ( h ) => {
+			two.heat_data.heats.push( { ...h, class_id: 4 } );
+		} );
+		Object.assign( two.result_data.heats, pro.result_data.heats );
+		two.class_data.classes.push( { id: 4, name: 'Pro', displayname: 'Pro', win_condition: '', ranksettings: null, rounds: 1, order: 3, generate_args: null } );
+		await deliver( tab, two );
+		check( 'two brackets: sections and standings, the newest first',
+			( await containers( tab ) ).join() === 'class-4-display,class-3-display,class-1-display' &&
+			( await texts( tab, '#standings-display h2' ) ).join() === 'Pro: Standing,Elimination: Standing',
+			`${ ( await containers( tab ) ).join() } / ${ ( await texts( tab, '#standings-display h2' ) ).join() }` );
+		// Without an order on every class, by id: the highest first.
+		two.class_data.classes.forEach( ( c ) => {
+			c.order = null;
+		} );
+		await deliver( tab, two );
+		check( 'without an order on every class, the highest id first', ( await containers( tab ) ).join() === 'class-4-display,class-3-display,class-1-display',
+			( await containers( tab ) ).join() );
 		await deliver( tab, planRace( 'ranked-fill-12' ) );
 		check( 'no bracket, no standing', await tab.$eval( '#standings-display', ( el ) => el.style.display === 'none' && ! el.children.length ) );
 		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );

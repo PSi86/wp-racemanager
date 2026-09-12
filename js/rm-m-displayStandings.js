@@ -53,15 +53,16 @@ class DisplayStandings {
         tables.forEach( ( el ) => container.appendChild( el ) );
     }
 
-    // One standing per class whose heats form a bracket, in the timer's class order.
+    // One standing per class whose heats form a bracket, the newest first, as the brackets above
+    // them (1.12.1).
     standingsOf( data ) {
         if ( ! data || ! data.class_data || ! data.heat_data ) {
             return [];
         }
         const classes = [ ...( data.class_data.classes || [] ) ];
         const ordered = classes.every( ( c ) => typeof c.order === 'number' )
-            ? classes.sort( ( a, b ) => a.order - b.order || a.id - b.id )
-            : classes.sort( ( a, b ) => a.id - b.id );
+            ? classes.sort( ( a, b ) => b.order - a.order || b.id - a.id )
+            : classes.sort( ( a, b ) => b.id - a.id );
         const out = [];
         for ( const cls of ordered ) {
             const bracket = bracketModel.buildBracket( data, cls.id );

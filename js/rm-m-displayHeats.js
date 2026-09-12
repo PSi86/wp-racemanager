@@ -1,6 +1,6 @@
 // rm-m-displayHeats.js
 //
-// The bracket view: every class of the event in the timer's order, each drawn as the bracket its
+// The bracket view: every class of the event, the newest on top, each drawn as the bracket its
 // heats' seeding forms (rm-m-bracketModel.js) - winners and losers bracket, a column per round
 // under its name, the grand final at the end, Chase the Ace in the final - or, for a class that
 // forms none (training, qualifying, a ladder), as its heats in a row. And the next-up row.
@@ -139,19 +139,20 @@ class DisplayHeats {
         console.error(`DisplayHeats: could not draw ${key}; drawing it as a row instead.`, error);
     }
 
-    // The classes that have heats, in the timer's order: by `order` when every class has one.
+    // The classes that have heats, the newest first: the timer's order turned round - by `order`
+    // when every class has one, else by id. So the elimination is on top, then qualifying, then
+    // training, as the fixed containers of the page had them before 1.10.0 (1.12.1).
     classesInOrder(data) {
         const heats = data.heat_data.heats || [];
         const classes = (data.class_data.classes || []).filter(c => heats.some(h => h.class_id === c.id));
         if (classes.every(c => typeof c.order === 'number')) {
-            return classes.sort((a, b) => a.order - b.order || a.id - b.id);
+            return classes.sort((a, b) => b.order - a.order || b.id - a.id);
         }
-        return classes.sort((a, b) => a.id - b.id);
+        return classes.sort((a, b) => b.id - a.id);
     }
 
-    // With #raceclass-sections on the page, one container per class, in the timer's order, made
-    // and removed as the classes come and go. A page with fixed containers ({name}-display)
-    // keeps them.
+    // With #raceclass-sections on the page, one container per class, the newest first, made and
+    // removed as the classes come and go. A page with fixed containers ({name}-display) keeps them.
     syncSections(data) {
         const wrapper = document.getElementById('raceclass-sections');
         if (!wrapper) return;

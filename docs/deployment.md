@@ -447,6 +447,12 @@ unversioned as well, with the same effect. Nothing breaks.
 
 1.12.0 changes no module.
 
+1.12.1 puts the newest class on top of the bracket view again - elimination, qualifying, training,
+as the fixed containers had it before 1.10.0 - and the standings under it likewise. It changes
+`rm-m-displayHeats.js` and `rm-m-displayStandings.js`. The bracket page enqueues both with the
+version, so a new visit takes them at once; the next-up view reaches them unversioned, and a browser
+holding the 1.12.0 copies shows the old order there until it fetches them again.
+
 ---
 
 ## 8 · Rollback
