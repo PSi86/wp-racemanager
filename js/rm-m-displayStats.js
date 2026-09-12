@@ -110,7 +110,10 @@ if (window.location.hash) {
 }
 
 
-//import { __ } from './rm-m-i18n.js';
+// The live pages have no translations (English, docs/live-webapp-improvements.md); the labels a
+// ranking method brings are shown as it wrote them. The import this stood in for never existed,
+// so the first real class ranking threw here.
+const __ = (text) => text ?? '';
 
 class DisplayStats {
     constructor() {
@@ -1133,9 +1136,12 @@ class DisplayStats {
     buildRanking(ranking) {
         const leaderboard = ranking.ranking;
         const meta = ranking.meta;
-        if (!leaderboard || !(meta && meta.rank_fields)) {
+        // A method that ranked nobody answers {} and {} (Class Rank: Brackets does), which arrive
+        // as an object and an object or as two empty lists.
+        if (!Array.isArray(leaderboard) || !(meta && meta.rank_fields)) {
             const p = document.createElement('p');
-            p.textContent = __(meta.method_label) + " " + 'did not produce a ranking.';
+            const method = meta && meta.method_label ? __(meta.method_label) : 'The ranking method';
+            p.textContent = method + ' did not produce a ranking.';
             return p;
         }
 
