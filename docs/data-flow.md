@@ -89,6 +89,10 @@ suite, gzip: 11,365 bytes for an update that changed a heat, its class, the even
 `current_heat` — `heat_data` stayed as it was, which a real upload's would not — against 102,039
 for the whole file.
 
+Writing the parts costs the upload's answer about 20 ms. Measured in the local container with the
+largest of the three races, 1.65 MB and 64 files, seven runs: `rm_write_files()` 34 ms at the
+median, against 12 ms for the whole file and the timestamp alone.
+
 **A notification writes the files again** (`handle_notification_request()` reads the whole file back
 and hands it to `rm_write_files()`): the index it carries is taken out and made anew, and only the
 race log's hash changes. A viewer downloads that one part rather than the whole file.
