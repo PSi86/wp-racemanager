@@ -6,6 +6,7 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 require_once __DIR__ . '/pilot-key.php'; // rm_pilot_keys_by_id(), for the next-up notifications
 require_once __DIR__ . '/race-files.php'; // rm_write_files(), the files an upload is stored in
+require_once __DIR__ . '/race-announcement.php'; // rm_race_announcement_markup(), for a race the timer creates
 
 //add_action('rest_api_init', function () {
 function rm_register_rest_routes_rh() {
@@ -739,9 +740,7 @@ function rm_create_race( $data ) {
             <!-- /wp:columns -->
 
             <!-- wp:details -->
-            <details class="wp-block-details"><summary><strong>Details: </strong></summary><!-- wp:paragraph {"placeholder":"Timetable, Location, Food, Rules, etc."} -->
-            <p>08:30 Doors open <br>09:00 Training <br>10:00 Qualification <br>13:00 Lunch <br>17:00 Finals <br>18:00 End</p>
-            <!-- /wp:paragraph -->
+            <details class="wp-block-details"><summary><strong>Details: </strong></summary>' . rm_race_announcement_markup() . '
 
             <!-- wp:gmap/gmap-block {"address":"Martin-Luther-Straße 28, 70825 Korntal-Münchingen","zoom":11,"uniqueId":"gmap-block-gaoc5rx2","blockStyle":"\n        \n        \n    \n        @media (max-width: 1024px) and (min-width: 768px) {\n            \n         \n    \n        }\n        @media (max-width: 767px) {\n            \n         \n    \n        }\n    "} -->
             <div class="wp-block-gmap-gmap-block gmap-block-gaoc5rx2"><iframe src="https://maps.google.com/maps?q=Martin-Luther-Stra%C3%9Fe+28%2C+70825+Korntal-M%C3%BCnchingen&amp;z=11&amp;t=roadmap&amp;output=embed" class="embd-map" title="Martin-Luther-Straße 28, 70825 Korntal-Münchingen"></iframe></div>

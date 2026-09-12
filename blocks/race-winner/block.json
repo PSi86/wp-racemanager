@@ -1,0 +1,16 @@
+{
+    "apiVersion": 3,
+    "name": "wp-racemanager/race-winner",
+    "title": "Race Winner",
+    "category": "widgets",
+    "icon": "awards",
+    "description": "Who won the race, from its results: photo, flag and callsign, one line per bracket class. Nothing while there is no winner.",
+    "usesContext": [ "postId", "postType" ],
+    "supports": {
+        "html": false,
+        "typography": { "fontSize": true },
+        "spacing": { "margin": true, "padding": true }
+    },
+    "editorScript": "file:./index.js",
+    "style": "file:./style.css"
+}

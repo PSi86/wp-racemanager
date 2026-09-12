@@ -17,6 +17,7 @@ require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-date.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-buttons.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-gallery.php';
 require_once plugin_dir_path( __DIR__ ) . 'includes/block-archive-toggle.php';
+require_once plugin_dir_path( __DIR__ ) . 'includes/block-render-race-winner.php';
 
 /**
  * Registers the custom block using the block.json in the block folder.
@@ -46,6 +47,10 @@ function rm_register_blocks() {
     ) );
     register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-gallery', array(
         'render_callback' => 'rm_render_media_gallery',
+    ) );
+    // for block-render-race-winner.php
+    register_block_type( plugin_dir_path( __DIR__ ) . 'blocks/race-winner', array(
+        'render_callback' => 'rm_render_race_winner_block',
     ) );
 }
 add_action( 'init', 'rm_register_blocks' );

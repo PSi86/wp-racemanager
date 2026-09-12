@@ -289,6 +289,29 @@ upload, and a race archived before 1.11.0 not at all, until it is written again.
 timer sends their pilot key can have them: the RotorHazard connector does from its 2.0.0 betas on.
 The timer's own `/bracketview` shows no flags.
 
+## 6c · 1.12.0 — the winner on the race cards, and the announcement
+
+**The winner block has to be placed by hand.** 1.12.0 brings the block *Race Winner*
+(`wp-racemanager/race-winner`): the cup, the winner's photo or initials, flag and callsign, one line
+per bracket class, and nothing while a race has no winner. Where it goes is the theme's: in the
+Site Editor (Appearance → Editor → Templates), open the template that lists the races — the Query
+Loop's post template, the card — and the one for a single race, and insert *Race Winner* where the
+winner is to show, below the title for example. It takes its race from the card or the page it sits
+on.
+
+Nobody enters the winner: every write of a race's files works it out from the timer's results and
+keeps it in the race (`_race_winner`). The races stored before get theirs a few at a time on the next
+admin page loads (five per request, from their data files); after that the option
+`rm_race_winner_schema` is 1 and nothing more is read. When a winner changes, the page cache is
+emptied, as for a race's state.
+
+**New races start with the announcement.** A race made in the admin, and one the timer creates,
+starts with the pattern *Race announcement* in its Details block: a schedule as a table and lists of
+what to bring, what is on site, and the video systems allowed and not, with block styles for each
+(Schedule; Checklist, Allowed, Not allowed). The organiser edits them like any block, and the pattern
+can be inserted into an existing race from the inserter (Patterns → Races). Races written before keep
+their text.
+
 ---
 
 ## 7 · After deploying
@@ -421,6 +444,8 @@ holds the 1.10.0 copies counts such a round until it fetches them again - its wi
 and `rm-m-displayStandings.js` check for before they call it. A browser holding an older model shows
 no flags and photos until it fetches the new one; the next-up view reaches both displays
 unversioned as well, with the same effect. Nothing breaks.
+
+1.12.0 changes no module.
 
 ---
 

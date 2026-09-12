@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP RaceManager
  * Description: Provides REST API endpoints for RotorHazard: download pilot registrations, upload race results. The "Races" menu item will be populated with the latest races. For more information, see the plugin settings.
- * Version: 1.11.0
+ * Version: 1.12.0
  * Author: Peter Simandl
  * Text Domain: wp-racemanager
  * Requires at least: 6.5
@@ -21,7 +21,7 @@ namespace RaceManager;  // Use your preferred namespace if you have one.
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-define( 'WP_RACEMANAGER_VERSION', '1.11.0' ); // keep in sync with the plugin header and package.json
+define( 'WP_RACEMANAGER_VERSION', '1.12.0' ); // keep in sync with the plugin header and package.json
 define( 'WP_RACEMANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 //define( 'WP_RACEMANAGER_ASSETS', WP_RACEMANAGER_URL . 'assets/build/' );

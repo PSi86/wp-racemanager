@@ -99,6 +99,12 @@ Consequences worth keeping in mind when changing this:
   never carries its metadata: `rm_jpeg_without_metadata()` takes it off after the image editor,
   because WordPress's Imagick keeps EXIF (GPS included) on purpose. Flags show only where a page sets
   `flagBaseUrl` — never on the timer.
+- **A race's winner (1.12.0) is computed, never entered**: `rm_write_files()` works it out on every
+  write into `_race_winner` (`includes/race-winner.php`), per bracket class — the "Brackets" ranking's
+  place 1, else the first of the final, the final being the heat nobody seeds from that takes someone's
+  first place. The `race-winner` block renders it. The race announcement is a pattern of core blocks
+  (`includes/race-announcement.php`); its markup is what WordPress 7.1's editor serializes, and
+  `test:e2e` checks the editor still takes it as valid.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -122,7 +128,7 @@ when any of that is missing.
 
 | Suite | Covers |
 |---|---|
-| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, and that the console stays clean |
+| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, that the race announcement pattern is valid and a new race starts with it, and that the console stays clean |
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |

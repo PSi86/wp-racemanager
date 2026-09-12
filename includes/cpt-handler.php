@@ -4,6 +4,8 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+require_once __DIR__ . '/race-announcement.php'; // the pattern a new race's template starts with
+
 add_action( 'init', 'rm_register_cpt' );
 
 function rm_register_cpt() {
@@ -153,18 +155,16 @@ function rm_register_cpt() {
                 ),
             )
         ),
-        // Details block containing a schedule and a GMap block
+        // Details block containing the announcement and a GMap block
         array(
             'core/details',
             array('summary' => '<strong>Details: </strong>'),
             array(
-                // Paragraph inside Details block (schedule)
+                // The announcement (1.12.0): schedule, what to bring, what is on site, video systems.
+                // The editor puts the pattern's blocks in its place, for the organiser to edit.
                 array(
-                    'core/paragraph',
-                    array(
-                        'placeholder' => 'Timetable, Location, Food, Rules, etc.',
-                        'content'     => '08:30 Doors open <br>09:00 Training <br>10:00 Qualification <br>13:00 Lunch <br>17:00 Finals <br>18:00 End'
-                    ),
+                    'core/pattern',
+                    array( 'slug' => RM_RACE_ANNOUNCEMENT_PATTERN ),
                     array()
                 ),
                 // GMap block displaying location

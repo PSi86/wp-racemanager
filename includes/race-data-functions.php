@@ -1,6 +1,8 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+require_once __DIR__ . '/race-results.php'; // a heat's result, a class's ranking, Chase the Ace
+
 // How a RotorHazard heat slot gets its pilot (Database.ProgramMethod): -1 none, 0 assigned,
 // 1 from a heat's result (seed_id = heat), 2 from a class's result (seed_id = class).
 if (!defined('RM_SLOT_HEAT_RESULT')) define('RM_SLOT_HEAT_RESULT', 1);
@@ -224,39 +226,8 @@ function rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById = null) {
         if ($nr <= 0) return null;
     }
 
-    if (!isset($rhData['result_data']['heats']) || !is_array($rhData['result_data']['heats'])) {
-        return null;
-    }
-
-    $resultHeats = $rhData['result_data']['heats'];
-
-    // Fast path: direct access by key (JSON object -> associative array with string keys)
-    $resultHeat = null;
-    $key = (string)$seedHeatId;
-    if (isset($resultHeats[$key]) && is_array($resultHeats[$key])) {
-        $resultHeat = $resultHeats[$key];
-    } else {
-        // Fallback: scan
-        foreach ($resultHeats as $rh) {
-            if (isset($rh['heat_id']) && (int)$rh['heat_id'] === $seedHeatId) {
-                $resultHeat = $rh;
-                break;
-            }
-        }
-    }
-
-    if (!$resultHeat) return null;
-
-    $primaryLeaderboard = 'by_race_time';
-    if (isset($resultHeat['leaderboard']['meta']['primary_leaderboard'])) {
-        $primaryLeaderboard = (string)$resultHeat['leaderboard']['meta']['primary_leaderboard'];
-    }
-
-    if (!isset($resultHeat['leaderboard'][$primaryLeaderboard]) || !is_array($resultHeat['leaderboard'][$primaryLeaderboard])) {
-        return null;
-    }
-
-    return rm_seededEntry($resultHeat['leaderboard'][$primaryLeaderboard], $seedRank);
+    $entries = rm_heat_primary_entries($rhData, $seedHeatId);
+    return $entries !== null ? rm_seededEntry($entries, $seedRank) : null;
 }
 
 /**
@@ -331,22 +302,11 @@ function rm_seededEntry($entries, $seedRank) {
 function rm_open_cta_finals($rhData, $classHeats) {
     $open = array();
     foreach ((array)($rhData['class_data']['classes'] ?? array()) as $class) {
-        if (!is_array($class) || ($class['win_condition'] ?? '') !== 'Brackets') continue;
-        $settings = is_array($class['ranksettings'] ?? null) ? $class['ranksettings'] : array();
-        $cta = $settings['chase_the_ace'] ?? true;
-        if ($cta === false || $cta === '0' || $cta === 0) continue;
+        if (!is_array($class) || !rm_class_chases_the_ace($class)) continue;
         $cid = (int)($class['id'] ?? 0);
         if (empty($classHeats[$cid])) continue;
 
-        $ranking = $rhData['result_data']['classes'][(string)$cid]['ranking']['ranking'] ?? null;
-        $decided = false;
-        foreach ((array)$ranking as $entry) {
-            if (is_array($entry) && isset($entry['position']) && (int)$entry['position'] === 1) {
-                $decided = true;
-                break;
-            }
-        }
-        if (!$decided) {
+        if (rm_class_ranking_first($rhData, $cid) === null) {
             $open[] = (int)end($classHeats[$cid]);
         }
     }
