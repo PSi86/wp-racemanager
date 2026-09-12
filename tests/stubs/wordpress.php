@@ -325,6 +325,11 @@ if ( ! function_exists( 'add_action' ) ) {
         }
     }
 }
+if ( ! function_exists( 'do_action' ) ) {
+    function do_action( $hook, ...$args ) {
+        $GLOBALS['rm_actions_fired'][] = array( $hook, $args );
+    }
+}
 if ( ! function_exists( 'apply_filters' ) ) {
     function apply_filters( $hook, $value ) {
         if ( isset( $GLOBALS['rm_filter_overrides'][ $hook ] ) ) {

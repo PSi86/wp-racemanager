@@ -39,20 +39,11 @@ function rm_render_race_select_block( $attributes, $content ) {
         return '<p>' . esc_html__( 'No races found.', 'wp-racemanager' ) . '</p>';
     }
     
-    // Use current_time('timestamp') to get the site's local timestamp.
-    $current_timestamp = current_time( 'timestamp' );
-
     $output = '<ul class="race-select-list">';
     while ( $query->have_posts() ) {
         $query->the_post();
         $race_id = get_the_ID();
-        
-        //$race_live = get_post_meta( $race_id, '_race_live', true );
-        
-        $last_upload = get_post_meta( $race_id, '_race_last_upload', true );
-        // Convert the MySQL timestamp to a Unix timestamp
-        $upload_timestamp = strtotime( $last_upload );
-        
+
         // Canonical live URL for this race, e.g. /live/spring-cup-2026/bracket/
         $custom_link = rm_live_url( get_post( $race_id ) );
         if ( ! $custom_link ) {
@@ -61,14 +52,15 @@ function rm_render_race_select_block( $attributes, $content ) {
 
         // Links back to this page carry the race the visitor came from, so it can be marked.
         $is_current = ( $race_id === rm_get_current_race_id() );
+        // By the live flag, like the dot on the live link: it said "an upload in the last two
+        // hours" until 1.9.0, which a cached copy of this page kept showing (rm_live_race_exists()).
+        $is_live = rm_race_is_live( $race_id );
 
-        $output .= '<li class="race-select-item' . ( $is_current ? ' is-current' : '' ) . '">';
+        $output .= '<li class="race-select-item' . ( $is_current ? ' is-current' : '' ) . ( $is_live ? ' is-live' : '' ) . '">';
         $output .= '<a href="' . esc_url( $custom_link ) . '"' . ( $is_current ? ' aria-current="true"' : '' ) . '>';
-        
+
         // TODO: use css stylesheet instead of inline style
-        //$output .=  $race_live ? '<span style="color: red;">Live: </span>' : '';
-        // If the last upload timestamp is less than two hours old, add the "Live:" prefix.
-        if ( $upload_timestamp && ( $current_timestamp - $upload_timestamp ) < ( 2 * HOUR_IN_SECONDS ) ) {
+        if ( $is_live ) {
             $output .= '<span style="color: red;">Live: </span>';
         }
         $output .=  get_the_title() . '</a> ('. rm_render_race_date_block( null, null ) . ')</li>';

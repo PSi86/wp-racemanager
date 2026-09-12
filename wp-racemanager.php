@@ -112,7 +112,7 @@ final class WP_RaceManager {
         //require_once WP_RACEMANAGER_DIR . 'vendor/autoload.php'; // if you’re using Composer
         // First load helper functions or implement them here
         // Init global variables
-        add_action( 'init', [ $this, 'is_a_race_live' ] ); // Check if a race has been updated in the last two hours
+        add_action( 'init', [ $this, 'is_a_race_live' ] ); // Whether a race is live, for the dot on the live link
         
         // Load the REST API handling
         //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
@@ -223,32 +223,18 @@ final class WP_RaceManager {
         return false;
     }
 
+    /**
+     * Whether a race is live, for the dot on the live link in the main navigation.
+     *
+     * By the live flag since 1.9.0, no longer by an upload in the last two hours; see
+     * rm_live_race_exists().
+     */
     public function is_a_race_live() {
-        //
-        // Generate the datetime string for two hours ago
-        $two_hours_ago = date( 'Y-m-d H:i:s', strtotime( '-2 hours', current_time( 'timestamp' ) ) );
+        $this->live_race_in_progress = rm_live_race_exists();
 
-        $args = array(
-            'post_type'      => 'race',
-            'posts_per_page' => 1,              // Limit to one result
-            'fields'         => 'ids',          // Only retrieve IDs for efficiency
-            'meta_query'     => array(
-                array(
-                    'key'     => '_race_last_upload',
-                    'value'   => $two_hours_ago,
-                    'compare' => '>',
-                    'type'    => 'DATETIME'
-                ),
-            ),
-        );
-
-        $query = new \WP_Query( $args );
-        $this->live_race_in_progress = $query->have_posts();
-        
         if($this->live_race_in_progress) {
             add_filter( 'render_block', 'rm_indicate_live_race', 10, 2 );
         }
-        //return $query->have_posts();
     }
     
     public static function write_log($log) {

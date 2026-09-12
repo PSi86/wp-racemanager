@@ -9,9 +9,14 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 // A race set to archive, however that happens: the meta box, Quick Edit, WP-CLI, or code that
 // updates the meta. Not on deleted_post_meta: that fires for every meta of a race being deleted,
-// and would write its files again after the attachments took them.
+// and would write its files again after the attachments took them. update_post_meta fires before
+// the value is stored, and says what the state was.
+add_action( 'update_post_meta', 'rm_before_race_live_stored', 10, 4 );
 add_action( 'added_post_meta', 'rm_on_race_live_changed', 10, 4 );
 add_action( 'updated_post_meta', 'rm_on_race_live_changed', 10, 4 );
+
+// A race's first results: from then on the race list shows it.
+add_action( 'added_post_meta', 'rm_on_race_first_results', 10, 4 );
 
 // The races that were archived before 1.8.1, once.
 add_action( 'admin_init', 'rm_maybe_clear_archived_races' );
@@ -30,12 +35,72 @@ function rm_race_is_live( $race_id ) {
 }
 
 /**
- * A race's live flag was stored: when it is off, archive the race.
+ * Whether a race is live and has results: what the dot on the live link in the main navigation says.
+ *
+ * It said "a race had an upload in the last two hours" until 1.9.0. The dot then stayed for up to
+ * two hours after a race was archived, went out in a long break of a race that was live -- and in
+ * a page cache it stayed as it was whenever the page was cached, since the end of a time window is
+ * no event anything could empty the cache on. The flag changes by events, and each empties the page
+ * cache (rm_on_race_live_changed()); a race nobody archives is archived a day after its end.
+ *
+ * @return bool
+ */
+function rm_live_race_exists() {
+    $query = new WP_Query( array(
+        'post_type'      => 'race',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'meta_query'     => array(
+            array( 'key' => '_race_live', 'value' => '1' ),
+            array( 'key' => '_race_last_upload', 'compare' => 'EXISTS' ),
+        ),
+    ) );
+    return $query->have_posts();
+}
+
+/**
+ * Remember, or tell, whether a race was live before its flag was stored again.
+ *
+ * @param int       $race_id
+ * @param bool|null $was_live To remember; null to tell, and forget.
+ * @return bool Whether it was live. A flag added rather than updated had no value: not live.
+ */
+function rm_race_live_before( $race_id, $was_live = null ) {
+    static $before = array();
+    if ( null !== $was_live ) {
+        $before[ $race_id ] = $was_live;
+        return $was_live;
+    }
+    $was = $before[ $race_id ] ?? false;
+    unset( $before[ $race_id ] );
+    return $was;
+}
+
+/**
+ * A race's live flag is about to be stored: remember whether the race was live.
+ *
+ * @param int    $meta_id    Unused.
+ * @param int    $post_id    The post whose meta is stored.
+ * @param string $meta_key   Its key.
+ * @param mixed  $meta_value Unused.
+ * @return void
+ */
+function rm_before_race_live_stored( $meta_id, $post_id, $meta_key, $meta_value ) {
+    if ( '_race_live' === $meta_key ) {
+        rm_race_live_before( (int) $post_id, rm_race_is_live( $post_id ) );
+    }
+}
+
+/**
+ * A race's live flag was stored: when it is off, archive the race; when it changed, empty the page
+ * cache.
  *
  * WordPress fires added_post_meta and updated_post_meta after it stored the value, so
  * rm_write_files() already reads the race as archived. It compares the old value with the new one
  * strictly, and Quick Edit passes a number where the database holds a string: saving an archived
- * race there fires this every time. rm_archive_race() does nothing when there is nothing to do.
+ * race there fires this every time. rm_archive_race() does nothing when there is nothing to do, and
+ * the page cache is emptied only when the state changed.
  *
  * @param int    $meta_id    Unused.
  * @param int    $post_id    The post whose meta was stored.
@@ -44,10 +109,56 @@ function rm_race_is_live( $race_id ) {
  * @return void
  */
 function rm_on_race_live_changed( $meta_id, $post_id, $meta_key, $meta_value ) {
-    if ( '_race_live' !== $meta_key || '1' === (string) $meta_value || 'race' !== get_post_type( $post_id ) ) {
+    if ( '_race_live' !== $meta_key || 'race' !== get_post_type( $post_id ) ) {
         return;
     }
-    rm_archive_race( (int) $post_id );
+    $was_live = rm_race_live_before( (int) $post_id );
+    $is_live  = '1' === (string) $meta_value;
+    if ( ! $is_live ) {
+        rm_archive_race( (int) $post_id );
+    }
+    if ( $was_live !== $is_live ) {
+        rm_purge_page_caches();
+    }
+}
+
+/**
+ * A race got its first results: empty the page cache, since the race list now shows it.
+ *
+ * Later uploads change nothing a page renders -- the data comes from the race's files -- and empty
+ * nothing.
+ *
+ * @param int    $meta_id    Unused.
+ * @param int    $post_id    The post whose meta was added.
+ * @param string $meta_key   Its key.
+ * @param mixed  $meta_value Unused.
+ * @return void
+ */
+function rm_on_race_first_results( $meta_id, $post_id, $meta_key, $meta_value ) {
+    if ( '_race_last_upload' === $meta_key && 'race' === get_post_type( $post_id ) ) {
+        rm_purge_page_caches();
+    }
+}
+
+/**
+ * Empty the page cache, so that pages rendered with a race's state are rendered anew.
+ *
+ * The live area is cacheable on purpose, and the state is in its markup: whether a view polls, the
+ * next-up view's subscription form or "This race is over.", the "Live:" in the race list, and the
+ * dot on the live link, which the navigation of every page carries. Measured on production on
+ * 2026-09-12: the home page, the race list and a race's bracket came from LiteSpeed's page cache
+ * (X-LiteSpeed-Cache: hit), which keeps a page for 7 days unless configured otherwise. So a change
+ * of state empties all of it -- a few times per event -- rather than guessing which pages carry it.
+ *
+ * LiteSpeed Cache's own call, with the '*' it empties its page cache with; its CSS, JS and object
+ * caches are left alone. Without the plugin, nothing happens. The purge travels in a response's
+ * headers; from WP-CLI and WP-Cron, where no response carries it, LiteSpeed Cache keeps it and
+ * sends it with the next request (read in its source, 7.9.1).
+ *
+ * @return void
+ */
+function rm_purge_page_caches() {
+    do_action( 'litespeed_purge', '*' );
 }
 
 /**
