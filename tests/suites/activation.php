@@ -55,8 +55,21 @@ if ( ! file_exists( ABSPATH . 'wp-admin/includes/upgrade.php' ) ) {
 }
 
 class RM_Test_Wpdb {
-    public $prefix = 'wp_';
+    public $prefix   = 'wp_';
+    public $columns  = array(); // what SHOW COLUMNS finds
+    public $inserted = null;
     public function get_charset_collate() { return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'; }
+    public function prepare( $query, ...$args ) { return vsprintf( str_replace( '%s', "'%s'", $query ), $args ); }
+    public function get_var( $query ) {
+        foreach ( $this->columns as $column ) {
+            if ( str_contains( $query, 'SHOW COLUMNS' ) && str_contains( $query, "'$column'" ) ) {
+                return $column;
+            }
+        }
+        return null;
+    }
+    public function get_row( $query ) { return null; }
+    public function insert( $table, $data ) { $this->inserted = $data; return 1; }
 }
 $GLOBALS['wpdb'] = new RM_Test_Wpdb();
 
@@ -108,6 +121,35 @@ rm_test_check( 'no IF NOT EXISTS in the statement', ! str_contains( strtoupper( 
 rm_test_check( 'core parses the real table name', 'wp_rm_subscriptions' === $parsed, "read as: $parsed" );
 rm_test_check( 'the charset collate is appended', str_contains( $sql, 'utf8mb4_unicode_ci' ) );
 rm_test_check( 'PRIMARY KEY keeps its two spaces, as dbDelta expects', str_contains( $sql, 'PRIMARY KEY  (id)' ) );
+rm_test_check( 'a pilot key for each subscription (1.7.0)', str_contains( $sql, "pilot_key varchar(36) DEFAULT '' NOT NULL," ) );
+
+rm_test_section( 'The table brought up to date after an update (1.7.0)' );
+
+// A ZIP replace does not run the activation hook, so the first request after it has to.
+function current_time( $type ) { return '2026-09-12 12:00:00'; }
+$GLOBALS['rm_filters'] = array();
+require_once RM_PLUGIN_DIR . '/includes/db-handler.php';
+rm_test_check( 'checked on plugins_loaded, before any request reaches a subscription', in_array( 'plugins_loaded', $GLOBALS['rm_filters'], true ) );
+
+$GLOBALS['rm_dbdelta_sql'] = array();
+unset( $GLOBALS['rm_options']['rm_subscriptions_schema'] );
+rm_maybe_upgrade_subscriptions_table();
+rm_test_check( 'a site from before 1.7.0: dbDelta() runs', 1 === count( $GLOBALS['rm_dbdelta_sql'] ) );
+rm_test_check( '  but the column is not there: nothing recorded, tried again', ! isset( $GLOBALS['rm_options']['rm_subscriptions_schema'] ) );
+
+$GLOBALS['wpdb']->columns = array( 'pilot_key' );
+rm_maybe_upgrade_subscriptions_table();
+rm_test_check( 'once the column is there, schema 2 is recorded', 2 === ( $GLOBALS['rm_options']['rm_subscriptions_schema'] ?? null ) );
+
+$GLOBALS['rm_dbdelta_sql'] = array();
+rm_maybe_upgrade_subscriptions_table();
+rm_test_check( '  and no later request runs dbDelta() again', array() === $GLOBALS['rm_dbdelta_sql'] );
+
+rm_upsert_subscription( 2578, 7, 'TP7', 'https://push.example.test/1', 'p256dh', 'auth', 'a7a7a7a7-bbbb-5ccc-8ddd-eeeeeeeeee07' );
+rm_test_check( 'a subscription is stored with its pilot key',
+    'a7a7a7a7-bbbb-5ccc-8ddd-eeeeeeeeee07' === ( $GLOBALS['wpdb']->inserted['pilot_key'] ?? null ), var_export( $GLOBALS['wpdb']->inserted, true ) );
+rm_upsert_subscription( 2578, 7, 'TP7', 'https://push.example.test/2', 'p256dh', 'auth' );
+rm_test_check( '  and one without, as an older page sends it, with none', '' === ( $GLOBALS['wpdb']->inserted['pilot_key'] ?? null ) );
 
 // The registrations table was always written correctly -- guard it against a copy/paste regression.
 $registrations = file_get_contents( RM_PLUGIN_DIR . '/includes/admin-registrations.php' );

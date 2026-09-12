@@ -171,7 +171,10 @@ alone.
 | Deactivate → Activate | yes |
 
 The activation hook creates the two custom tables, bootstraps VAPID keys, writes `manifest.json`
-and `pwa-sw.js`, and flushes the rewrite rules.
+and `pwa-sw.js`, and flushes the rewrite rules. From 1.7.0 on, the subscriptions table is also
+brought up to date on the first request after an update (`rm_maybe_upgrade_subscriptions_table()`,
+recorded in the option `rm_subscriptions_schema`), so its `pilot_key` column needs no
+reactivation.
 
 **Deactivate → Activate is safe again**, and it is the simplest way to run the hook after a ZIP
 replace. It used to be the thing not to do: `create_event_registration_cf7_form()` inserted

@@ -19,6 +19,10 @@ class PilotSelector {
         // Optional properties
         this.pilotSelectionKey = `${this.raceId}_pilotSelection`;
         this.selectedPilotId = parseInt(sessionStorage.getItem(this.pilotSelectionKey)) || 0; //|| null;
+        // The selected pilot's key, where the race data has one: the timer gives re-created
+        // pilots new IDs, and the key is what still names the same person then.
+        this.pilotKeyStorageKey = `${this.raceId}_pilotSelectionPilotKey`;
+        this.selectedPilotKey = sessionStorage.getItem(this.pilotKeyStorageKey) || '';
 
         this.pilotSelectorId = window.RmJsConfig["pilotSelector"].pilotSelectorId || 'pilotSelector-id';
         this.pilotSelector = document.getElementById(`${this.pilotSelectorId}`);
@@ -54,6 +58,9 @@ class PilotSelector {
         // value themselves, so nothing depends on the difference today -- it is
         // just one less trap for whoever compares against it next.
         this.selectedPilotId = parseInt(event.target.value) || 0;
+        const option = event.target.selectedOptions ? event.target.selectedOptions[0] : null;
+        this.selectedPilotKey = (option && option.getAttribute('data-pilot-key')) || '';
+        sessionStorage.setItem(this.pilotKeyStorageKey, this.selectedPilotKey);
     }
 
     populatePilotSelect(data) {
@@ -76,7 +83,10 @@ class PilotSelector {
         // Extract basic Pilot data from the RHData
         const pilotsMap = data.pilot_data.pilots.map(pilot => ({
             id: pilot.pilot_id,
-            callsign: pilot.callsign
+            callsign: pilot.callsign,
+            // Sent by the RotorHazard connector from the version that came with WP RaceManager
+            // 1.7.0 on; none for a pilot added by hand on the timer, or from an older one.
+            key: typeof pilot.pilot_key === 'string' ? pilot.pilot_key : ''
         }));
 
         // Sort the pilotsMap alphabetically by callsign
@@ -101,6 +111,7 @@ class PilotSelector {
             option.textContent = pilot.callsign;
             option.setAttribute('data-pilot-id', pilot.id);
             option.setAttribute('data-pilot-callsign', pilot.callsign);
+            option.setAttribute('data-pilot-key', pilot.key);
             option.setAttribute('data-race-id', this.raceId);
             options.appendChild(option);
         });
@@ -112,7 +123,16 @@ class PilotSelector {
         // list is rebuilt, assigning a value no option carries leaves
         // selectedIndex at -1 and the control renders blank -- not even the
         // placeholder.
-        this.pilotSelector.value = String(this.selectedPilotId);
+        //
+        // Which pilot that is: the one with the selected pilot's key, where the data has keys.
+        // The timer gives re-created pilots new IDs, and the ID selected before may belong to
+        // someone else by then. By the ID otherwise, as before.
+        let wanted = String(this.selectedPilotId);
+        if (this.selectedPilotKey !== '' && pilotsMap.some(pilot => pilot.key !== '')) {
+            const same = pilotsMap.find(pilot => pilot.key === this.selectedPilotKey);
+            wanted = same ? String(same.id) : '';
+        }
+        this.pilotSelector.value = wanted;
 
         if (this.pilotSelector.selectedIndex === -1) {
             console.log(`PilotSelector: pilot ${this.selectedPilotId} is no longer in the field, falling back to the placeholder`);
@@ -120,6 +140,9 @@ class PilotSelector {
             // displayHeats and displayStats read the selection off this element
             // on its change event, so a silent assignment would leave them
             // filtering by a pilot the dropdown no longer offers.
+            this.pilotSelector.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (this.pilotSelector.value !== String(this.selectedPilotId)) {
+            // The same pilot under a new ID: the other modules filter by the ID.
             this.pilotSelector.dispatchEvent(new Event('change', { bubbles: true }));
         }
     }

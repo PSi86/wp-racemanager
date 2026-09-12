@@ -10,6 +10,7 @@ defined( 'ABSPATH' ) || exit;
 require_once __DIR__ . '/vapid-handler.php';
 rm_push_library_available();
 require_once __DIR__ . '/after-response.php';
+require_once __DIR__ . '/pilot-key.php'; // rm_valid_pilot_key(), for which pilot a subscription follows
 
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
@@ -75,6 +76,7 @@ class PWA_Subscription_Handler {
         race_id bigint(20) unsigned NOT NULL,
         pilot_id int(20) unsigned NOT NULL,
         pilot_callsign varchar(40) DEFAULT '' NOT NULL,
+        pilot_key varchar(36) DEFAULT '' NOT NULL,
         heat_id int(20) unsigned NOT NULL DEFAULT 0,
         heat_displayname varchar(60) DEFAULT '' NOT NULL,
         slot_id int(20) unsigned NOT NULL DEFAULT 0,
@@ -190,14 +192,24 @@ class PWA_Subscription_Handler {
      * After sending a notification, the subscriber’s record is updated accordingly.
      *
      * TODO: Reduce data overhead: if multiple clients subscribe to the same pilot, the heat and slot data is redundantly stored in each subscription.
-     * 
+     *
+     * Which pilot a subscription follows: the one with its pilot key, where the upload names its
+     * pilots by key (the RotorHazard connector sends pilot_key from the version that came with
+     * 1.7.0 on). The timer gives its pilots new IDs when it re-creates them, and by ID a
+     * subscription would then follow whoever has the number now. Where the upload has no keys, by
+     * ID as before. A subscription found by its key gets the pilot's new ID; one from before keys,
+     * found by ID, gets the key of that pilot, and follows the key from then on.
+     *
      * @param int   $race_id         The current race (or heat) ID.
      * @param array $upcomingPilots  Array of upcoming pilot entries from getUpcomingRacePilots().
+     * @param array $pilotKeys       pilot_id => pilot key for every pilot of the upload that has
+     *                               one (rm_pilot_keys_by_id()); empty for an upload without keys.
      * @return array List of pilot_ids for which notifications were sent.
      */
-    public function send_next_up_notifications($race_id, $upcomingPilots) {
+    public function send_next_up_notifications($race_id, $upcomingPilots, $pilotKeys = array()) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'rm_subscriptions';
+        $pilotIdByKey = array_flip( $pilotKeys );
 
         // Build a mapping of upcoming pilots keyed by pilot_id.
         // If a pilot appears more than once, use the entry with the highest heat_id.
@@ -227,8 +239,22 @@ class PWA_Subscription_Handler {
         $notifiedPilotIds = array();
 
         foreach ($subscribers as $subscriber) {
-            $pilotId    = $subscriber['pilot_id'];
+            $pilotId    = (int) $subscriber['pilot_id'];
+            $pilotKey   = rm_valid_pilot_key( $subscriber['pilot_key'] ?? '' );
             $pilotCallsign  = $subscriber['pilot_callsign'];
+
+            if ( $pilotKeys && '' !== $pilotKey ) {
+                // The pilot with this key, under whatever ID the timer gives them now; 0 when the
+                // upload has nobody with it.
+                $pilotId = $pilotIdByKey[ $pilotKey ] ?? 0;
+                if ( $pilotId && $pilotId !== (int) $subscriber['pilot_id'] ) {
+                    $wpdb->update( $table_name, array( 'pilot_id' => $pilotId ), array( 'id' => $subscriber['id'] ), array( '%d' ), array( '%d' ) );
+                }
+            } elseif ( '' === $pilotKey && isset( $pilotKeys[ $pilotId ] ) ) {
+                // From before keys: the key of the pilot it follows, and by that from now on.
+                $wpdb->update( $table_name, array( 'pilot_key' => $pilotKeys[ $pilotId ] ), array( 'id' => $subscriber['id'] ), array( '%s' ), array( '%d' ) );
+            }
+            $subscriber['pilot_id'] = $pilotId; // for the log line below
             $storedHeat = isset($subscriber['heat_id']) ? (int)$subscriber['heat_id'] : 0;
             $storedHeatDisplayname = isset($subscriber['heat_displayname']) ? $subscriber['heat_displayname'] : '';
             $storedSlot = isset($subscriber['slot_id']) ? (int)$subscriber['slot_id'] : 0;

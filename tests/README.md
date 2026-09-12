@@ -37,7 +37,8 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `seo-head` | That `<head>` carries exactly one `<title>` — the SEO handler used to echo its own next to core's — that the per-post override reaches it through `pre_get_document_title`, and that an archive or 404 produces no undefined-variable warnings. |
 | `settings-vapid` | That a plain settings save can never wipe the stored private key — it is not rendered into the form, so nothing in the request carries it. |
 | `race-files` | The per-race JSON directory being created on demand and reporting failure, and the SQL scoping that keeps a bulk delete inside one race. |
-| `activation` | What the activation hook leaves behind, and what a *second* activation must not: the `CREATE TABLE` statement `dbDelta()` can actually parse, the CF7 example form being created once rather than once per activation, and the plugin header — one version number in three places, plus the `Requires` headers. |
+| `activation` | What the activation hook leaves behind, and what a *second* activation must not: the `CREATE TABLE` statement `dbDelta()` can actually parse, with the subscriptions' `pilot_key`, the CF7 example form being created once rather than once per activation, and the plugin header — one version number in three places, plus the `Requires` headers. And that an update brings the table up to date without the hook, which a ZIP replace does not run: on `plugins_loaded`, `dbDelta()` once, the schema recorded only once the column is there, and not again after; and a subscription stored with its pilot key, or none. |
+| `subscriptions-by-key` | Which pilot a push subscription follows once the upload names its pilots by key (the connector's `pilot_key`). Re-created pilots under new IDs: no push about the heat of whoever has the subscription's old ID now, the new ID stored, and the push when the pilot moves naming the right heat. A pilot the upload no longer has: told of leaving the heat, not of the other person's channel. A subscription from before keys: found by ID and given the key. An upload without keys, from an older connector: by ID as before, nothing rewritten. A key in capitals is the same key. And `rm_pilot_keys_by_id()`: by pilot ID, lower-cased, only valid keys. Against 1.6.1's handler the key cases fail, and each of six broken variants of the change fails it. |
 | `pilot-key` | The pilot key: a version-5 UUID computed as RFC 9562 defines it (checked against Python's documented `uuid5` value), one key per address whatever its case or blanks and the same on every call, derived in the site's own namespace — created once, another one giving other keys — and `RM_PILOT_NAMESPACE` winning, an invalid one handing out no key rather than falling back (in a PHP process of its own, since a constant cannot be undefined). And that every row of `get-pilots` carries the key, checked on the endpoint itself; against the old endpoint that check fails. And that `get-pilots` carries no address, phone number or consent flag, while the admin list keeps them, and that a field the admin list gains later stays off the timer (D1 in the connector's roadmap). |
 | `rest-auth` | That the RotorHazard endpoints ask for a capability instead of just "is logged in", that every route and method is behind that gate — a route that answers GET and POST counted twice — that the upload's optional `race_id` is checked per race, and that the dead API key check stays gone. |
 | `race-selection` | A timer naming its race: the upload with `race_id` updates exactly that race and never creates one — the lookup by title that D3 in the RotorHazard plugin's roadmap is about does not even run — while an upload without it still goes by title, for older timers. `GET /races` lists the 15 newest races the user may edit — counted after that check, read page by page past the ones they may not, the newer post first among equal starts; `POST /races` creates a race from the event, with its files from the start, and refuses a title another race has — the title as it would be stored, a race in the bin not counting — naming that race and saying whether the user may edit it. And the HTTP status of each refusal: 404 for no race, 403 without the right, 400 for a locked race, 409 for a title that is taken, 500 when the files cannot be written. A saved upload stays a success when working out who flies next fails or the push library throws, and says that nobody was notified (D8 in the connector's roadmap); a notification without a click URL links to its race's live page; its icon is one of the names `lunch`, `break` and `warning` for the images this plugin ships, a web address as it is, and the site's app icon for anything else (D6 there). |
@@ -82,6 +83,7 @@ npm run test:offline                                # against https://racemanage
 npm run test:view-tabs                              # against https://racemanager.ddev.site
 npm run test:bracket-titles                         # against https://racemanager.ddev.site
 npm run test:class-templates                        # no WordPress and no browser, only Node
+npm run test:push-subscribe                         # no WordPress needed, only a browser
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -119,6 +121,25 @@ And it covers the timer: its `dataLoader` hands a new subscriber an empty object
 section has come in over the socket, and the module waits that out instead of throwing. Against the
 module before that, the check fails with *Cannot read properties of undefined (reading 'pilots')*:
 on the timer, that stops the whole bracket page.
+
+And the pilot key (1.7.0): every option carries it, and when the timer re-creates its pilots under
+new IDs the selected pilot stays selected under the new one, announced with a `change` so the other
+modules filter by it; a pilot gone, whose last ID someone else has now, falls back to the
+placeholder rather than to that person. Against the module before, three of these fail — the
+selection moved to whoever had the old ID.
+
+### `tests/e2e/push-subscribe.cjs`
+
+`js/rm-m-pwa-subscribe.js`: which pilot a push subscription is for. No WordPress and no push
+service: the pilot selector it imports is a stub, and the service worker, its push manager and
+`admin-ajax.php` are stood in for, so what the module sends and what its button offers can be read
+directly.
+
+Subscribed to a pilot who then got a new ID: selecting them offers *Unsubscribe*, selecting the one
+who has their old ID offers *Update Subscription*, and moving the subscription sends the new
+pilot's key with the ID and callsign. Without keys, by ID as before, and an empty key sent. Against
+the module before, four of its six checks fail: the button offered *Unsubscribe* for whoever had
+the old ID, and pressing it would have ended the subscription instead of moving it.
 
 ### `tests/e2e/class-templates.cjs`
 

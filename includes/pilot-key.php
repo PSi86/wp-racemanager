@@ -58,19 +58,71 @@ add_action( 'admin_init', 'rm_pilot_namespace' );
 /**
  * A namespace value, if it is a UUID.
  *
- * Any UUID will do as a namespace, so this checks the shape only. Not wp_is_uuid(): that one
- * refuses capital letters and every version above 5, and a UUID pasted into wp-config.php in
- * capitals is the same UUID.
+ * Any UUID will do as a namespace, so this checks the shape only.
  *
  * @param mixed $value Candidate.
  * @return string Lower-case UUID, or '' when the value is none.
  */
 function rm_valid_pilot_namespace( $value ) {
+    return rm_normalized_uuid( $value );
+}
+
+/**
+ * A pilot key as the timer sends it back, if it is one.
+ *
+ * The key travels to the timer with the registrations and comes back with every upload, as each
+ * pilot's pilot_key. On the way it can be typed over - the timer shows it in the pilot's
+ * attributes - so it is checked for the shape, and compared in lower case.
+ *
+ * @param mixed $value Candidate.
+ * @return string Lower-case UUID, or '' when the value is none.
+ */
+function rm_valid_pilot_key( $value ) {
+    return rm_normalized_uuid( $value );
+}
+
+/**
+ * A UUID in lower case, trimmed; '' for anything else.
+ *
+ * Not wp_is_uuid(): that one refuses capital letters and every version above 5, and a UUID pasted
+ * into wp-config.php in capitals is the same UUID.
+ *
+ * @param mixed $value Candidate.
+ * @return string
+ */
+function rm_normalized_uuid( $value ) {
     if ( ! is_string( $value ) ) {
         return '';
     }
     $value = strtolower( trim( $value ) );
     return 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $value ) ? $value : '';
+}
+
+/**
+ * The pilot keys an upload names, by RotorHazard's pilot_id.
+ *
+ * The RotorHazard connector sends each pilot's key along in pilot_data, from the version that
+ * came with WP RaceManager 1.7.0 on; a pilot added by hand on the timer has none. The ID is the
+ * timer's and changes when it re-creates its pilots; the key stays with the person.
+ *
+ * @param array $rhData The uploaded event.
+ * @return array<int,string> pilot_id => key, for the pilots that carry a valid one.
+ */
+function rm_pilot_keys_by_id( $rhData ) {
+    $keys   = array();
+    $pilots = isset( $rhData['pilot_data']['pilots'] ) && is_array( $rhData['pilot_data']['pilots'] )
+        ? $rhData['pilot_data']['pilots']
+        : array();
+    foreach ( $pilots as $pilot ) {
+        if ( ! is_array( $pilot ) || ! isset( $pilot['pilot_id'] ) ) {
+            continue;
+        }
+        $key = rm_valid_pilot_key( $pilot['pilot_key'] ?? '' );
+        if ( '' !== $key ) {
+            $keys[ (int) $pilot['pilot_id'] ] = $key;
+        }
+    }
+    return $keys;
 }
 
 /**

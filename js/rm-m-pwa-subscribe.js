@@ -161,7 +161,7 @@ export class PushSubscription {
         const currentRaceId = pilotOption ? pilotOption.getAttribute('data-race-id') : null;
         if (statusData.subscribed) {
             this.setSubscriptionStatus(`Subscribed to: ${statusData.race_title} -> ${statusData.pilot_callsign}`);
-            if (statusData.race_id == currentRaceId && statusData.pilot_id == pilotOption.getAttribute('data-pilot-id')) {
+            if (statusData.race_id == currentRaceId && this.isSamePilot(statusData, pilotOption)) {
                 this.subscribeButton.value = 'Unsubscribe';
             } else {
                 //this.setSubscriptionStatus(`Subscribed to race: ${statusData.race_id} (Current race: ${statusData.race_title})`);
@@ -172,6 +172,17 @@ export class PushSubscription {
             this.subscribeButton.value = 'Subscribe';
         }
         this.subscribeButton.disabled = false;
+    }
+
+    // Whether the subscription follows the pilot selected. By the pilot key when both have one:
+    // the timer gives re-created pilots new IDs, and the subscription follows the key. By the ID
+    // otherwise, as before.
+    isSamePilot(statusData, pilotOption) {
+        const optionKey = pilotOption.getAttribute('data-pilot-key') || '';
+        if (statusData.pilot_key && optionKey) {
+            return statusData.pilot_key === optionKey;
+        }
+        return statusData.pilot_id == pilotOption.getAttribute('data-pilot-id');
     }
 
     // Handler for the subscription form/button.
@@ -288,6 +299,7 @@ export class PushSubscription {
         const pilotOption = this.pilotSelect.selectedOptions[0];
         const pilotId = pilotOption.getAttribute('data-pilot-id');
         const pilotCallsign = pilotOption.getAttribute('data-pilot-callsign');
+        const pilotKey = pilotOption.getAttribute('data-pilot-key') || '';
         const raceId = pilotOption.getAttribute('data-race-id');
 
         if (!raceId || !pilotId) {
@@ -304,6 +316,7 @@ export class PushSubscription {
             formData.append('race_id', raceId);
             formData.append('pilot_id', pilotId);
             formData.append('pilot_callsign', pilotCallsign);
+            formData.append('pilot_key', pilotKey);
             formData.append('keys[p256dh]', p256dh);
             formData.append('keys[auth]', auth);
             //formData.append('keys', JSON.stringify({ p256dh, auth }));

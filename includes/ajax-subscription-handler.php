@@ -3,6 +3,8 @@
 // Handles all subscription-related AJAX requests for the RaceManager plugin.
 // This file is included from the main plugin file (wp-racemanager.php).
 
+require_once __DIR__ . '/pilot-key.php'; // rm_valid_pilot_key()
+
 add_action( 'init', 'register_ajax_handlers' );
 /**
  * Register AJAX handlers instead of REST routes.
@@ -43,14 +45,16 @@ function ajax_get_subscription() {
             'race_title' => get_the_title( $subscription->race_id ),
             'pilot_id'   => $subscription->pilot_id,
             'pilot_callsign' => $subscription->pilot_callsign,
+            'pilot_key'  => $subscription->pilot_key ?? '',
         ], 200 );
     } else {
-        wp_send_json_success( [ 
+        wp_send_json_success( [
             'subscribed' => false,
             'race_id'    => 0,
             'race_title' => '',
             'pilot_id'   => 0,
             'pilot_callsign' => '',
+            'pilot_key'  => '',
         ], 200 );
     }
 
@@ -60,6 +64,8 @@ function ajax_get_subscription() {
 /**
  * AJAX callback: Insert or update a subscription.
  * Expects POST parameters: "race_id", "pilot_id", "endpoint", and (optionally) "keys"
+ * and "pilot_key" - the pilot's key where the race data has one, which the subscription then
+ * follows when the timer re-creates its pilots under new IDs.
  */
 function ajax_update_subscription() {
     check_ajax_referer( 'rm_ajax_nonce' );
@@ -78,6 +84,7 @@ function ajax_update_subscription() {
     $endpoint  = sanitize_text_field( wp_unslash( $_POST['endpoint'] ) );
     $pilot_id  = sanitize_text_field( wp_unslash( $_POST['pilot_id'] ) );
     $pilot_callsign = sanitize_text_field( wp_unslash( $_POST['pilot_callsign'] ) );
+    $pilot_key = rm_valid_pilot_key( isset( $_POST['pilot_key'] ) ? wp_unslash( $_POST['pilot_key'] ) : '' );
     $race_title = get_the_title( $race_id );
 
     // Optional keys.
@@ -91,7 +98,7 @@ function ajax_update_subscription() {
     }
 
     // Insert or update subscription in the DB.
-    $result = rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint, $p256dh, $auth );
+    $result = rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint, $p256dh, $auth, $pilot_key );
     if ( false === $result ) {
         wp_send_json_error( [ 'success' => false, 'message' => 'Failed to insert/update subscription.' ], 500 );
         wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
@@ -121,6 +128,7 @@ function ajax_update_subscription() {
         'race_title' => $race_title,
         'pilot_id'   => $pilot_id,
         'pilot_callsign' => $pilot_callsign,
+        'pilot_key'  => $pilot_key,
     ], 200 );
 
     wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
@@ -152,7 +160,8 @@ function ajax_unsubscribe() {
         'race_title' => '',
         'pilot_id'   => 0,
         'pilot_callsign' => '',
+        'pilot_key'  => '',
     ], 200 );
-    
+
     wp_die(); // Always call wp_die() at the end of an AJAX request to prevent further output.
 }

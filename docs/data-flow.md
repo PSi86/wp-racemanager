@@ -70,6 +70,16 @@ a time, each with 10 s at most; one after another where `php-http/guzzle7-adapte
 missing. A timer on a slow uplink gives up on an answer after 60 s, and reported a stored
 upload as failed when the pushes took that long. The same holds for `notify-racers`.
 
+**A follower follows the pilot key** (since 1.7.0). The RotorHazard connector sends each pilot's
+`pilot_key` in `pilot_data`, and a subscription keeps the key of the pilot it was made for (column
+`pilot_key` of `wp_rm_subscriptions`). The timer gives its pilots new IDs when it re-creates them
+(*Clear pilots before download*); by ID alone a subscription then followed whoever had the number,
+with pushes about someone else's heat. Where the upload has keys, a subscription with a key is
+matched by it and takes the pilot's new ID; one from before keys is matched by ID and takes the
+key. An upload without keys, from an older connector, is matched by ID as before. The live pages'
+pilot selection follows the key the same way. A ZIP replace does not run the activation hook, so
+`rm_maybe_upgrade_subscriptions_table()` adds the column on the first request after the update.
+
 ## The download
 
 [`js/rm-m-dataLoader.js`](../js/rm-m-dataLoader.js) is a singleton, created on import. Its
