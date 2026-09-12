@@ -150,6 +150,13 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
       without a login — `curl -s -D - -o /dev/null 'https://<site>/wp-json/rm/v1/get-pilots?race_id=<id>'`
       and `…/rm/v1/races`. Both answer 401, without `X-LiteSpeed-Cache: hit`. Before 1.6.1 both
       answered 200 with the timer's data, out of the cache.
+- [ ] **Followers follow the pilot key (1.7.0).** After the update, open any page once; then
+      `rm_subscriptions_schema` is `2` (*Tools → Site Health → Info* does not show it; `wp option
+      get rm_subscriptions_schema`, or phpMyAdmin's `wp_options`), and `wp_rm_subscriptions` has
+      a `pilot_key` column. With a timer whose connector sends `pilot_key`: follow a pilot of a
+      live race on a phone, re-create the pilots on the timer (*Clear pilots before download*,
+      then **Download Pilots**) and upload. Pushes keep coming for that pilot, and none for
+      whoever has their old ID now.
 - [ ] *Optional:* **force a write failure.** Make `uploads/races/` read-only briefly and upload.
       Expected: an **error** instead of `201 Created`, and no empty race left behind.
 

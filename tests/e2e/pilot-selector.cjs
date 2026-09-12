@@ -108,10 +108,26 @@ const raceData = ( ids ) => ( {
 	}
 
 	// Push one data update through every subscriber, the way dataLoader does.
-	const update = ( page, ids ) =>
-		page.evaluate( ( data ) => {
-			window.__rmSubscribers.forEach( ( cb ) => cb( data ) );
-		}, raceData( ids ) );
+	const updateWith = ( page, data ) =>
+		page.evaluate( ( d ) => {
+			window.__rmSubscribers.forEach( ( cb ) => cb( d ) );
+		}, data );
+	const update = ( page, ids ) => updateWith( page, raceData( ids ) );
+
+	// Pilots with keys, as the RotorHazard connector sends them from WP RaceManager 1.7.0 on: the
+	// person behind a key keeps name and key, whatever ID the timer gives them.
+	const PEOPLE = { A: 'Anna', B: 'Ben', C: 'Cleo', D: 'Dora' };
+	const keyOf = ( person ) => `${ person.toLowerCase().repeat( 8 ) }-0000-5000-8000-000000000000`;
+	const keyedData = ( pilots ) => ( {
+		pilot_data: {
+			pilots: pilots.map( ( [ id, person ] ) => ( { pilot_id: id, callsign: PEOPLE[ person ], pilot_key: keyOf( person ) } ) ),
+		},
+	} );
+	const selectedName = ( page ) =>
+		page.evaluate( () => {
+			const option = document.getElementById( 'pilotSelector' ).selectedOptions[ 0 ];
+			return option ? option.textContent : null;
+		} );
 
 	const state = ( page ) =>
 		page.evaluate( () => {
@@ -193,6 +209,40 @@ const raceData = ( ids ) => ( {
 	await update( page, [ 3, 1, 2 ] );
 	s = await state( page );
 	check( 'and the pilots that follow fill the list', s.pilots === 3 && s.total === 4, JSON.stringify( s ) );
+	await page.close();
+
+	// ------------------------------------------------------ pilots with keys
+	page = await openPage( true );
+	await updateWith( page, keyedData( [ [ 1, 'A' ], [ 2, 'B' ], [ 3, 'C' ] ] ) );
+	const keysOnOptions = await page.evaluate( () =>
+		Array.from( document.querySelectorAll( '#pilotSelector option[data-pilot-id]' ) )
+			.map( ( o ) => `${ o.textContent }=${ o.getAttribute( 'data-pilot-key' ) }` )
+			.join( ',' )
+	);
+	check(
+		'each option carries its pilot key',
+		keysOnOptions === `Anna=${ keyOf( 'A' ) },Ben=${ keyOf( 'B' ) },Cleo=${ keyOf( 'C' ) }`,
+		keysOnOptions
+	);
+
+	await page.selectOption( '#pilotSelector', '2' ); // Ben
+	const beforeRecreation = await state( page );
+	// The timer re-created its pilots: Ben is 7 now, and 2 is Cleo's.
+	await updateWith( page, keyedData( [ [ 5, 'A' ], [ 7, 'B' ], [ 2, 'C' ] ] ) );
+	s = await state( page );
+	let name = await selectedName( page );
+	check( 'pilots re-created under new IDs: Ben stays selected, as 7', s.value === '7' && name === 'Ben', `value=${ s.value }, selected=${ name }` );
+	check(
+		'and that is announced, so the other modules filter by his new ID',
+		s.changeEvents === beforeRecreation.changeEvents + 1,
+		`change events: ${ beforeRecreation.changeEvents } -> ${ s.changeEvents }`
+	);
+
+	// Ben leaves the field, and his last ID goes to someone new.
+	await updateWith( page, keyedData( [ [ 5, 'A' ], [ 7, 'D' ] ] ) );
+	s = await state( page );
+	name = await selectedName( page );
+	check( 'Ben gone and 7 someone else\'s: the placeholder, not Dora', s.selectedIndex === 0 && s.value === '0', `selectedIndex=${ s.selectedIndex }, selected=${ name }` );
 	await page.close();
 
 	// ------------------------------------------------------ the missing element

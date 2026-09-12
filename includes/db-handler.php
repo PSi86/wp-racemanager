@@ -46,6 +46,38 @@ function rm_get_registered_callsigns( $race_id ) {
 }
 
 /**
+ * The subscriptions table's schema: 2 has pilot_key (1.7.0).
+ */
+const RM_SUBSCRIPTIONS_SCHEMA = 2;
+
+/**
+ * Bring the subscriptions table up to date after an update.
+ *
+ * The activation hook creates the table, but a ZIP replace does not run that hook
+ * (docs/deployment.md, section 6): a column added in a release would be missing until the plugin
+ * was deactivated and activated again, and every subscription failed to save meanwhile. So the
+ * first request after an update runs dbDelta() once, on plugins_loaded, the way WordPress's plugin
+ * handbook does it for a plugin's tables. Every other request reads one autoloaded option.
+ *
+ * @return void
+ */
+function rm_maybe_upgrade_subscriptions_table() {
+    if ( (int) get_option( 'rm_subscriptions_schema', 0 ) >= RM_SUBSCRIPTIONS_SCHEMA ) {
+        return;
+    }
+    require_once __DIR__ . '/pwa-subscription-handler.php';
+    \RaceManager\PWA_Subscription_Handler::create_db_table();
+
+    // Recorded only once the column is there, so a failed ALTER is tried again.
+    global $wpdb;
+    $table = $wpdb->prefix . 'rm_subscriptions';
+    if ( $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM $table LIKE %s", 'pilot_key' ) ) ) {
+        update_option( 'rm_subscriptions_schema', RM_SUBSCRIPTIONS_SCHEMA );
+    }
+}
+add_action( 'plugins_loaded', 'rm_maybe_upgrade_subscriptions_table' );
+
+/**
  * Retrieve all subscriptions for a given race_id.
  */
 function rm_get_subscriptions( $race_id ) {
@@ -78,7 +110,13 @@ function rm_get_subscription_by_endpoint( $endpoint ) {
     );
 }
 
-function rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint, $p256dh, $auth ) {
+/**
+ * Store a browser's subscription to a pilot of a race, or move it to another.
+ *
+ * @param string $pilot_key The pilot's key where the race data has one (rm_valid_pilot_key()): the
+ *                          subscription follows it when the timer re-creates its pilots.
+ */
+function rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint, $p256dh, $auth, $pilot_key = '' ) {
     global $wpdb;
     $table = $wpdb->prefix . 'rm_subscriptions';
 
@@ -94,6 +132,7 @@ function rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint
         'race_id'        => $race_id,
         'pilot_id'       => $pilot_id,
         'pilot_callsign' => $pilot_callsign,
+        'pilot_key'      => $pilot_key,
         'endpoint'       => $endpoint,
         'p256dh_key'     => $p256dh,
         'auth_key'       => $auth,

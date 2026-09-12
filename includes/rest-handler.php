@@ -4,6 +4,8 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+require_once __DIR__ . '/pilot-key.php'; // rm_pilot_keys_by_id(), for the next-up notifications
+
 //add_action('rest_api_init', function () {
 function rm_register_rest_routes_rh() {
     // Endpoint for uploading JSON data. With ?race_id= it updates exactly that race; without,
@@ -403,7 +405,7 @@ function rm_handle_upload( WP_REST_Request $request ) {
         $notice         = 'Saved. Who flies next could not be worked out from the data, so nobody was notified.';
     } else {
         try {
-            $notified = rm_notify_nextup( $race_id, $upcomingPilots );
+            $notified = rm_notify_nextup( $race_id, $upcomingPilots, rm_pilot_keys_by_id( $data ) );
         } catch ( \Throwable $e ) {
             error_log( 'rm_handle_upload: next-up notifications failed: ' . $e->getMessage() );
             $notice = 'Saved. Sending the next-up notifications failed, so nobody was notified.';
@@ -794,10 +796,11 @@ function rm_create_race( $data ) {
  * Calls the PWA_Subscription_Handler's send_next_up_notifications() method
  * after a race is updated or created.
  *
- * @param int  $race_id   The Race CPT post ID
- * @param bool $is_update True if the race was updated; false if newly created
+ * @param int   $race_id        The Race CPT post ID
+ * @param array $upcomingPilots Who flies next, from rm_getUpcomingRacePilots()
+ * @param array $pilotKeys      pilot_id => pilot key of the upload's pilots (rm_pilot_keys_by_id())
  */
-function rm_notify_nextup( $race_id, $upcomingPilots ) {
+function rm_notify_nextup( $race_id, $upcomingPilots, $pilotKeys = array() ) {
     // If you have direct access to $this->pwa_subscription_handler in scope, use it.
     // Otherwise, retrieve from your plugin instance:
     $manager = \RaceManager\WP_RaceManager::instance();
@@ -817,7 +820,7 @@ function rm_notify_nextup( $race_id, $upcomingPilots ) {
     //error_log('race_id: ' . $race_id);
     //error_log(print_r($upcomingPilots, true));
 
-    $notified = $pwa->send_next_up_notifications( $race_id, $upcomingPilots );
+    $notified = $pwa->send_next_up_notifications( $race_id, $upcomingPilots, $pilotKeys );
 
     return $notified;
 }

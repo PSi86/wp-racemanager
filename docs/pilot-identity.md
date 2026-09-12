@@ -1,8 +1,11 @@
 # A stable pilot identity for RotorHazard
 
-**The WordPress half is done** (1.5.0): every registration carries a `pilot_key`, one per email
-address, the same every time. **The connector's half is open** — it has to match on the key; see
-[What the connector has to do](#what-the-connector-has-to-do).
+**Both halves are done.** WordPress (1.5.0): every registration carries a `pilot_key`, one per
+email address, the same every time. The connector (its PR #22, 2026-09-11) matches a returning
+pilot by the key first and keeps it on the pilot; see
+[What the connector has to do](#what-the-connector-has-to-do). **And the key comes back** (1.7.0):
+the connector sends it with every upload, and push subscriptions follow it — see
+[The key in the upload](#the-key-in-the-upload).
 
 ## Why it matters
 
@@ -100,6 +103,21 @@ the connector:
 
 Its `docs/wordpress-contract.md` then records the field. Order: this plugin first, since it only
 adds a field; the connector after.
+
+## The key in the upload
+
+Decided on 2026-09-12: the key is no sensitive value and goes into the upload. It stands for an
+address only to this site, which alone can compute it (see [The pilot key](#the-pilot-key)); in the
+race's data file, which the live pages load and anyone can fetch, it is one more column of the
+pilot list.
+
+The connector sends each pilot's key as `pilot_key` in `pilot_data`, an empty string for a pilot
+without one — added by hand on the timer, or imported before keys existed. RotorHazard's pilot IDs
+change when the timer re-creates its pilots (*Clear pilots before download*), and push
+subscriptions used to be kept by that ID, so a subscription then followed whoever had the number.
+From 1.7.0 on a subscription keeps the key of the pilot it was made for and follows it; the live
+pages' pilot selection does the same. Uploads without keys, from an older connector, are matched by
+ID as before. How the matching goes is in [`data-flow.md`](data-flow.md).
 
 ## The options that were weighed
 
