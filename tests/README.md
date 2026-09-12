@@ -46,7 +46,7 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `race-selection` | A timer naming its race: the upload with `race_id` updates exactly that race and never creates one — the lookup by title that D3 in the RotorHazard plugin's roadmap is about does not even run — while an upload without it still goes by title, for older timers. `GET /races` lists the 15 newest races the user may edit — counted after that check, read page by page past the ones they may not, the newer post first among equal starts; `POST /races` creates a race from the event, with its files from the start, and refuses a title another race has — the title as it would be stored, a race in the bin not counting — naming that race and saying whether the user may edit it. And the HTTP status of each refusal: 404 for no race, 403 without the right, 400 for a locked race, 409 for a title that is taken, 500 when the files cannot be written. A saved upload stays a success when working out who flies next fails or the push library throws, and says that nobody was notified (D8 in the connector's roadmap); a notification without a click URL links to its race's live page; its icon is one of the names `lunch`, `break` and `warning` for the images this plugin ships, a web address as it is, and the site's app icon for anything else (D6 there). And (1.8.1) a message to an archived race refused with 400 and its reason, to an ID that is no race or a race in the bin with 404, nothing logged or pushed either way; and a race created from an event live before its first files, so it has its parts from the first upload. Against the handler before, those seven checks fail. |
 | `compressed-bodies` | A timer's gzip-compressed body on the `rm/v1` routes: decoded on `rest_pre_dispatch`, before core would refuse it as invalid JSON, whatever the header's case, `x-gzip` too, and a 1.9 MB event as well as a small one; left alone without the header, for `identity`, on another namespace and when another filter has answered; refused with 400 when it is no gzip or cut short, with 415 for another encoding, and with 400 when it inflates past 10 MB — a 19 kB body that inflates to 20 MB stops there, the memory it took measured, because `gzdecode()`'s own limit does not hold; not inflated at all for a stranger, who gets the gate's 401 or 403 first. And that every answer of the namespace, a 415 included, carries `Accept-Encoding: gzip`, and no other does. And that a PHP without zlib does not say so and answers a compressed body 415 instead of a fatal error — in a PHP process of its own with `inflate_init()` disabled, which PHP 8 treats as not there; against 1.6.0 as merged that run died of `Call to undefined function inflate_init()`. |
 | `page-cache` | Every `rm/v1` request marked as not to be cached before any callback runs — `DONOTCACHEPAGE`, and LiteSpeed Cache's `litespeed_control_set_nocache` with a reason — and every answer, a refusal included, with `X-LiteSpeed-Cache-Control: no-cache`; another namespace left alone. What LiteSpeed Cache 7.9.1 makes of it was measured on the local site with the plugin active and LiteSpeed emulated: before, `public,max-age=604800` for a timer's `GET /races` and `GET /get-pilots`; after, `no-cache`, and the same with the constant alone or the call alone, while the header alone was overwritten with `public`. |
-| `nextup-schedule` | Who flies next, as every upload works it out for the "your next race" pushes (`rm_getUpcomingRacePilots()`). The heat on the timer is announced when it is the last one, and when the timer numbered its heats from 50 — the loop's guard counted from the heat's id and gave up at once in both cases, so no next-up push went out for a final. A slot the timer fills from a class's result (method 2) takes that class's pilot, from its ranking when it has one, not the pilot of the heat that carries the class's number; a slot filled from a heat's result takes the entry at `seed_rank - 1`, as RotorHazard seeds. Against 1.9.0 all five checks fail; with the guard fixed alone, the three seed checks still do, each for its own reason. |
+| `nextup-schedule` | Who flies next, as every upload works it out for the "your next race" pushes (`rm_getUpcomingRacePilots()`). The heat on the timer is announced when it is the last one, and when the timer numbered its heats from 50 — the loop's guard counted from the heat's id and gave up at once in both cases, so no next-up push went out for a final. A slot the timer fills from a class's result (method 2) takes that class's pilot, from its ranking when it has one, not the pilot of the heat that carries the class's number; a slot filled from a heat's result takes the entry at `seed_rank - 1`, as RotorHazard seeds. Against 1.9.0 all five checks fail; with the guard fixed alone, the three seed checks still do, each for its own reason. And a Chase the Ace final (1.10.0) - the class ranked with "Brackets", its switch untouched - stays the heat to come until the timer's ranking has its place 1, whatever the class's number of rounds says; decided, or switched off, it is done after its round. Against 1.9.1 the undecided case fails. |
 | `push-delivery` | Pushes after the answer: `rm_after_response()` hooks shutdown once, late, closes the connection before the first task — PHP-FPM's `fastcgi_finish_request()` here, LiteSpeed's `litespeed_finish_request()` and neither in a PHP process of their own — runs the tasks in order and each once, logs one that throws and goes on, and says in `debug.log` who closed the connection. The next-up pushes and a message to all followers are queued inside the request, with the followers' heat and slot stored there, and sent only after the answer: all at once with the asynchronous client, one after another without; a subscription its push service calls gone is forgotten, another failure logged. A new subscriber's confirmation still goes out at once. And, with the real library, the client the handler builds: 50 pushes at a time, 10 s each and 5 s to connect, on the asynchronous client as well. |
 
 ## Optional dependencies
@@ -89,6 +89,8 @@ npm run test:bracket-titles                         # against https://racemanage
 npm run test:class-templates                        # no WordPress and no browser, only Node
 npm run test:push-subscribe                         # no WordPress needed, only a browser
 npm run test:bracket-view                           # no WordPress needed, only a browser
+npm run test:bracket-model                          # no WordPress and no browser, only Node
+npm run test:bracket-standings                      # no WordPress and no browser, only Node
 npm run test:loader-subscribe                       # no WordPress needed, only a browser
 npm run test:stats-ranking                          # no WordPress needed, only a browser
 npm run test:e2e                                    # against https://racemanager.ddev.site
@@ -96,15 +98,17 @@ RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
 ```
 
-All of them but `test:class-templates` run through Playwright, and all of those skip rather than
-fail when Playwright or its Chromium is missing.
+All of them but `test:class-templates`, `test:bracket-model` and `test:bracket-standings` run
+through Playwright, and all of those skip rather than fail when Playwright or its Chromium is
+missing.
 
 Three of the files under test have a copy on the timer: `rm-m-pilotSelector.js`,
-`rm-m-displayHeats.js` and `class_templates_V1.js` serve the RotorHazard connector's
+`rm-m-displayHeats.js` and, since 1.10.0, `rm-m-bracketModel.js` serve the RotorHazard connector's
 `/bracketview` too, on a `dataLoader` of its own that reads RotorHazard's socket. Since
 2026-09-12 this repository is their source, and the connector takes them over byte for byte, so a
 change here reaches the timer with its next release. What the timer needs of them is checked here
-as well.
+as well. `class_templates_V1.js` was the third before 1.10.0; it now serves only the legacy
+`[rm_viewer]`.
 
 ### `tests/e2e/pilot-selector.cjs`
 
@@ -150,8 +154,9 @@ the old ID, and pressing it would have ended the subscription instead of moving 
 
 ### `tests/e2e/class-templates.cjs`
 
-`js/class_templates_V1.js`, the bracket templates `rm-m-displayHeats.js` lays an elimination
-class out on. Plain data, evaluated in Node; no browser.
+`js/class_templates_V1.js`, the bracket templates `rm-m-displayHeats.js` laid an elimination
+class out on until 1.10.0, and the legacy `[rm_viewer]` (`bracketV25.js`) still does. Plain data,
+evaluated in Node; no browser.
 
 Each race of a template carries seeding labels, a seed position (`16th`) or a result
 (`2nd race 1`), which the heats' slots overwrite one by one; an entry beyond a heat's slots stays.
@@ -163,19 +168,61 @@ before, both fail.
 
 ### `tests/e2e/bracket-view.cjs`
 
-`js/rm-m-displayHeats.js`, the bracket view, against the real module in a real DOM, with the
-`dataLoader` and the pilot selector served as stubs and every race built in the test from the
-upload's shapes (no real names). No WordPress, no DDEV.
+`js/rm-m-displayHeats.js` and `js/rm-m-displayStandings.js`, the bracket view, against the real
+modules in a real DOM, with the `dataLoader` and the pilot selector served as stubs,
+`rm-m-bracketModel.js` as it is, and every race built from the upload's shapes - RotorHazard's own
+heat plans among them (`tests/fixtures/brackets`, see its README), no real names. No WordPress, no
+DDEV.
 
-One class the view cannot draw leaves the others drawn: a throw used to end the loop over the
-classes. A bracket class the template cannot hold — more heats than the template has races, or gaps
-in its heat ids — is drawn as a row: an FAI 32 bracket in an event of 12 pilots threw *Cannot set
-properties of undefined (setting 'rh_id')* at its 15th heat, and qualifying and training stayed
-empty. A slot filled from a class's result (method 2) is labelled with that class, not with the heat
-that carries the class's number; a slot filled from a heat's result takes the entry at
-`seed_rank - 1`, as RotorHazard seeds, so a pilot who did not start does not leave it unfilled; and a
-heat's results show whenever it has any, not only up to the current heat's id. Against the module
-before (1.9.0), all but one of its eleven checks fail.
+Every class of the event gets a section, in the timer's order and whatever its name (1.10.0). A class
+whose heats form a bracket is drawn as that bracket: "Winners Bracket" and "Losers Bracket" titles, a
+header per round ("Quarterfinals", "LB Round 3", "Grand Final"), a line per link in the path shape
+`bracket-titles.cjs` measures, the grand final marked; a single elimination in one section with its
+small final below the final; the others as a row. A Chase the Ace final names the rule and the
+rounds flown and shows each pilot's wins, the winner marked. The pilot filter keeps the pilot's heats
+and the heats they feed. The standing under the brackets: ranges while a round runs, the final four
+of an undecided Chase the Ace without places but with their wins, no result column when nothing
+stands in it, no standing for a class that forms no bracket. Nothing throws - not on `{}`, not
+without results, not for an FAI 32 bracket flown by 12 pilots, not for a class the view cannot read,
+whose neighbours are still drawn. Seeds are labelled and resolved as RotorHazard seeds, and results
+show whenever a heat has them. A page with the old fixed containers still works.
+
+Against 1.9.0, ten of the 1.9.1 checks failed (a throw at the 15th heat of an FAI 32 bracket in an
+event of 12 pilots, and every class after it empty). Against 1.9.1, every check of the sections,
+brackets and round names fails, and the run stops at the Chase the Ace node, which 1.9.1 does not
+draw.
+
+### `tests/e2e/bracket-model.cjs`
+
+`js/rm-m-bracketModel.js` in Node: the bracket a class's heats form, worked out from their seeding.
+Every regulation bracket RotorHazard 4.4.0 ships - FAI 16, 32 and 64 single and double elimination,
+MultiGP 16 - comes out as the bracket it is: groups (winners, losers, grand final, small final),
+single or double, the final where it is, round names as DRSK names them for FAI 32 (Round 1,
+Quarterfinals, Semifinals, Winners Final, LB Round 1-6, Grand Final). Ladders and ranked fills are
+no bracket. The layout puts no two heats on one grid position and runs every line left to right.
+A pilot put into a later heat by hand, a seed from another class and a generator's record that does
+not match the heats are reported; heats seeding each other in a circle and a generator run twice
+into one class give a row; nothing throws. Seeds resolve by index; the rulebook comes from the
+generator's record. Chase the Ace: off without the "Brackets" ranking method or with its switch off,
+decided by the timer's ranking or else by two round wins. And the three real events of the local
+site, when there: FAI 32 double elimination each, laid out without overlap.
+
+### `tests/e2e/bracket-standings.cjs`
+
+`js/rm-m-bracketStandings.js` in Node: a bracket's standing. A flown FAI 32 double elimination gives
+places 1 to 32 in the rulebook's ranges - 1-4 Grand Final, 5-6 LB Round 6, 7-8 LB Round 5, 9-12,
+13-16, 17-24, 25-32 - and one that is not full (22 or 12 pilots) places 1 to N, heats that can hold
+nobody counting as done; a single elimination's small final is 5-8. While a round runs, those out
+share its range, counted from the bottom; nobody above is placed yet. A timer with more nodes than
+the heats seat: the empty slots are no places. Inside a round of several heats FAI orders by
+qualifying rank, MultiGP by the rank in the heat first. Chase the Ace: undecided without places,
+two wins then points, or the timer's ranking as it is. A hand-edited bracket gets a notice. On the
+real events of the local site the places 5 to N equal those of the ranking before 1.10.0
+(`tests/fixtures/brackets/old-ranking.cjs`), except two pilots without a qualifying result, who
+share a place the old ranking split by heat order. Three cases failed against the first version of
+the module and are fixed: a bracket of 12 pilots placed nobody (its empty heats counted as still to
+come), the real events ordered by the seed rank instead of the qualifying standing, and an 8-node
+timer's empty slots widened a running round's range to 1-24.
 
 ### `tests/e2e/loader-subscribe.cjs`
 

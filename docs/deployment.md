@@ -362,6 +362,18 @@ bracket view guards itself now (a class it cannot draw is drawn as a row), so a 
 nothing new. `rm-m-displayHeats.js` is also reached unversioned, through the next-up view's import;
 the same holds for it.
 
+1.10.0 adds three modules reached only by relative imports: `rm-m-bracketModel.js` (from
+`rm-m-displayHeats.js` and the standing), `rm-m-bracketStandings.js` and, on the next-up view,
+`rm-m-displayStandings.js`. A browser that still holds the 1.9 `rm-m-displayHeats.js` never asks
+for them and draws as before. The model is imported as a whole (`import * as`) and only ever gains
+exports, so an older cached copy of it next to a newer view costs a missing feature, not the page.
+
+1.10.0 also changes the bracket view's markup: `[rm_bracket]` renders one `#raceclass-sections`
+that the classes are drawn into, `#class-<id>-display` each, and `#standings-display` under it,
+instead of the fixed `#elimination-display`, `#qualifying-display` and `#training-display`. Custom
+CSS in the theme or the Site Editor that targets the old ids no longer applies; look for it before
+deploying.
+
 ---
 
 ## 8 · Rollback
