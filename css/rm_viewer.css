@@ -235,6 +235,72 @@
     color: gray !important;
 }
 
+/*
+ * Brackets drawn from the heats' seeding (1.10.0): the round names above the columns, the final
+ * and the small final, and a Chase the Ace final's rule and wins.
+ */
+.round-title {
+    align-self: end;
+    padding: 0 4px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #555;
+}
+
+.node.final {
+    border-width: 2px;
+}
+
+.node.small-final {
+    border-style: dashed;
+}
+
+.node-note {
+    margin: 2px 0;
+    font-size: 11px;
+    font-style: italic;
+    text-align: left;
+    white-space: normal;
+}
+
+.pilot-entry.cta-winner .pilot-name,
+.pilot-entry.cta-winner .pilot-result {
+    font-weight: bold;
+}
+
+/* The standing under the brackets, and the next-up view's final ranking (1.10.0). */
+.rm-standings {
+    margin-top: 1.5em;
+}
+
+.rm-standings-table {
+    border-collapse: collapse;
+    min-width: 20em;
+}
+
+.rm-standings-table th,
+.rm-standings-table td {
+    padding: 0.3em 0.8em;
+    border-bottom: 1px solid #e0e0e0;
+    text-align: left;
+}
+
+.rm-standings-table .place {
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.rm-standings-table .rm-place-first .place { color: #b8860b; }
+.rm-standings-table .rm-place-second .place { color: #7a7a7a; }
+.rm-standings-table .rm-place-third .place { color: #a0522d; }
+
+.rm-standings-notice {
+    font-style: italic;
+}
+
 input:disabled {
     background-color: lightgray !important;
     color: gray !important;

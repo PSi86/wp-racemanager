@@ -104,12 +104,22 @@ foreach ( array( 'rm_pilots_shortcode', 'rm_bracket_shortcode', 'rm_stats_shortc
     );
 }
 
+rm_test_section( 'The bracket view draws every class (1.10.0)' );
+rm_test_check( 'one place for the sections of all classes, and one for the standing',
+    str_contains( $rendered['rm_bracket_shortcode'], '<div id="raceclass-sections"></div>' )
+    && str_contains( $rendered['rm_bracket_shortcode'], '<div id="standings-display"></div>' ) );
+rm_test_check( 'no class named in the markup any more',
+    ! str_contains( $rendered['rm_bracket_shortcode'], 'elimination-display' ) );
+rm_test_check( 'the standing is told where to go on both pages',
+    str_contains( $rendered['rm_nextup_shortcode'], '<div id="ranking-container"></div>' ) );
+
 rm_test_section( 'Modules registered and enqueued' );
 // One view module per shortcode, plus rm-updateStatus, which every shortcode asks for and which
-// is therefore registered once, when the first of them renders. The list is compared in order so
-// that a module quietly appearing or disappearing shows up here rather than in a browser.
-$expected = array( 'rm-pilot-stats', 'rm-updateStatus', 'rm-displayHeats', 'rm-stats', 'rm-nextUp' );
-rm_test_check( 'the five view modules are registered, in order',
+// is therefore registered once, when the first of them renders, and the bracket view's standing
+// (1.10.0). The list is compared in order so that a module quietly appearing or disappearing shows
+// up here rather than in a browser.
+$expected = array( 'rm-pilot-stats', 'rm-updateStatus', 'rm-displayHeats', 'rm-displayStandings', 'rm-stats', 'rm-nextUp' );
+rm_test_check( 'the six view modules are registered, in order',
     $expected === array_keys( $GLOBALS['rm_modules_registered'] ),
     implode( ', ', array_keys( $GLOBALS['rm_modules_registered'] ) ) );
 // Enqueued once per shortcode that wants it: the four view modules once each, rm-updateStatus
