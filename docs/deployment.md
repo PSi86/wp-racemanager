@@ -356,6 +356,12 @@ carries, which no module reads. A 1.8.0 loader meeting files from before — a r
 since, or a rollback — downloads the whole file too: it turns to the index only once a whole file
 has carried one, and treats an index older than the timestamp as not there.
 
+1.9.1 changes the loader in `subscribe()` alone: a subscriber that throws on the cached data no
+longer takes its module's start-up with it. A cached loader from before behaves as before, and the
+bracket view guards itself now (a class it cannot draw is drawn as a row), so a stale copy costs
+nothing new. `rm-m-displayHeats.js` is also reached unversioned, through the next-up view's import;
+the same holds for it.
+
 ---
 
 ## 8 · Rollback
