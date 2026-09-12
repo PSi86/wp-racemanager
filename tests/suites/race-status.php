@@ -229,6 +229,8 @@ $cases    = array(
     'ended two days ago, uploaded to within a day (a second day)' => array( '1', '2026-09-10 19:00:00', '2026-09-11 12:00:00', false ),
     'no end'                                                     => array( '1', '', '2026-09-10 18:30:00', false ),
     'an end in the input\'s form, 2026-09-10T19:00'              => array( '1', '2026-09-10T19:00', '', true ),
+    // Compared as it stands, the T sorts after the blank, and an hour before the deadline is after it.
+    'the same form on the deadline\'s day, 2026-09-11T09:00'     => array( '1', '2026-09-11T09:00', '', true ),
     'an end that is a date only, taken as its midnight'          => array( '1', '2026-09-10', '', true ),
     'an end that cannot be read'                                 => array( '1', 'soon', '', false ),
     'archived already'                                           => array( '0', '2026-09-10 19:00:00', '', false ),
