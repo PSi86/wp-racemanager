@@ -1,6 +1,11 @@
-// rm-m-calcRanking.js
+/**
+ * js/rm-m-calcRanking.js as it was in 1.9.1, kept as the oracle for the bracket standings: on the
+ * events it was written for (FAI 32 double elimination), the new standing has to give the same
+ * places. The file itself is gone from js/ since 1.10.0.
+ */
 
-export function computeLeaderboard(race_data) {
+
+function computeLeaderboard(race_data) {
     try {
       const data = race_data.result_data;
   
@@ -149,3 +154,4 @@ export function computeLeaderboard(race_data) {
     }
   }
   
+module.exports = { computeLeaderboard };

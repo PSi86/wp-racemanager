@@ -84,11 +84,15 @@ Consequences worth keeping in mind when changing this:
   because no suite rendered them. A bundled library under `assets/` is versioned by the release in
   its directory name instead. This cannot cover `rm-m-dataLoader.js`, reached through a relative
   `import` that WordPress does not version — see `docs/deployment.md`.
-- **`js/rm-m-pilotSelector.js`, `js/rm-m-displayHeats.js` and `js/class_templates_V1.js` run on
+- **`js/rm-m-pilotSelector.js`, `js/rm-m-displayHeats.js` and `js/rm-m-bracketModel.js` run on
   the timer too.** The RotorHazard connector's `/bracketview` takes them over byte for byte
   (decided on 2026-09-12: this repository is their source), next to a `dataLoader` of its own that
-  reads RotorHazard's socket and hands a new subscriber `{}` until every section has arrived. A
-  change to them has to work there as well; the connector picks it up with its next sync.
+  reads RotorHazard's socket; older versions of it handed a new subscriber `{}` until every section
+  had arrived. A change to them has to work there as well; the connector picks it up with its next
+  sync. Since 1.10.0 the brackets are drawn from the heats' seeding, not from templates:
+  `js/class_templates_V1.js` serves only the legacy `[rm_viewer]` (and timer copies taken before
+  1.10.0). `rm-m-bracketModel.js` is pure and only ever grows its exports - its importers use
+  `import * as`, because a module reached by a relative import carries no version.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -116,7 +120,9 @@ when any of that is missing.
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
-| `npm run test:bracket-view` | the bracket view on races built from the upload's shapes: one class that cannot be drawn leaves the others drawn, a bracket the template cannot hold drawn as a row, seeds resolved as RotorHazard seeds (class result by class, heat result by index), results shown whenever a heat has them. Browser only, no WordPress |
+| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it; nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
+| `npm run test:bracket-model` | the bracket worked out of the seeding: every regulation bracket RotorHazard ships as what it is, round names, no bracket for ladders, a layout without overlaps, hand-edited and circular brackets reported not thrown, seeds by index, Chase the Ace. Node only |
+| `npm run test:bracket-standings` | a bracket's standing: places 1..N also when not full, the rulebook ranges, ranges while a round runs, FAI and MultiGP order, Chase the Ace, and on the local site's real events the places of the ranking before 1.10.0. Node only |
 | `npm run test:loader-subscribe` | a subscriber that throws on the cached data `subscribe()` hands over at once does not escape `subscribe()`. Browser only, no WordPress |
 | `npm run test:stats-ranking` | the stats view's class ranking panel: a ranking from the timer as a table, a method that ranked nobody as a sentence. Browser only, no WordPress |
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage; *Live:* on exactly the live races, and the installed app resuming straight on only into a race that is still live |

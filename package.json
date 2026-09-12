@@ -1,6 +1,6 @@
 {
     "name": "wp-racemanager",
-    "version": "1.9.1",
+    "version": "1.10.0",
     "scripts": {
         "test": "php tests/run.php",
       "test:e2e": "node tests/e2e/editor.cjs",
@@ -16,6 +16,8 @@
       "test:class-templates": "node tests/e2e/class-templates.cjs",
       "test:push-subscribe": "node tests/e2e/push-subscribe.cjs",
       "test:bracket-view": "node tests/e2e/bracket-view.cjs",
+      "test:bracket-model": "node tests/e2e/bracket-model.cjs",
+      "test:bracket-standings": "node tests/e2e/bracket-standings.cjs",
       "test:loader-subscribe": "node tests/e2e/loader-subscribe.cjs",
       "test:stats-ranking": "node tests/e2e/stats-ranking.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",

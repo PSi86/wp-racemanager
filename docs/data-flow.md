@@ -282,7 +282,8 @@ Subscribers get the entire object and pick what they need:
 
 | Module | View | Reads |
 |---|---|---|
-| `rm-m-displayHeats` | bracket | `heat_data`, `pilot_data`, `class_data`, `current_heat`, `result_data` |
+| `rm-m-displayHeats` | bracket, next-up | `heat_data`, `pilot_data`, `class_data`, `current_heat`, `result_data` |
+| `rm-m-displayStandings` | bracket, next-up | `heat_data`, `class_data`, `result_data` (heats, classes), through `rm-m-bracketStandings` |
 | `rm-m-displayStats` | stats | `result_data` |
 | `rm-m-displayPilotStats` | pilots | `pilot_data`, `result_data` |
 | `rm-m-pilotSelector` | bracket, stats, next-up | `pilot_data` |
@@ -293,11 +294,17 @@ which is why the table above is not a free choice. The graph, read out of the `i
 rather than assumed:
 
 ```
-bracket   -> displayHeats      -> dataLoader, pilotSelector
+bracket   -> displayHeats      -> dataLoader, pilotSelector, bracketModel
+          -> displayStandings  -> dataLoader, bracketModel, bracketStandings -> bracketModel
 pilots    -> displayPilotStats -> dataLoader
 stats     -> displayStats      -> dataLoader, pilotSelector
-next-up   -> displayNextUp     -> pilotSelector, displayHeats, displayLog, displayRanking
+next-up   -> displayNextUp     -> pilotSelector, displayHeats, displayLog, displayStandings
 ```
+
+The bracket view enqueues two modules since 1.10.0, the brackets and their standing; the next-up
+view reaches the standing through its import, as its "Final Ranking" (`rm-m-displayRanking` and
+`rm-m-calcRanking`, hard-wired to FAI 32 double elimination, are gone). `rm-m-bracketModel` works
+the bracket out of `heat_data`'s seeding and `class_data`; `rm-m-bracketStandings` adds the places.
 
 **`rm-m-pilotSelector` therefore does not run on the pilots view.** `displayPilotStats` never
 imported it, and that shortcode's `<select id="pilotSelector">` markup is commented out in

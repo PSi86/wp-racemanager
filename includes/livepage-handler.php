@@ -286,18 +286,18 @@ function rm_bracket_shortcode( $atts ) {
         WP_RACEMANAGER_VERSION
     );
 
-    wp_enqueue_script(
-        'rm-bracket-template',
-        plugin_dir_url( __DIR__ ) . 'js/class_templates_V1.js', 
-        ['jquery'], 
-        WP_RACEMANAGER_VERSION,
-        false
-    );
-
+    // Since 1.10.0 the brackets are drawn from the heats' seeding (js/rm-m-bracketModel.js);
+    // js/class_templates_V1.js is no longer needed here, only by the legacy [rm_viewer].
     wp_register_script_module(
         'rm-displayHeats',
         plugin_dir_url( __DIR__ ) . 'js/rm-m-displayHeats.js',
         array(), // no dependency needed here, as dynamic imports are handled in the module itself
+        WP_RACEMANAGER_VERSION
+    );
+    wp_register_script_module(
+        'rm-displayStandings',
+        plugin_dir_url( __DIR__ ) . 'js/rm-m-displayStandings.js',
+        array(),
         WP_RACEMANAGER_VERSION
     );
 
@@ -309,9 +309,13 @@ function rm_bracket_shortcode( $atts ) {
         'displayHeats' => [
             'filterCheckboxId'   => 'filterCheckbox',
         ],
+        'displayStandings' => [
+            'containerId'        => 'standings-display',
+        ],
     ) );
-    // Enqueue the module.
+    // Enqueue the modules.
     wp_enqueue_script_module( 'rm-displayHeats' );
+    wp_enqueue_script_module( 'rm-displayStandings' );
 
   ob_start();
   ?>
@@ -326,10 +330,9 @@ function rm_bracket_shortcode( $atts ) {
                 <input type="checkbox" id="filterCheckbox"> Filter by Selected Pilot
             </label>
         </div>
-        <!-- id needs to be *-display (eg. elimination-display) and class must be raceclass-container -->
-        <div id="elimination-display" class="raceclass-container"></div>
-        <div id="qualifying-display" class="raceclass-container"></div>
-        <div id="training-display" class="raceclass-container"></div>
+        <!-- Every class of the race gets a section here, in the timer's order (js/rm-m-displayHeats.js) -->
+        <div id="raceclass-sections"></div>
+        <div id="standings-display"></div>
   <?php
   return ob_get_clean();
 }
@@ -449,6 +452,9 @@ function rm_nextup_shortcode( $atts ) {
         ],
         'displayHeats' => [
             'filterCheckboxId'   => 'none', // no filter checkbox here
+        ],
+        'displayStandings' => [
+            'containerId'        => 'ranking-container', // the "Final Ranking" under next up
         ],
         'displayLog' => [
             'containerId'     => 'log-container', // ID of the container for the log display

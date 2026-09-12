@@ -1,10 +1,24 @@
 // rm-m-displayHeats.js
+//
+// The bracket view: every class of the event in the timer's order, each drawn as the bracket its
+// heats' seeding forms (rm-m-bracketModel.js) - winners and losers bracket, a column per round
+// under its name, the grand final at the end, Chase the Ace in the final - or, for a class that
+// forms none (training, qualifying, a ladder), as its heats in a row. And the next-up row.
+//
+// This file also runs on the timer: the RotorHazard connector's /bracketview takes it over byte
+// for byte, next to its own dataLoader, which reads RotorHazard's socket. A change has to work
+// there as well.
+//
+// Exports const displayHeatsInstance = new DisplayHeats(); (at the bottom)
+// Empty slots are flagged as slot.pilot_id = null (newer RotorHazard) or 0 (earlier versions).
+
 import { dataLoaderInstance } from './rm-m-dataLoader.js';
 import { pilotSelectInstance } from './rm-m-pilotSelector.js';
+// The whole module, not named imports: it is reached without a version, so a returning visitor
+// may hold an older copy, and a missing name would take this module down with it.
+import * as bracketModel from './rm-m-bracketModel.js';
 
-// Exports const displayHeatsInstance = new DisplayHeats(); (at the bottom)
-// Notes:
-// Empty slots were flagged as slot.pilot_id = null (newer) or 0 (earlier versions) of RotorHazard
+const NEXT_UP_COUNT = 5;
 
 class DisplayHeats {
     constructor() {
@@ -13,44 +27,34 @@ class DisplayHeats {
             throw new Error("displayHeats: Missing configuration data");
         }
 
-        // Configuration properties
         // Read dependency configuration
         this.raceId = dataLoaderInstance.storageKey; // Load storageKey from dataLoader
 
         this.pilotSelectorId = pilotSelectInstance.pilotSelectorId; // Load pilotSelectorId from pilotSelector
         this.pilotSelectorElement = document.getElementById(`${this.pilotSelectorId}`);
         this.selectedPilotId = pilotSelectInstance.selectedPilotId;
-        //console.log("DisplayHeats: initialized with selected pilot ID:", typeof(this.selectedPilotId), this.selectedPilotId);
-
-        // Required properties
-        // none
 
         // Optional properties
         this.filterCheckboxId = configData.filterCheckboxId || 'filterCheckbox';
         this.filterCheckboxElement = document.getElementById(`${this.filterCheckboxId}`);
 
-        // Other properties       
-        this.filterCheckboxKey = this.filterCheckboxId; //`filterOption` //  currently not using the race_id in the key (making it globally reusable) // `${this.raceId}_filterOption`
-        this.filterCheckboxState = JSON.parse(sessionStorage.getItem(this.filterCheckboxKey)) || false; //|| null;
+        // currently not using the race_id in the key (making it globally reusable)
+        this.filterCheckboxKey = this.filterCheckboxId;
+        this.filterCheckboxState = JSON.parse(sessionStorage.getItem(this.filterCheckboxKey)) || false;
 
         this.cr_rh_data = null; // no default data, upon subscribing to dataLoader this will be populated
-        
+        this.reported = new Set();
+
         // Zoom level change detection
         this.lastDevicePixelRatio = window.devicePixelRatio;
-        
-        // Run initialization
-        //this.initialize();
-        //setTimeout(() => this.initialize(), 1000); // Delay initialization to wait for the dataLoader to be ready
-        
-        // document.readyState === 'loading'
+
         if (document.readyState === 'complete') {
             console.log("DisplayHeats: Site is already loaded, initializing immediately");
             this.initialize();
-          } else {
-            // Otherwise, wait for the window load event.
+        } else {
             console.log("DisplayHeats: Registering load event listener");
             window.addEventListener('load', () => this.initialize());
-          }
+        }
     }
 
     initialize() {
@@ -60,66 +64,62 @@ class DisplayHeats {
             this.filterCheckboxElement.addEventListener('change', this.handleFilterChange.bind(this));
         }
 
-        this.pilotSelectorElement.addEventListener('change', this.handleFilterChange.bind(this));
+        if (this.pilotSelectorElement) {
+            this.pilotSelectorElement.addEventListener('change', this.handleFilterChange.bind(this));
+        }
 
-        // Subscribe to the dataLoader (singleton)
         console.log("DisplayHeats: Subscribed to DataLoader");
         dataLoaderInstance.subscribe(this.handleDataLoaderEvent.bind(this));
 
         // Only attach new mouse eventhandler once after the data is loaded
-        this.attachPilotMouseEvents(); // attach mouse events to the pilot names
+        this.attachPilotMouseEvents();
         window.addEventListener("resize", () => {
             if (window.devicePixelRatio !== this.lastDevicePixelRatio) {
-                //console.log("Zoom level changed!");
                 this.lastDevicePixelRatio = window.devicePixelRatio;
-                // TODO do not rerender the whole grid, only refresh the SVG elements
-                this.updateSvgScaling();
+                // The lines are measured in pixels: draw again at the new zoom.
+                this.updateAllClasses();
             }
         });
     }
 
     handleFilterChange() {
-        //this.selectedPilotId = event.target.value;
-        this.selectedPilotId = parseInt(this.pilotSelectorElement.value) || 0; // could possibly be pulled from the pilotSelector instance
-        
-        if(this.filterCheckboxElement) {
+        this.selectedPilotId = (this.pilotSelectorElement && parseInt(this.pilotSelectorElement.value)) || 0;
+
+        if (this.filterCheckboxElement) {
             this.filterCheckboxState = this.filterCheckboxElement.checked;
             sessionStorage.setItem(this.filterCheckboxKey, this.filterCheckboxState);
         }
 
         console.log('DisplayHeats: Filter changed:', this.selectedPilotId, this.filterCheckboxState);
-        // Filter and display heats for the selected pilot
-        // filterBracketData calls calculateClassLayout and renderGrid
-        //filterBracketData();
         this.updateAllClasses();
     }
-    
+
     handleDataLoaderEvent(data) {
         console.log('DisplayHeats: Received data:', data);
-        // Extract and display heats for the selected pilot
         this.cr_rh_data = data;
         this.updateAllClasses();
     }
 
     updateAllClasses() {
-        // find raceclass-container on the page and update them
-        const classContainers = document.getElementsByClassName("raceclass-container");
-        for (let i = 0; i < classContainers.length; i++) {
-            //updateClass(classContainers[i]); // Object instead of ID
-            if(classContainers[i].style.display != "none") {
-                // only update visible class-displays
-                const containerId = classContainers[i].id;
+        const data = this.cr_rh_data;
+        if (!data || !data.heat_data || !data.class_data) {
+            // The timer's loader used to hand {} over until RotorHazard had sent every section.
+            return;
+        }
+        this.syncSections(data);
+        for (const container of [...document.getElementsByClassName("raceclass-container")]) {
+            if (container.style.display === "none") {
+                continue; // only visible class displays
+            }
+            try {
+                this.updateContainer(container);
+            } catch (error) {
+                // One class the view cannot draw must not take the others with it.
+                this.reportOnce(container.id, error);
                 try {
-                    this.updateClass(containerId); // ID instead of Object
-                } catch (error) {
-                    // One class the view cannot draw must not take the others with it: a throw
-                    // here used to end the loop, and every class after it stayed empty.
-                    this.reportOnce(containerId, error);
-                    try {
-                        this.updateClass(containerId, true);
-                    } catch (fallbackError) {
-                        this.reportOnce(containerId + ":row", fallbackError);
-                    }
+                    this.updateContainer(container, true);
+                } catch (fallbackError) {
+                    this.reportOnce(container.id + ":row", fallbackError);
                 }
             }
         }
@@ -127,613 +127,329 @@ class DisplayHeats {
 
     // A class that fails to draw fails on every update; say so once, not every ten seconds.
     reportOnce(key, error) {
-        this.reported = this.reported || new Set();
         if (this.reported.has(key)) return;
         this.reported.add(key);
         console.error(`DisplayHeats: could not draw ${key}; drawing it as a row instead.`, error);
     }
 
-    updateClass(containerId, asRow = false) {
-        const raceClass = containerId.substring(0, containerId.indexOf("-display")); // eg:"elimination"
-        console.log("DisplayHeats: Updating class display: " + containerId);
-        // Todo: Accept class parameter to update only one class or empty parameter for all classes
-        let nodes=this.updateClassData(this.cr_rh_data, raceClass, asRow);
-        nodes=this.filterBracketData(nodes);
-        nodes=this.calculateClassLayout(nodes);
-        //renderGrid(nodes);
-        this.renderGrid(nodes, raceClass);
+    // The classes that have heats, in the timer's order: by `order` when every class has one.
+    classesInOrder(data) {
+        const heats = data.heat_data.heats || [];
+        const classes = (data.class_data.classes || []).filter(c => heats.some(h => h.class_id === c.id));
+        if (classes.every(c => typeof c.order === 'number')) {
+            return classes.sort((a, b) => a.order - b.order || a.id - b.id);
+        }
+        return classes.sort((a, b) => a.id - b.id);
     }
 
-    updateSvgScaling() {
-        // find all svg elements and redraw them
-        console.log("DisplayHeats: Redrawing SVG elements");
-        // TODO: implement svg redraw
-        // to do this we need the nodes data for each class-display container -> locally store them per container
-        // workaround: recreate nodes data for each container and redraw the svg elements using the standard renderGrid function
-        this.updateAllClasses();
-    }
-
-    // Attach event listeners to each element
-    attachPilotMouseEvents() {
-        // Select all pilot entries from all heats
-        //const allHoverables = document.querySelectorAll("[class^='pilotid-']");
-
-        document.addEventListener('mouseover', (event) => {
-            // Check if the target element's class matches "pilotid-<number>"
-            const target = event.target;
-            if (target.className && target.parentNode.className.match(/pilotid-\d+/)) {
-                const className = target.parentNode.className.match(/pilotid-\d+/)[0];
-                // Change the text color to red for all elements with the same class
-                document.querySelectorAll(`.${className}`).forEach((element) => {
-                    element.classList.add("hovered");
-                });
+    // With #raceclass-sections on the page, one container per class, in the timer's order, made
+    // and removed as the classes come and go. A page with fixed containers ({name}-display)
+    // keeps them.
+    syncSections(data) {
+        const wrapper = document.getElementById('raceclass-sections');
+        if (!wrapper) return;
+        const classes = this.classesInOrder(data);
+        const wanted = new Set(classes.map(c => `class-${c.id}-display`));
+        for (const el of [...wrapper.children]) {
+            if (el.classList.contains('raceclass-container') && !wanted.has(el.id)) {
+                el.remove();
+            }
+        }
+        classes.forEach((cls, index) => {
+            let el = document.getElementById(`class-${cls.id}-display`);
+            if (!el) {
+                el = document.createElement('div');
+                el.id = `class-${cls.id}-display`;
+                el.className = 'raceclass-container';
+                el.dataset.classId = String(cls.id);
+            }
+            if (wrapper.children[index] !== el) {
+                wrapper.insertBefore(el, wrapper.children[index] || null);
             }
         });
-        
-        document.addEventListener('mouseout', (event) => {
-            // Reset the text color when the mouse leaves
-            const target = event.target;
-            if (target.className && target.parentNode.className.match(/pilotid-\d+/)) {
-                const className = target.parentNode.className.match(/pilotid-\d+/)[0];
-                document.querySelectorAll(`.${className}`).forEach((element) => {
-                    element.classList.remove("hovered"); // Reset to the original color
-                });
-            }
-        });  
     }
 
-    getCurrentClassName() {
-        // get the currently active class from the RHData
-        function findRaceClassByHeatId(id) {
-            const race = this.cr_rh_data.heat_data.heats.find(cls => cls.id === id); // .class_data. instead of .classes.?
-            return race ? race.class_id : null;
+    // The class a container shows: by data-class-id, or for a fixed container by its name.
+    classFor(container, data) {
+        const classes = data.class_data.classes || [];
+        if (container.dataset.classId) {
+            return classes.find(c => String(c.id) === container.dataset.classId) || null;
         }
-        let currentClassId=findRaceClassByHeatId(this.cr_rh_data.current_heat.current_heat);
-        if(currentClassId) {
-            const currentClass=this.cr_rh_data.class_data.classes.find(cls => cls.id === currentClassId);
-            return currentClass.displayname.toLowerCase();
-        } 
-        else {
-            return null;
-        }
+        const name = container.id.substring(0, container.id.indexOf("-display")).toLowerCase();
+        return classes.find(c => (c.displayname || c.name || '').toLowerCase() === name) || null;
     }
 
-    // Function to update the visibility of the class displays based on the current class
-    // Currently not in use in Webhosted version
-    showOnlyActiveClass(raceClass) {
-        // find all class-display containers that are not the current class and hide them
-        const classContainers = document.getElementsByClassName("raceclass-container");
-        for (let i = 0; i < classContainers.length; i++) {
-            if(classContainers[i].id != raceClass+"-display") {
-                classContainers[i].style.display = "none";
-            }
-            else {
-                classContainers[i].style.display = "block";
-            }
+    updateContainer(container, asRow = false) {
+        const data = this.cr_rh_data;
+        if (container.id === 'nextup-display') {
+            this.render(container, this.nextUpView(data));
+            return;
         }
+        const cls = this.classFor(container, data);
+        if (!cls) {
+            container.innerHTML = '';
+            return;
+        }
+        const bracket = (!asRow && typeof bracketModel.buildBracket === 'function')
+            ? bracketModel.buildBracket(data, cls.id)
+            : null;
+        const view = (bracket && bracket.ok && bracket.type !== 'none')
+            ? this.bracketView(data, cls, bracket)
+            : this.rowView(data, cls, this.heatsOf(data, cls.id));
+        this.render(container, view);
     }
 
-
-    // Function to update bracketData with eliminationHeats
-    // Copy necessary data from Input (rhData) to Output (bracketData)
-    // Original heat id is stored in .rh_id per heat
-    // Current heat id is stored in .currentHeat
-
-    // TODO eliminate writing to global variable bracketData, use return value instead or use a variable for this class only instead of overwriting the global template
-    updateClassData(rhData, raceClass, asRow = false) { // rhData is the data from RotorHazard, raceClass is the name of the class to be displayed
-        if (!rhData || !raceClass) {
-            console.error("updateClassData: Missing rhData or raceClass");
-            return null;
+    heatsOf(data, classId) {
+        if (typeof bracketModel.heatsOfClass === 'function') {
+            return bracketModel.heatsOfClass(data, classId);
         }
+        return (data.heat_data.heats || []).filter(h => h.class_id === classId).sort((a, b) => a.id - b.id);
+    }
 
-        // TODO detect correct template (clone it)
-        // rename to Template from bracketData to de32_template.json, de16_template.json, general_template.json
+    /* -------------------------------------------------------------------------------------- *
+     * What a heat shows: its title and a line per slot
+     * -------------------------------------------------------------------------------------- */
 
-        let bracketData, numPilots, template;
-        bracketData = { settings: {}, data: [] };
-        if(raceClass=="elimination" && !asRow) {
-            numPilots = rhData.pilot_data.pilots.length;
-            // only the elimination class uses specific templates
-            if(numPilots<=16)                   { bracketData.data = structuredClone(de16_template); template="de16"; }
-            if(numPilots>16 && numPilots<=32)   { bracketData.data = structuredClone(de32_template); template="de32"; }
-        }
-        // no template found for this class
-        if(bracketData.data.length == 0) { 
-            bracketData.data = [] //structuredClone(default_template); // empty array
-            template="default"; 
-        }
-    
-        //bracketData = bracketTemplates[raceClass]; // clone the template
-        console.log("updateClassData: using "+template+" template for class: "+raceClass);
-
-        bracketData.settings.currentHeat = rhData.current_heat.current_heat;
-        //bracketData.settings.currentClass
-        bracketData.settings.template = template;
-
-        // Function to find the ID of the class named "Elimination"
-        function findClassIdByName(data, raceClassCapital) {
-            const raceClass = data.class_data.classes.find(cls => cls.displayname === raceClassCapital); // .class_data. instead of .classes.?
-            return raceClass ? raceClass.id : null;
-        }
-        function findRaceClassByName(data, raceClassCapital) {
-            const raceClass = data.class_data.classes.find(cls => cls.displayname === raceClassCapital); // .class_data. instead of .classes.?
-            return raceClass ? raceClass : null;
-        }    
-        function findRaceClassByHeatId(data, id) {
-            const race = heat_data.heats.find(cls => cls.id === id); // .class_data. instead of .classes.?
-            return race ? race.class_id : null;
-        }
-        // Function to filter heats by class ID
-        function filterHeatsByClassId(heats, classId) {
-            return heats.filter(heat => heat.class_id === classId);
-        }
-
-        let eliminationHeats = [];
-        let raceClassObj = null;
-
-        if(raceClass=="nextup") {
-            // if class is nextup, then do not care about classes, just show the next heats
-            //const eliminationHeats = filterHeatsByClassId(rhData.heat_data.heats, raceClassId);
-            // Sort eliminationHeats by id
-            //eliminationHeats.sort((a, b) => a.id - b.id);
-
-            const currentHeatId = rhData.current_heat.current_heat;
-
-            // Copy and sort the heats array by id in ascending order
-            //const sortedHeats = rhData.heat_data.heats.slice().sort((a, b) => a.id - b.id);
-            const sortedHeats = rhData.heat_data.heats.slice(); // extra sorting not necessary
-
-            // Find the index of the race with id matching currentHeatId
-            const startIndex = sortedHeats.findIndex(heat => heat.id === currentHeatId);
-            if (startIndex === -1) {
-                throw new Error('Current heat id not found in heats array.');
-            }
-
-            // Return the next 5 races (including the current heat)
-            eliminationHeats = sortedHeats.slice(startIndex, startIndex + 5);
-        }
-        else {
-            // Find the class ID for the classname
-            const raceClassCapital=raceClass.charAt(0).toUpperCase() + raceClass.slice(1);
-            raceClassObj = findRaceClassByName(rhData, raceClassCapital);
-
-            if(!raceClassObj) { 
-                console.warn("updateClassData: raceClass not found in RHData");
-                return null;  // Exit if the class ID is not found
-            }
-            const raceClassId = raceClassObj.id;
-
-            // TODO rename eliminationHeats to something more generic
-            eliminationHeats = filterHeatsByClassId(rhData.heat_data.heats, raceClassId);
-            // Sort eliminationHeats by id
-            eliminationHeats = eliminationHeats.sort((a, b) => a.id - b.id);
-        }
-
-        if (template !== "default") {
-            // A template holds one fixed bracket. A class with more heats than it has races, or
-            // with gaps in its heat ids, would be written into races the template does not have
-            // (it threw for an FAI 32 bracket in an event of 16 pilots or fewer): draw it as a row.
-            let id = 1;
-            const fits = eliminationHeats.every((heat, index) => {
-                const found = bracketData.data.some(node => node.id === id);
-                if (index < eliminationHeats.length - 1) {
-                    id += eliminationHeats[index + 1].id - heat.id;
-                }
-                return found;
-            });
-            if (!fits) {
-                bracketData.data = [];
-                template = "default";
-                bracketData.settings.template = template;
+    heatNode(data, heat, cls) {
+        const currentHeat = data.current_heat && data.current_heat.current_heat;
+        const result = bracketModel.heatResult(data, heat.id);
+        let leaderboard = null;
+        let time = "total_time";
+        if (result && result.leaderboard) {
+            switch (result.leaderboard.meta && result.leaderboard.meta.primary_leaderboard) {
+                case "by_consecutives":
+                    leaderboard = result.leaderboard.by_consecutives;
+                    time = "consecutives";
+                    break;
+                case "by_fastest_lap":
+                    leaderboard = result.leaderboard.by_fastest_lap;
+                    time = "fastest_lap";
+                    break;
+                default:
+                    leaderboard = result.leaderboard.by_race_time;
+                    time = "total_time";
             }
         }
 
-        // Convert rhData.result_data.heats to an array if it's an object
-        let resultHeatsArray
-        if(rhData.result_data) {
-            resultHeatsArray = Array.isArray(rhData.result_data.heats) ? rhData.result_data.heats : Object.values(rhData.result_data.heats);
-        }
-        else {
-            resultHeatsArray = null;
+        let title = heat.displayname;
+        if (cls && cls.rounds > 1) {
+            const flownRounds = result && Array.isArray(result.rounds) ? result.rounds.length : 0;
+            title += "\n" + flownRounds + " of " + cls.rounds;
         }
 
-        let targetId = 1; // Initialize targetId to 1
+        const pilots = (heat.slots || []).map(slot => this.slotEntry(data, slot, leaderboard, time, !!result));
+        return { id: heat.id, title, pilots, active: heat.id === currentHeat, classes: [] };
+    }
 
-        eliminationHeats.forEach((heat, index) => {
+    slotEntry(data, slot, leaderboard, time, flown) {
+        let name = "";
+        let result = "";
+        let id = null;
+        const empty = slot.pilot_id === null || slot.pilot_id === 0 || slot.node_index === null;
 
-            if (template=="default") {
-                // Default Template has no elements -> Create a new element
-                //targetElement = JSON.parse(JSON.stringify(default_template[0]));
-                const newNode={};
-                newNode.id = targetId;
-                newNode.pilots = [];
-                bracketData.data.push(newNode);
-            }
-
-            // Search for the targetId in winner and looser elements
-            let targetElement = bracketData.data.find(node => node.id === targetId);
-
-            if (!targetElement) {
-                //throw new Error(`Target element with id=${targetId} not found in bracketData`);
-                console.warn(`Target element with id=${targetId} not found in bracketData`);
-            }
-
-            // Update the target element with the new data
-            targetElement.rh_id = heat.id; // Add the new rh_id element
-            targetElement.title = heat.displayname; // Map displayname to title
-
-            // add flag for active heat (used in rendering)
-            if (heat.id === bracketData.settings.currentHeat) {
-                targetElement.active = true;
-            }
-
-            // rhData.result_data.heats.find
-            // Cant use getLeaderboardForHeat(resultHeatsArray, heat_id) because we need 
-            // the whole result_data for the heat for the flown rounds
-            let heatResults = null;
-            let leaderboard = null;
-            let time = null;
-
-            // The heat's results, whenever it has any. The current heat's id says nothing about
-            // which heats were flown: the timer can go back, and an archived race keeps whatever
-            // heat was current.
-            heatResults = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat.id) : null;
-
-            if (heatResults && heatResults.leaderboard.meta.primary_leaderboard) {
-                switch (heatResults.leaderboard.meta.primary_leaderboard) {
-                    case "by_race_time": // Time based leaderboard
-                        leaderboard = heatResults.leaderboard.by_race_time;
-                        time = "total_time";
-                        break;
-                    case "by_consecutives": // Consecutive based leaderboard
-                        leaderboard = heatResults.leaderboard.by_consecutives;
-                        time = "consecutives";
-                        break
-                    case "by_fastest_lap": // Fastest lap based leaderboard
-                        leaderboard = heatResults.leaderboard.by_fastest_lap;
-                        time = "fastest_lap";
-                        break;
-                    default:
-                        leaderboard = heatResults.leaderboard.by_race_time;
-                        time = "total_time";
-                }
-            }
-
-            let flownRounds = 0; // number of rounds in the results
-            let heatResultAvailable = false; // flag for results availability
-            
-            if(heatResults) {
-                flownRounds = heatResults.rounds.length > 0 ? heatResults.rounds.length : 0;
-                heatResultAvailable = true;
-            }
-            else {
-                flownRounds = 0;
-                heatResultAvailable = false;
-            }
-
-            // check class_data for configured number of rounds per heat in this class
-            if(raceClassObj && raceClassObj.rounds>1) {
-                
-                targetElement.title += "\n"+flownRounds+" of "+raceClassObj.rounds;
-            }
-
-            // Update the pilots array while keeping the structure intact
-            heat.slots.forEach((slot, i) => {
-                let pilotCallsign = "";
-                let pilotResult = "";
-                let pilotId = null;
-
-                // first check if results are available for the heat if(leaderboard)
-                // if not, use the seed_id to display the heat displayname and rank
-                // if yes, display the pilot callsign and result
-
-                // Switch between seeded and unseeded slots!
-                // TODO: cant remember why node_index could be null -> check if this is still necessary
-                // slot.method is 1 for seeded slots and 0 for unseeded slots (and -1 for empty slots?)
-
-                if ((slot.pilot_id === null || slot.pilot_id === 0 || slot.node_index === null) && !heatResultAvailable && slot.method !== -1) {
-                    // Slot not seeded yet: the pilot it will get once its source has a result,
-                    // else the seeding rule (source and rank).
-                    const seed = this.resolveSeed(rhData, resultHeatsArray, slot);
-                    if (seed.pilotId) {
-                        pilotCallsign = seed.callsign;
-                        pilotId = seed.pilotId;
-                    } else {
-                        pilotCallsign = seed.label;
-                    }
-                }
-                //else if (slot.pilot_id !== 0 && slot.node_index !== null && heatResultAvailable) {
-                else if ((slot.pilot_id !== null && slot.pilot_id !== 0) && slot.node_index !== null) {
-                    // Slot is seeded
-                    pilotId = slot.pilot_id;
-                    const pilot = rhData.pilot_data.pilots.find(p => p.pilot_id === slot.pilot_id);
-                    //const pilotLeaderboard = null;
-                    pilotCallsign = pilot ? pilot.callsign : "";
-
-                    if(leaderboard) { // check if results are available
-                        const pilotLeaderboard = leaderboard.find(r => r.pilot_id === slot.pilot_id);
-
-                        if (!pilotLeaderboard) {
-                            // In the slot but not in the heat's result (changed after the race).
-                            pilotResult = "";
-                        } else if (pilotLeaderboard[time] === "0:00.000" || pilotLeaderboard.position < 1) {
-                            pilotResult = "DNF";
-                        } else {
-                            pilotResult = String(pilotLeaderboard[time] + " ");  // total_time
-                            pilotResult += String(" L" + pilotLeaderboard.laps ); // Number of laps
-                            pilotResult += String(" #" + pilotLeaderboard.position); // final position
-                        }
-                    }
-                }
-
-                if (targetElement.pilots[i]) {
-                    targetElement.pilots[i].id = pilotId;
-                    targetElement.pilots[i].name = pilotCallsign;
-                    targetElement.pilots[i].result = pilotResult;
+        if (empty && !flown && slot.method !== -1) {
+            // Not filled yet: the pilot the seeding will bring once its source has a result,
+            // else the seeding rule (source and rank).
+            const seed = bracketModel.resolveSeed(data, slot);
+            id = seed.pilotId;
+            name = seed.pilotId ? seed.callsign : seed.label;
+        } else if (!empty) {
+            id = slot.pilot_id;
+            const pilot = ((data.pilot_data && data.pilot_data.pilots) || []).find(p => p.pilot_id === slot.pilot_id);
+            name = pilot ? pilot.callsign : "";
+            const entry = leaderboard ? leaderboard.find(r => r.pilot_id === slot.pilot_id) : null;
+            if (entry) {
+                if (entry[time] === "0:00.000" || entry.position < 1) {
+                    result = "DNF";
                 } else {
-                    targetElement.pilots.push({
-                        id: pilotId,
-                        name: pilotCallsign,
-                        result: pilotResult
-                    });
+                    result = String(entry[time] + " ") + String(" L" + entry.laps) + String(" #" + entry.position);
                 }
+            }
+        }
+        return { id, name, result, classes: [] };
+    }
+
+    // The heats the pilot filter keeps: those with the pilot, and the heats they feed.
+    filterNodes(nodes, parentsOf) {
+        const pilotId = this.selectedPilotId;
+        if (!(pilotId > 0 && this.filterCheckboxState)) {
+            return null;
+        }
+        const keep = new Set(nodes.filter(n => n.pilots.some(p => p.id === pilotId)).map(n => n.id));
+        for (const node of nodes) {
+            if ((parentsOf(node.id) || []).some(p => keep.has(p))) {
+                keep.add(node.id);
+            }
+        }
+        return keep;
+    }
+
+    /* -------------------------------------------------------------------------------------- *
+     * The three views
+     * -------------------------------------------------------------------------------------- */
+
+    bracketView(data, cls, bracket) {
+        const raw = new Map((data.heat_data.heats || []).map(h => [h.id, h]));
+        const nodes = new Map(bracket.heats.map(h => [h.id, this.heatNode(data, raw.get(h.id), cls)]));
+        const visible = this.filterNodes([...nodes.values()], id => bracket.byId.get(id).parents);
+        const layout = bracketModel.layout(bracket, visible);
+        const name = cls.displayname || cls.name || `Class ${cls.id}`;
+        const double = bracket.type === 'double';
+
+        const cta = typeof bracketModel.ctaState === 'function' ? bracketModel.ctaState(data, bracket) : null;
+        if (cta && cta.enabled && nodes.has(bracket.finalId)) {
+            const final = nodes.get(bracket.finalId);
+            const rounds = cta.rounds === 1 ? '1 round' : `${cta.rounds} rounds`;
+            final.note = `Chase the Ace · 1st to ${cta.needed} wins · ${rounds}${cta.decided ? ' · decided' : ''}`;
+            final.classes.push('cta');
+            for (const pilot of final.pilots) {
+                if (pilot.id) {
+                    pilot.result = `${cta.wins.get(pilot.id) || 0}/${cta.needed}`;
+                    if (cta.decided && pilot.id === cta.winnerId) {
+                        pilot.classes.push('cta-winner');
+                    }
+                }
+            }
+        }
+
+        const view = { kind: 'bracket', sections: [], nodes: [], edges: layout.edges };
+        let row = 1;
+        for (const section of layout.sections) {
+            const titleRow = row;
+            const headerRow = row + 1;
+            const winners = section.key === 'W';
+            view.sections.push({
+                id: `class-${cls.id}-${winners ? 'winners' : 'losers'}`,
+                title: double ? `${name}: ${section.title}` : name,
+                titleRow,
+                headerRow,
+                headers: section.headers,
             });
-
-            // Increment the targetId by the difference between the current and last heat id
-            if (index < eliminationHeats.length - 1) {
-                targetId += eliminationHeats[index + 1].id - heat.id;
+            let lastRow = headerRow;
+            for (const cell of section.cells) {
+                const node = nodes.get(cell.heatId);
+                const heat = bracket.byId.get(cell.heatId);
+                node.gridColumn = cell.col;
+                node.gridRow = headerRow + cell.row;
+                node.classes.push(winners && heat.group !== 'SF' ? 'winner' : 'looser');
+                if (heat.id === bracket.finalId) node.classes.push('final');
+                if (heat.group === 'SF') node.classes.push('small-final');
+                view.nodes.push(node);
+                lastRow = Math.max(lastRow, node.gridRow);
             }
+            row = lastRow + 1;
+        }
+        return view;
+    }
 
+    rowView(data, cls, heats) {
+        const nodes = heats.map(h => this.heatNode(data, h, cls));
+        const visible = this.filterNodes(nodes, () => []);
+        const shown = visible ? nodes.filter(n => visible.has(n.id)) : nodes;
+        shown.forEach((node, index) => {
+            node.gridColumn = index + 1;
+            node.gridRow = 2;
+            node.classes.push('singlebracket');
         });
-
-        return bracketData;
+        const name = (cls && (cls.displayname || cls.name)) || '';
+        return {
+            kind: 'row',
+            sections: [{ id: cls ? `class-${cls.id}-title` : '', title: name, titleRow: 1, headerRow: null, headers: [] }],
+            nodes: shown,
+            edges: [],
+        };
     }
 
-    // Generate Bracket Representation
-    // Calculate the grid layout for the bracketData (gridColumn, gridRow)
-    calculateClassLayout(bracketData) {
-        if (!bracketData) {
-            console.warn("calculateClassLayout: No bracketData for this class");
-            return null;
+    // The next five heats from the current one, in the timer's list.
+    nextUpView(data) {
+        const heats = data.heat_data.heats || [];
+        const start = heats.findIndex(h => h.id === (data.current_heat && data.current_heat.current_heat));
+        if (start === -1) {
+            throw new Error('Current heat id not found in heats array.');
         }
-
-        // TODO make the positioning more generic
-        // 1: this should work for all types of brackets 
-        //      -> with double elimination we need to have one row between the winner and looser bracket for spacing and maybe a title
-        // 2: use winner flag only in bracketData for double elimination brackets
-        // 3: use central data element in bracketData to decide what to display (which template is used: doubleElimination, singleElimination, none (for non-bracket))
-        
-        // TODO add headline for each stage 
-        // (first row in the grid of each class)
-        // for the bracket the first row of the winner bracket and the first row of the looser bracket
-        const nodes = { settings: {}, data: [] };
-
-        if(bracketData.settings.template == "default") {
-            // Apply a simple linear layout for the default template
-            console.log("calculateClassLayout: applying linear layout for default template");
-            
-            function positionNodes(classNodes, topOffset) {
-                classNodes.data.forEach((node, index) => {
-                    node.gridColumn = index + 1;
-                    node.gridRow = 1 + topOffset;
-                    //node.type = type;
-                    nodes.data.push(node);
-                });
-            }
-
-            positionNodes(bracketData, 1);
-            nodes.settings = bracketData.settings;
-            return nodes;
-        }
-        else if(bracketData.settings.template == "de16" || bracketData.settings.template == "de32") {
-            console.log("calculateClassLayout: applying double elimination layout");
-            // Function to calculate parent Y position
-            // TODO this should not only use the first parent but all parents and then return the lowest row number
-            function getParentYPosition(node, allNodes) {
-                if (!node.parents || node.parents.length === 0) return null;
-                const parentNode = allNodes.data.find(n => n.id === node.parents[0]);
-                return parentNode ? parentNode.gridRow : null;
-            }
-
-            // Position nodes
-            // TODO: optimize stage logic. for elimination brackets where the hierarchie of some heats is not set by parent definitions, the stage is necessary to determine the position
-            // -> for non-bracket race classes the stage is not necessary and the gridColumn can be determined by incrementing a counter (linear display, single row)
-            // -> for bracket race classes: cleanup empty stages (can happen when filtering out heats that are not relevant for the current user)
-            // -> use 
-            function positionNodes(groupedNodes, type, topOffset) {
-                Object.entries(groupedNodes).forEach(([stage, stageNodes]) => {
-                    stageNodes.forEach((node, index) => {
-                        node.gridColumn = parseInt(stage, 10);
-                        const parentRow = getParentYPosition(node, nodes);
-                        node.gridRow = parentRow !== null ? parentRow : index + 1 + topOffset;
-                        //node.type = type;
-                        nodes.data.push(node);
-                    });
-                });
-            }
-
-            // Utility to group nodes by a property
-            function groupBy(array, key) {
-                return array.reduce((result, currentValue) => {
-                    const group = currentValue[key];
-                    if (!result[group]) result[group] = [];
-                    result[group].push(currentValue);
-                    return result;
-                }, {});
-            }
-
-            const groupedWinnerNodes = groupBy(bracketData.data.filter(node => node.winner), "stage");
-            const groupedLooserNodes = groupBy(bracketData.data.filter(node => !node.winner), "stage");
-
-            positionNodes(groupedWinnerNodes, "winner", 1);
-            const winnerMaxRow = Math.max(...nodes.data.filter(n => n.winner === true).map(n => n.gridRow));
-            positionNodes(groupedLooserNodes, "looser", winnerMaxRow + 1);
-            nodes.settings = bracketData.settings;
-            return nodes;
-        }
-        else {
-            console.error("calculateClassLayout: Unknown template");
-            return null;
-        }
+        const classes = data.class_data.classes || [];
+        const nodes = heats.slice(start, start + NEXT_UP_COUNT).map(heat =>
+            this.heatNode(data, heat, classes.find(c => c.id === heat.class_id) || null));
+        nodes.forEach((node, index) => {
+            node.gridColumn = index + 1;
+            node.gridRow = 2;
+            node.classes.push('singlebracket');
+        });
+        return { kind: 'row', sections: [{ id: 'nextup-title', title: 'Next up', titleRow: 1, headerRow: null, headers: [] }], nodes, edges: [] };
     }
 
-    // Filter 
-    filterBracketData(bracketData) {
-        if (!bracketData) {
-            console.warn("filterBracketData: Data input is missing");
-            return null;
-        }
-        // TODO: when filtering sometimes unnecessary races are shown; also unnecessary blank columns are shown
-        const filterPilotId = this.selectedPilotId;
-        const filterActive = this.filterCheckboxState;
-        let filteredBracketData = {};
-    
-        if (filterPilotId > 0 && filterActive) {
-            // Filter and return nodes based on the selected pilot ID, or all nodes if no pilot is selected
-            function filterNodes(nodes) {
-                const relevantIds = new Set();
-    
-                // Step 1: Collect nodes directly associated with the selected pilot
-                nodes.forEach(node => {
-                    if (node.pilots && node.pilots.some(pilot => pilot.id === filterPilotId)) {
-                        relevantIds.add(node.id);
-                    }
-                });
-    
-                // Step 2: Include all nodes where one of the currently selected races is a parent
-                nodes.forEach(node => {
-                    if (node.parents && node.parents.some(parentId => relevantIds.has(parentId))) {
-                        relevantIds.add(node.id);
-                    }
-                });
-    
-                // Step 3: Include all child nodes of the selected nodes
-                /*
-                nodes.forEach(node => {
-                    if (relevantIds.has(node.id)) {
-                        if (node.children) {
-                            node.children.forEach(childId => relevantIds.add(childId));
-                        }
-                    }
-                });
-                */
-    
-                // Return filtered nodes
-                return nodes.filter(node => relevantIds.has(node.id));
-            }
-    
-            filteredBracketData.data = filterNodes(bracketData.data)
-            filteredBracketData.settings = bracketData.settings;
-        } else {
-            filteredBracketData = bracketData; // Reset to full data
-        }
-        return filteredBracketData;
-        //const nodes = calculateClassLayout(filteredBracketData);
-        //renderGrid(nodes);
-    }
+    /* -------------------------------------------------------------------------------------- *
+     * Drawing
+     * -------------------------------------------------------------------------------------- */
 
-    // Render the grid with nodes and connections
-    // TODO carry over the node content from renderNodes (previous implementation)
-    renderGrid(nodes, raceClass) {
-        if (!nodes || !raceClass) {
-            console.warn("renderGrid: Missing nodes or raceClass");
-            return null;
-        }
-        //const containerId = "elimination-display"; // Example container ID for reference
-        const containerId = raceClass+"-display";
-        const raceClassCapital=raceClass.charAt(0).toUpperCase() + raceClass.slice(1);
-
-        // Clear previous content
-        const classContainer = document.getElementById(containerId) || console.error(`renderGrid: Container with ID ${containerId} not found.`);
-        classContainer.innerHTML = "";
-        //classContainer.replaceChildren(); // Clear the container content
-        
-        const gridContainer = document.createElement("div");
-        gridContainer.setAttribute("id", `${raceClass}-grid`);
-        gridContainer.setAttribute("class", "grid-container");
+    render(container, view) {
+        container.innerHTML = "";
+        const key = container.id.replace(/-display$/, '');
+        const grid = document.createElement("div");
+        grid.id = `${key}-grid`;
+        grid.className = "grid-container";
 
         const filterPilotId = this.selectedPilotId;
-        
-        // Map to store node elements for connection lines
-        // TODO rework usage of nodeElements, try to eliminate it
-        let nodeElements = {};
 
-        // The titles span every column of the bracket. css/rm_viewer.css keeps a .pinned-title
-        // where it is while the races and their lines scroll sideways under it, with position:
-        // sticky -- and a sticky element never leaves its grid area, so an area of two columns
-        // would have let the title go after the second stage. At least two, as before, so a
-        // bracket of one column keeps the layout it had.
-        const lastColumn = Math.max(0, ...nodes.data.map(node => parseInt(node.gridColumn, 10) || 0));
+        // The titles span every column of the class. css/rm_viewer.css keeps a .pinned-title where
+        // it is while the races and their lines scroll sideways under it, with position: sticky --
+        // and a sticky element never leaves its grid area, so an area of two columns would have
+        // let the title go after the second stage. At least two, as before, so a bracket of one
+        // column keeps the layout it had.
+        const lastColumn = Math.max(0, ...view.nodes.map(node => parseInt(node.gridColumn, 10) || 0));
         const titleColumns = `1 / span ${Math.max(2, lastColumn)}`;
 
-        // Create title element
-        const classTitleDiv = document.createElement("div");
-        classTitleDiv.style.gridRow = "1";
-        classTitleDiv.style.gridColumn = titleColumns;
-        classTitleDiv.classList.add("class-title", "pinned-title");
-        classTitleDiv.id = "winner-bracket";
-        if(nodes.settings.template === "default") {
-            classTitleDiv.textContent = raceClassCapital; // use only the class name for the default template
-        } else {
-            classTitleDiv.textContent = raceClassCapital+": Winner Bracket"; // Capitalize the first letter
+        for (const section of view.sections) {
+            const title = document.createElement("div");
+            title.style.gridRow = String(section.titleRow);
+            title.style.gridColumn = titleColumns;
+            title.classList.add("class-title", "pinned-title");
+            if (section.id) title.id = section.id;
+            title.textContent = section.title;
+            grid.appendChild(title);
+            for (const header of section.headers) {
+                const cell = document.createElement("div");
+                cell.className = "round-title";
+                cell.style.gridRow = String(section.headerRow);
+                cell.style.gridColumn = String(header.col);
+                cell.textContent = header.label;
+                grid.appendChild(cell);
+            }
         }
-        gridContainer.appendChild(classTitleDiv);
 
-        // Render nodes
-        // TODO remove winner and looser classes for classes that are not bracket classes (no template)
-        // TODO use index in forEach to iterate through the nodes row by row? 
-        // This could avoid the need for the filtering function with its complicated groupBy logic
-        nodes.data.forEach(node => {
-            // Create node element
+        const nodeElements = {};
+        for (const node of view.nodes) {
             const nodeDiv = document.createElement("div");
             nodeDiv.style.gridColumn = `${node.gridColumn}`;
             nodeDiv.style.gridRow = `${node.gridRow}`;
-            //nodeDiv.className = "node";
-            nodeDiv.classList.add("node");
-            
-            //node.type === "winner" ? nodeDiv.classList.add("winner") : nodeDiv.classList.add("looser");
-            if(nodes.settings.template == "de16" || nodes.settings.template == "de32") {
-                node.winner ? nodeDiv.classList.add("winner") : nodeDiv.classList.add("looser");
-            }
-            else {
-                nodeDiv.classList.add("singlebracket");
-            }
-            
-            if(node.active) nodeDiv.classList.add("activeHeat");
+            nodeDiv.classList.add("node", ...node.classes);
+            if (node.active) nodeDiv.classList.add("activeHeat");
 
             const nodeTitleDiv = document.createElement("div");
             nodeTitleDiv.textContent = node.title;
             nodeTitleDiv.className = "title";
             nodeDiv.appendChild(nodeTitleDiv);
 
-            // check if pilot-data is available
             if (node.pilots && node.pilots.length > 0) {
                 let foundSelectedPilot = false;
-
                 const pilotsContainerDiv = document.createElement("div");
                 pilotsContainerDiv.className = "pilots-container";
-                //nodeDiv.appendChild(pilotsContainerDiv);
+                if (node.note) {
+                    // A line about the heat above its pilots: the vertical title has no room for it.
+                    const noteDiv = document.createElement("div");
+                    noteDiv.className = "node-note";
+                    noteDiv.textContent = node.note;
+                    pilotsContainerDiv.appendChild(noteDiv);
+                }
 
-                node.pilots.forEach((pilot, index) => {
-                    // TODO: special treatment for pilot.id = 0
-                    // either no "pilot" prefix or skip mouse over event registration
-                    
-                    let pilotClass; // classname for the pilot
-                    if(pilot.id !== null && pilot.id !== 0) {
-                        pilotClass = `pilotid-${pilot.id}`; // Unique class for each pilot group
-                    }
-                    else {
-                        pilotClass = `pilot-notseeded`; // Unique class for each pilot group
-                    }
-                    if(pilot.id === filterPilotId && filterPilotId !== 0) {
-                        // Add a special class for the selected pilot
+                for (const pilot of node.pilots) {
+                    const pilotDataDiv = document.createElement("div");
+                    // A class per pilot, for the hover across the page; none for an empty slot.
+                    pilotDataDiv.className = (pilot.id !== null && pilot.id !== 0) ? `pilotid-${pilot.id}` : "pilot-notseeded";
+                    pilotDataDiv.classList.add("pilot-entry", ...pilot.classes);
+                    if (pilot.id === filterPilotId && filterPilotId !== 0) {
                         foundSelectedPilot = true;
                     }
-                    const pilotDataDiv = document.createElement("div");
-                    pilotDataDiv.className = pilotClass;
-                    pilotDataDiv.classList.add("pilot-entry");
-                    pilotsContainerDiv.appendChild(pilotDataDiv);
-
                     const nameDiv = document.createElement("div");
                     nameDiv.textContent = pilot.name;
                     nameDiv.className = "pilot-name";
@@ -743,207 +459,70 @@ class DisplayHeats {
                     resultDiv.textContent = pilot.result || "";
                     resultDiv.className = "pilot-result";
                     pilotDataDiv.appendChild(resultDiv);
-                }); 
+                    pilotsContainerDiv.appendChild(pilotDataDiv);
+                }
 
                 if (!foundSelectedPilot && filterPilotId !== 0) {
                     nodeDiv.classList.add("dimmed");
                 }
-                
                 nodeDiv.appendChild(pilotsContainerDiv);
             }
 
-            // Append node to grid container
-            gridContainer.appendChild(nodeDiv);
-
-            // Save node element for connection
+            grid.appendChild(nodeDiv);
             nodeElements[node.id] = nodeDiv;
+        }
+
+        container.appendChild(grid);
+
+        // The lines, measured once the grid is in the page.
+        if (view.edges.length) {
+            const svgContainer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svgContainer.setAttribute("id", `${key}-svg`);
+            svgContainer.setAttribute("class", "svg-container");
+            for (const edge of view.edges) {
+                const startNode = nodeElements[edge.from];
+                const endNode = nodeElements[edge.to];
+                if (!startNode || !endNode) continue;
+                const startX = startNode.offsetLeft + startNode.offsetWidth / 2;
+                const startY = startNode.offsetTop + startNode.offsetHeight / 2;
+                const endX = endNode.offsetLeft + endNode.offsetWidth / 2;
+                const endY = endNode.offsetTop + endNode.offsetHeight / 2;
+                const gapX = endNode.offsetLeft - (startNode.offsetLeft + startNode.offsetWidth);
+                const midX = startNode.offsetLeft + startNode.offsetWidth + (gapX / 2);
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M${startX},${startY} H${midX} V${endY} H${endX}`);
+                path.setAttribute("stroke", "black");
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke-width", "2");
+                svgContainer.appendChild(path);
+            }
+            grid.appendChild(svgContainer);
+        }
+    }
+
+    // Attach event listeners to each element
+    attachPilotMouseEvents() {
+        document.addEventListener('mouseover', (event) => {
+            // Check if the target element's class matches "pilotid-<number>"
+            const target = event.target;
+            if (target.className && target.parentNode && target.parentNode.className && String(target.parentNode.className).match(/pilotid-\d+/)) {
+                const className = String(target.parentNode.className).match(/pilotid-\d+/)[0];
+                document.querySelectorAll(`.${className}`).forEach((element) => {
+                    element.classList.add("hovered");
+                });
+            }
         });
 
-        // For double elimination brackets, add a title for the looser bracket
-        if(nodes.settings.template == "de16" || nodes.settings.template == "de32") {
-            // Find the first row number from the 'looser' class
-            const looserElements = gridContainer.querySelectorAll('.node.looser');
-            let lowestRow = Infinity; // Initialize with a high value
-            looserElements.forEach(element => {
-                const gridArea = element.style.gridArea;
-                const row = parseInt(gridArea.split('/')[0].trim(), 10); // Extract the row number
-                if (row < lowestRow) {
-                    lowestRow = row;
-                }
-            });                     
-
-            if(lowestRow !== Infinity) {
-                lowestRow -= 1; // One row above the looser bracket
-                const looserTitleDiv = document.createElement("div");
-                looserTitleDiv.style.gridRow = lowestRow;
-                looserTitleDiv.style.gridColumn = titleColumns;
-                looserTitleDiv.classList.add("class-title", "pinned-title");
-                looserTitleDiv.id = "looser-bracket";
-                looserTitleDiv.textContent = raceClassCapital+": Looser Bracket"; // hard coded for now
-                gridContainer.appendChild(looserTitleDiv);
+        document.addEventListener('mouseout', (event) => {
+            const target = event.target;
+            if (target.className && target.parentNode && target.parentNode.className && String(target.parentNode.className).match(/pilotid-\d+/)) {
+                const className = String(target.parentNode.className).match(/pilotid-\d+/)[0];
+                document.querySelectorAll(`.${className}`).forEach((element) => {
+                    element.classList.remove("hovered");
+                });
             }
-        }
-
-        classContainer.appendChild(gridContainer);
-
-        // directly after creating the nodes, attach the mouse events to the pilots
-        // TODO check if this should be done after all diagrams on the page are rendered
-        //attachPilotMouseEvents();
-
-        // Render connection lines if necessary
-        // Create an SVG element as a child of the classdisplay container
-        if(nodes.settings.template !== "default") {
-            const svgContainer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-            svgContainer.setAttribute("id", `${raceClass}-svg`); // id is individual for each class
-            svgContainer.setAttribute("class", "svg-container"); // class is always the same
-            //svgContainer.innerHTML = ""; // Clear previous content
-
-            // Get the dimensions of the grid container
-            const gridWidth = gridContainer.offsetWidth;
-            const gridHeight = gridContainer.offsetHeight;
-
-            // Set the viewBox so that the center of the grid is at the center of the viewBox
-            //svgContainer.setAttribute("viewBox", `0 0 ${gridWidth} ${gridHeight}`);
-
-            // Render connections
-            nodes.data.forEach(node => {
-                if (node.parents) {
-                    node.parents.forEach(parentId => {
-                        const parent = nodes.data.find(n => n.id === parentId);
-                        if (parent) {
-                            const startNode = nodeElements[parent.id];
-                            const endNode = nodeElements[node.id];
-
-                            // Get node positions relative to the grid container using offset properties
-                            // TODO: since the size of the nodes is no longer fixed, the line positions are not correct anymore
-                            // optionally use Math.round() to avoid subpixel rendering
-                            const startX = startNode.offsetLeft + startNode.offsetWidth / 2;
-                            const startY = startNode.offsetTop + startNode.offsetHeight / 2;
-                            const endX = endNode.offsetLeft + endNode.offsetWidth / 2;
-                            const endY = endNode.offsetTop + endNode.offsetHeight / 2;
-                            const gapX = endNode.offsetLeft-(startNode.offsetLeft + startNode.offsetWidth);
-                            const midX = startNode.offsetLeft + startNode.offsetWidth + (gapX / 2);
-
-                            // Create SVG path
-                            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                            path.setAttribute("d", `M${startX},${startY} H${midX} V${endY} H${endX}`);
-                            path.setAttribute("stroke", "black");
-                            path.setAttribute("fill", "none");
-                            path.setAttribute("stroke-width", "2");
-
-                            // Append path to SVG container
-                            svgContainer.appendChild(path);
-                        }
-                    });
-                }
-            });
-
-            //classContainer.appendChild(svgContainer);
-            gridContainer.appendChild(svgContainer); // Testing different nesting to ease the scaling of the SVG elements
-        }
+        });
     }
-
-    /**
-     * Retrieves the Leaderboard for a heat_id.
-     *
-     * This function follows these steps:
-     * 1. Finds the heat with heat_id matching heat_id.
-     * 2. Checks heat.leaderboard.meta.primary_leaderboard to determine which subelement contains the pilot data.
-     * 3. Uses the primary leaderboard key to obtain the pilot leaderboard array.
-     * 4. Searches that array for the pilot whose 'position' matches seed_rank.
-     *
-     * @param {Array} resultHeatsArray - The JSON object containing race result details.
-     * @param {number|string} heat_id - The identifier used as heat_id.
-     * @returns {string|null} - The pilot name if found; otherwise, null.
-     */
-    /**
-     * The pilot a seeded slot will get, as RotorHazard seeds it (heat_automation.py): the entry at
-     * seed_rank - 1 of the seed heat's primary leaderboard (method 1), or of the seed class's
-     * ranking, else its primary leaderboard (method 2). seed_id names a heat in the first case
-     * and a class in the second. Until that entry exists, a label naming source and rank.
-     *
-     * @param {Object} rhData - The race data.
-     * @param {Array|null} resultHeatsArray - result_data.heats as an array.
-     * @param {Object} slot - The slot: method, seed_id, seed_rank.
-     * @returns {{pilotId: number|null, callsign: string, label: string}}
-     */
-    resolveSeed(rhData, resultHeatsArray, slot) {
-        const rank = slot.seed_rank;
-        let entries = null;
-        let source = "";
-        if (slot.method === 1) {
-            const seedHeat = rhData.heat_data.heats.find(h => h.id === slot.seed_id);
-            source = seedHeat ? seedHeat.displayname : "";
-            entries = this.getLeaderboardForHeat(resultHeatsArray, slot.seed_id);
-        } else if (slot.method === 2) {
-            const classes = (rhData.class_data && rhData.class_data.classes) || [];
-            const seedClass = classes.find(c => c.id === slot.seed_id);
-            source = seedClass ? seedClass.displayname : "";
-            entries = this.getLeaderboardForClass(rhData, slot.seed_id);
-        }
-        const entry = (entries && rank > 0) ? entries[rank - 1] : null;
-        if (entry && entry.pilot_id) {
-            return { pilotId: entry.pilot_id, callsign: entry.callsign || "", label: "" };
-        }
-        return { pilotId: null, callsign: "", label: (source && rank) ? `${source} #${rank}` : "" };
-    }
-
-    /**
-     * What RotorHazard seeds a class-result slot from: the class's ranking when a ranking method
-     * produced one, else the class leaderboard its format makes primary.
-     *
-     * @param {Object} rhData - The race data.
-     * @param {number} class_id - The class.
-     * @returns {Array|null}
-     */
-    getLeaderboardForClass(rhData, class_id) {
-        const classes = rhData.result_data && rhData.result_data.classes;
-        if (!classes) {
-            return null;
-        }
-        const list = Array.isArray(classes) ? classes : Object.values(classes);
-        const cls = list.find(c => c && c.id === class_id);
-        if (!cls) {
-            return null;
-        }
-        if (cls.ranking) {
-            // As RotorHazard's `if ranking:` - a ranking method that produced nothing seeds nobody.
-            return Array.isArray(cls.ranking.ranking) ? cls.ranking.ranking : null;
-        }
-        const board = cls.leaderboard;
-        const key = board && board.meta && board.meta.primary_leaderboard;
-        return (key && Array.isArray(board[key])) ? board[key] : null;
-    }
-
-    getLeaderboardForHeat(resultHeatsArray, heat_id) {
-        // Verify the basic structure exists
-        /* if (!rhData || !rhData.result_data || !Array.isArray(rhData.result_data.heats)) {
-            return null;
-        } */
-        const heat = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat_id) : null;
-            
-        // Find the heat using heat_id (as heat_id)
-        //const heat = rhData.result_data.heats.find(h => h.heat_id == heat_id);
-        if (!heat || !heat.leaderboard || !heat.leaderboard.meta || !heat.leaderboard.meta.primary_leaderboard) {
-            return null;
-        }
-        
-        // Determine the primary leaderboard key from metadata (as per line 553 and following)
-        const primaryKey = heat.leaderboard.meta.primary_leaderboard;
-        
-        // Retrieve the pilot leaderboard using that key
-        const heatLeaderboard = heat.leaderboard[primaryKey];
-        // TODO: check if conversion to array is necessary like in line 553
-        if (!Array.isArray(heatLeaderboard)) {
-            return null;
-        }
-        
-        // Look for the pilot whose 'position' matches seed_rank
-        //const pilotEntry = heatLeaderboard.find(entry => entry.position == seed_rank);
-        
-        // pilotEntry: callsign, pilot_id
-        return heatLeaderboard;
-    }
-
 }
 export const displayHeatsInstance = new DisplayHeats();

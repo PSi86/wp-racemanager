@@ -1,0 +1,4775 @@
+{
+ "source": "RotorHazard's bundled_plugins, by tools/export_bracket_plans.py",
+ "rotorhazard": {
+  "commit": "19e2e0aa82924754c337de9970bd439c684d69d8",
+  "describe": "v4.4.0"
+ },
+ "plans": {
+  "single-fai16": {
+   "generator": "Regulation bracket, single elimination",
+   "generate_args": {
+    "standard": "fai16",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Semifinal 1",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Semifinal 2",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Small Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 5
+      }
+     ]
+    },
+    {
+     "name": "Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      }
+     ]
+    }
+   ]
+  },
+  "single-fai32": {
+   "generator": "Regulation bracket, single elimination",
+   "generate_args": {
+    "standard": "fai32",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 24,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 32,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 17,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 25,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 19,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 27,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 21,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 29,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 5 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 22,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 30,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 6 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 20,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 28,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 7 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 18,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 26,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 8 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 23,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 31,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 9 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 10 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 11 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      }
+     ]
+    },
+    {
+     "name": "Race 12 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Semifinal 1",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Semifinal 2",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Small Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 13
+      }
+     ]
+    },
+    {
+     "name": "Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 13
+      }
+     ]
+    }
+   ]
+  },
+  "single-fai64": {
+   "generator": "Regulation bracket, single elimination",
+   "generate_args": {
+    "standard": "fai64",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 32,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 48,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 64,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 17,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 33,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 49,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 25,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 41,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 57,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 19,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 35,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 51,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 5 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 29,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 45,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 61,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 6 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 21,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 37,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 53,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 7 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 27,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 43,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 59,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 8 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 23,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 39,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 55,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 9 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 24,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 40,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 56,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 10 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 28,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 44,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 60,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 11 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 22,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 38,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 54,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 12 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 30,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 46,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 62,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 13 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 20,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 36,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 52,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 14 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 26,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 42,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 58,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 15 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 18,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 34,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 50,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 16 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 31,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 47,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 63,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 17 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 18 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 19 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      }
+     ]
+    },
+    {
+     "name": "Race 20 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 21 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Race 22 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Race 23 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 13
+      }
+     ]
+    },
+    {
+     "name": "Race 24 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 15
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 15
+      }
+     ]
+    },
+    {
+     "name": "Race 25 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 17
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 17
+      }
+     ]
+    },
+    {
+     "name": "Race 26 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 19
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 19
+      }
+     ]
+    },
+    {
+     "name": "Race 27 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 21
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 21
+      }
+     ]
+    },
+    {
+     "name": "Race 28 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 23
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 23
+      }
+     ]
+    },
+    {
+     "name": "Semifinal 1",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 24
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 24
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 25
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 25
+      }
+     ]
+    },
+    {
+     "name": "Semifinal 2",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 26
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 26
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 27
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 27
+      }
+     ]
+    },
+    {
+     "name": "Small Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 29
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 29
+      }
+     ]
+    },
+    {
+     "name": "Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 29
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 29
+      }
+     ]
+    }
+   ]
+  },
+  "double-fai16": {
+   "generator": "Regulation bracket, double elimination",
+   "generate_args": {
+    "standard": "fai16",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 5",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 6",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 2
+      }
+     ]
+    },
+    {
+     "name": "Race 7",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 8",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 9",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 6
+      }
+     ]
+    },
+    {
+     "name": "Race 10",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 11",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Race 12",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 13",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 12
+      }
+     ]
+    }
+   ]
+  },
+  "double-fai32": {
+   "generator": "Regulation bracket, double elimination",
+   "generate_args": {
+    "standard": "fai32",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 24,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 32,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 17,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 25,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 19,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 27,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 21,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 29,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 5 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 22,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 30,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 6 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 20,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 28,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 7 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 18,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 26,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 8 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 23,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 31,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 9 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 10 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 11 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      }
+     ]
+    },
+    {
+     "name": "Race 12 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 13 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 14 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 15 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 2
+      }
+     ]
+    },
+    {
+     "name": "Race 16 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 6
+      }
+     ]
+    },
+    {
+     "name": "Race 17 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 15
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Race 18 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Race 19 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 15
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 8
+      }
+     ]
+    },
+    {
+     "name": "Race 20 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 10
+      }
+     ]
+    },
+    {
+     "name": "Race 21 (DE3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 17
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 19
+      }
+     ]
+    },
+    {
+     "name": "Race 22 (DE3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 19
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 17
+      }
+     ]
+    },
+    {
+     "name": "Race 23 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Race 24 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Race 25 (DE4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 21
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 23
+      }
+     ]
+    },
+    {
+     "name": "Race 26 (DE4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 23
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 21
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 22
+      }
+     ]
+    },
+    {
+     "name": "Race 27 (DE5)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 24
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 24
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 25
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 25
+      }
+     ]
+    },
+    {
+     "name": "Race 28 (E4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 23
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 23
+      }
+     ]
+    },
+    {
+     "name": "Race 29 (DE6)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 27
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 26
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 26
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 27
+      }
+     ]
+    },
+    {
+     "name": "Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 27
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 27
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 28
+      }
+     ]
+    }
+   ]
+  },
+  "double-fai64": {
+   "generator": "Regulation bracket, double elimination",
+   "generate_args": {
+    "standard": "fai64",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 32,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 48,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 64,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 17,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 33,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 49,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 25,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 41,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 57,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 19,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 35,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 51,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 5 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 29,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 45,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 61,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 6 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 21,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 37,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 53,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 7 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 27,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 43,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 59,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 8 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 23,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 39,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 55,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 9 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 24,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 40,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 56,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 10 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 28,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 44,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 60,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 11 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 22,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 38,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 54,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 12 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 30,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 46,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 62,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 13 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 20,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 36,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 52,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 14 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 26,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 42,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 58,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 15 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 18,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 34,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 50,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 16 (E1)",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 31,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 47,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 63,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 17 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 18 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 19 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      }
+     ]
+    },
+    {
+     "name": "Race 20 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 21 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Race 22 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Race 23 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 13
+      }
+     ]
+    },
+    {
+     "name": "Race 24 (E2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 15
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 15
+      }
+     ]
+    },
+    {
+     "name": "Race 25 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 26 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 27 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 2
+      }
+     ]
+    },
+    {
+     "name": "Race 28 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 6
+      }
+     ]
+    },
+    {
+     "name": "Race 29 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 11
+      }
+     ]
+    },
+    {
+     "name": "Race 30 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 14
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 15
+      }
+     ]
+    },
+    {
+     "name": "Race 31 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 10
+      }
+     ]
+    },
+    {
+     "name": "Race 32 (DE1)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 13
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 15
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 14
+      }
+     ]
+    },
+    {
+     "name": "Race 33 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 30
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 31
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 17
+      }
+     ]
+    },
+    {
+     "name": "Race 34 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 29
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 19
+      }
+     ]
+    },
+    {
+     "name": "Race 35 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 17
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 31
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 30
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 16
+      }
+     ]
+    },
+    {
+     "name": "Race 36 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 19
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 29
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 28
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 18
+      }
+     ]
+    },
+    {
+     "name": "Race 37 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 25
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 24
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 21
+      }
+     ]
+    },
+    {
+     "name": "Race 38 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 27
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 26
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 23
+      }
+     ]
+    },
+    {
+     "name": "Race 39 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 21
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 24
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 25
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 20
+      }
+     ]
+    },
+    {
+     "name": "Race 40 (DE2)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 23
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 26
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 27
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 22
+      }
+     ]
+    },
+    {
+     "name": "Race 41 (DE3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 34
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 32
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 33
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 35
+      }
+     ]
+    },
+    {
+     "name": "Race 42 (DE3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 32
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 34
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 35
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 33
+      }
+     ]
+    },
+    {
+     "name": "Race 43 (DE3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 38
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 36
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 37
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 39
+      }
+     ]
+    },
+    {
+     "name": "Race 44 (DE3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 36
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 38
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 39
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 37
+      }
+     ]
+    },
+    {
+     "name": "Race 45 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 16
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 17
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 17
+      }
+     ]
+    },
+    {
+     "name": "Race 46 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 18
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 19
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 19
+      }
+     ]
+    },
+    {
+     "name": "Race 47 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 20
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 21
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 21
+      }
+     ]
+    },
+    {
+     "name": "Race 48 (E3)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 22
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 23
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 23
+      }
+     ]
+    },
+    {
+     "name": "Race 49 (DE4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 44
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 42
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 43
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 45
+      }
+     ]
+    },
+    {
+     "name": "Race 50 (DE4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 46
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 40
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 41
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 47
+      }
+     ]
+    },
+    {
+     "name": "Race 51 (DE4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 45
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 43
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 42
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 44
+      }
+     ]
+    },
+    {
+     "name": "Race 52 (DE4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 47
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 41
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 40
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 46
+      }
+     ]
+    },
+    {
+     "name": "Race 53 (DE5)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 50
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 48
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 49
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 51
+      }
+     ]
+    },
+    {
+     "name": "Race 54 (DE5)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 48
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 50
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 51
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 49
+      }
+     ]
+    },
+    {
+     "name": "Race 55 (E4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 44
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 44
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 45
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 45
+      }
+     ]
+    },
+    {
+     "name": "Race 56 (E4)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 46
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 46
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 47
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 47
+      }
+     ]
+    },
+    {
+     "name": "Race 57 (DE6)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 54
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 52
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 53
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 55
+      }
+     ]
+    },
+    {
+     "name": "Race 58 (DE6)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 55
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 53
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 52
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 54
+      }
+     ]
+    },
+    {
+     "name": "Race 59 (DE7)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 56
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 56
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 57
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 57
+      }
+     ]
+    },
+    {
+     "name": "Race 60 (E5)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 54
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 54
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 55
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 55
+      }
+     ]
+    },
+    {
+     "name": "Race 61 (DE7)",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 59
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 58
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 58
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 59
+      }
+     ]
+    },
+    {
+     "name": "Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 60
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 59
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 59
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 60
+      }
+     ]
+    }
+   ]
+  },
+  "double-multigp16": {
+   "generator": "Regulation bracket, double elimination",
+   "generate_args": {
+    "standard": "multigp16",
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "Race 1",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 14,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 2",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 15,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 3",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 13,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 4",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 16,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "Race 5",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 6",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 0
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 1
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 1
+      }
+     ]
+    },
+    {
+     "name": "Race 7",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 8",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 2
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 3
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 3
+      }
+     ]
+    },
+    {
+     "name": "Race 9",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 4
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 5
+      }
+     ]
+    },
+    {
+     "name": "Race 10",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 6
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 11: Winners Bracket Semifinal",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 5
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 7
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 7
+      }
+     ]
+    },
+    {
+     "name": "Race 12: Winners Bracket Semifinal",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 8
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 9
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 9
+      }
+     ]
+    },
+    {
+     "name": "Race 13: Consolation Bracket Semifinal",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 11
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 3,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 4,
+       "seed_index": 10
+      }
+     ]
+    },
+    {
+     "name": "Race 14: Winners Bracket Final",
+     "slots": [
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 10
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": 12
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 2,
+       "seed_index": 12
+      }
+     ]
+    }
+   ]
+  },
+  "ladder-7": {
+   "generator": "Ladder",
+   "generate_args": {
+    "available_seats": 4,
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "B Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "A Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": -2
+      }
+     ]
+    }
+   ]
+  },
+  "ladder-12": {
+   "generator": "Ladder",
+   "generate_args": {
+    "available_seats": 4,
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "D Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "C Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": -4
+      }
+     ]
+    },
+    {
+     "name": "B Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": -3
+      }
+     ]
+    },
+    {
+     "name": "A Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "HEAT_INDEX",
+       "seed_rank": 1,
+       "seed_index": -2
+      }
+     ]
+    }
+   ]
+  },
+  "ranked-fill-7": {
+   "generator": "Ranked fill",
+   "generate_args": {
+    "advances_per_heat": 0,
+    "available_seats": 4,
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "B Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "A Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      }
+     ]
+    }
+   ]
+  },
+  "ranked-fill-12": {
+   "generator": "Ranked fill",
+   "generate_args": {
+    "advances_per_heat": 0,
+    "available_seats": 4,
+    "seed_offset": 1
+   },
+   "heats": [
+    {
+     "name": "C Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 9,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 10,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 11,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 12,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "B Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 5,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 6,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 7,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 8,
+       "seed_index": null
+      }
+     ]
+    },
+    {
+     "name": "A Main",
+     "slots": [
+      {
+       "method": "INPUT",
+       "seed_rank": 1,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 2,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 3,
+       "seed_index": null
+      },
+      {
+       "method": "INPUT",
+       "seed_rank": 4,
+       "seed_index": null
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
