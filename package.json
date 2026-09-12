@@ -15,6 +15,7 @@
       "test:bracket-titles": "node tests/e2e/bracket-titles.cjs",
       "test:class-templates": "node tests/e2e/class-templates.cjs",
       "test:push-subscribe": "node tests/e2e/push-subscribe.cjs",
+      "test:bracket-view": "node tests/e2e/bracket-view.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"
