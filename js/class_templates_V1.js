@@ -378,28 +378,7 @@ const de32_template = [
             11,
             12
         ],
-        "pilots": [
-            {
-                "id": 49,
-                "name": "TestPilot1",
-                "result": ""
-            },
-            {
-                "id": 50,
-                "name": "TestPilot2",
-                "result": ""
-            },
-            {
-                "id": 51,
-                "name": "TestPilot3",
-                "result": ""
-            },
-            {
-                "id": 52,
-                "name": "TestPilot4",
-                "result": ""
-            }
-        ],
+        "pilots": [],
         "stage": 3
     },
     {
@@ -410,28 +389,7 @@ const de32_template = [
             23,
             24
         ],
-        "pilots": [
-            {
-                "id": 49,
-                "name": "TestPilot1",
-                "result": ""
-            },
-            {
-                "id": 50,
-                "name": "TestPilot2",
-                "result": ""
-            },
-            {
-                "id": 51,
-                "name": "TestPilot3",
-                "result": ""
-            },
-            {
-                "id": 52,
-                "name": "TestPilot4",
-                "result": ""
-            }
-        ],
+        "pilots": [],
         "stage": 4
     },
     {

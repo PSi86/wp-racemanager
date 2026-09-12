@@ -82,6 +82,11 @@ Consequences worth keeping in mind when changing this:
   because no suite rendered them. A bundled library under `assets/` is versioned by the release in
   its directory name instead. This cannot cover `rm-m-dataLoader.js`, reached through a relative
   `import` that WordPress does not version — see `docs/deployment.md`.
+- **`js/rm-m-pilotSelector.js`, `js/rm-m-displayHeats.js` and `js/class_templates_V1.js` run on
+  the timer too.** The RotorHazard connector's `/bracketview` takes them over byte for byte
+  (decided on 2026-09-12: this repository is their source), next to a `dataLoader` of its own that
+  reads RotorHazard's socket and hands a new subscriber `{}` until every section has arrived. A
+  change to them has to work there as well; the connector picks it up with its next sync.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -106,7 +111,8 @@ when any of that is missing.
 | Suite | Covers |
 |---|---|
 | `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, and that the console stays clean |
-| `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback |
+| `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, and the timer's `dataLoader` handing it `{}` first |
+| `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
 | `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
 | `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have — and, offline, is there and says so |
 | `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |

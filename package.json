@@ -12,6 +12,7 @@
       "test:offline": "node tests/e2e/offline.cjs",
       "test:view-tabs": "node tests/e2e/view-tabs.cjs",
       "test:bracket-titles": "node tests/e2e/bracket-titles.cjs",
+      "test:class-templates": "node tests/e2e/class-templates.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"
