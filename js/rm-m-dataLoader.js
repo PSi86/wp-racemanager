@@ -398,9 +398,15 @@ export class DataLoader {
     subscribe( callback ) {
         if ( typeof callback === 'function' ) {
             this.subscribers.add( callback );
-            // Immediately send the latest data (if available).
+            // Immediately send the latest data (if available). This runs inside the subscribing
+            // module's start-up, so a throw here would end that start-up half done: caught like
+            // every later update in notifySubscribers().
             if ( this.data ) {
-                callback( this.data );
+                try {
+                    callback( this.data );
+                } catch ( error ) {
+                    console.error( 'Error in subscriber callback:', error );
+                }
             }
         }
     }

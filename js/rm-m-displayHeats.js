@@ -108,16 +108,36 @@ class DisplayHeats {
             //updateClass(classContainers[i]); // Object instead of ID
             if(classContainers[i].style.display != "none") {
                 // only update visible class-displays
-                this.updateClass(classContainers[i].id); // ID instead of Object
+                const containerId = classContainers[i].id;
+                try {
+                    this.updateClass(containerId); // ID instead of Object
+                } catch (error) {
+                    // One class the view cannot draw must not take the others with it: a throw
+                    // here used to end the loop, and every class after it stayed empty.
+                    this.reportOnce(containerId, error);
+                    try {
+                        this.updateClass(containerId, true);
+                    } catch (fallbackError) {
+                        this.reportOnce(containerId + ":row", fallbackError);
+                    }
+                }
             }
         }
     }
-    
-    updateClass(containerId) {
+
+    // A class that fails to draw fails on every update; say so once, not every ten seconds.
+    reportOnce(key, error) {
+        this.reported = this.reported || new Set();
+        if (this.reported.has(key)) return;
+        this.reported.add(key);
+        console.error(`DisplayHeats: could not draw ${key}; drawing it as a row instead.`, error);
+    }
+
+    updateClass(containerId, asRow = false) {
         const raceClass = containerId.substring(0, containerId.indexOf("-display")); // eg:"elimination"
         console.log("DisplayHeats: Updating class display: " + containerId);
         // Todo: Accept class parameter to update only one class or empty parameter for all classes
-        let nodes=this.updateClassData(this.cr_rh_data, raceClass);
+        let nodes=this.updateClassData(this.cr_rh_data, raceClass, asRow);
         nodes=this.filterBracketData(nodes);
         nodes=this.calculateClassLayout(nodes);
         //renderGrid(nodes);
@@ -200,7 +220,7 @@ class DisplayHeats {
     // Current heat id is stored in .currentHeat
 
     // TODO eliminate writing to global variable bracketData, use return value instead or use a variable for this class only instead of overwriting the global template
-    updateClassData(rhData, raceClass) { // rhData is the data from RotorHazard, raceClass is the name of the class to be displayed
+    updateClassData(rhData, raceClass, asRow = false) { // rhData is the data from RotorHazard, raceClass is the name of the class to be displayed
         if (!rhData || !raceClass) {
             console.error("updateClassData: Missing rhData or raceClass");
             return null;
@@ -208,10 +228,10 @@ class DisplayHeats {
 
         // TODO detect correct template (clone it)
         // rename to Template from bracketData to de32_template.json, de16_template.json, general_template.json
-        
+
         let bracketData, numPilots, template;
         bracketData = { settings: {}, data: [] };
-        if(raceClass=="elimination") {
+        if(raceClass=="elimination" && !asRow) {
             numPilots = rhData.pilot_data.pilots.length;
             // only the elimination class uses specific templates
             if(numPilots<=16)                   { bracketData.data = structuredClone(de16_template); template="de16"; }
@@ -289,6 +309,25 @@ class DisplayHeats {
             eliminationHeats = eliminationHeats.sort((a, b) => a.id - b.id);
         }
 
+        if (template !== "default") {
+            // A template holds one fixed bracket. A class with more heats than it has races, or
+            // with gaps in its heat ids, would be written into races the template does not have
+            // (it threw for an FAI 32 bracket in an event of 16 pilots or fewer): draw it as a row.
+            let id = 1;
+            const fits = eliminationHeats.every((heat, index) => {
+                const found = bracketData.data.some(node => node.id === id);
+                if (index < eliminationHeats.length - 1) {
+                    id += eliminationHeats[index + 1].id - heat.id;
+                }
+                return found;
+            });
+            if (!fits) {
+                bracketData.data = [];
+                template = "default";
+                bracketData.settings.template = template;
+            }
+        }
+
         // Convert rhData.result_data.heats to an array if it's an object
         let resultHeatsArray
         if(rhData.result_data) {
@@ -335,10 +374,10 @@ class DisplayHeats {
             let leaderboard = null;
             let time = null;
 
-            // Skip searching for results if the heat is not flown yet
-            if(heat.id <= bracketData.settings.currentHeat) {
-                heatResults = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat.id) : null;
-            }
+            // The heat's results, whenever it has any. The current heat's id says nothing about
+            // which heats were flown: the timer can go back, and an archived race keeps whatever
+            // heat was current.
+            heatResults = resultHeatsArray ? resultHeatsArray.find(h => h.heat_id === heat.id) : null;
 
             if (heatResults && heatResults.leaderboard.meta.primary_leaderboard) {
                 switch (heatResults.leaderboard.meta.primary_leaderboard) {
@@ -393,33 +432,16 @@ class DisplayHeats {
                 // slot.method is 1 for seeded slots and 0 for unseeded slots (and -1 for empty slots?)
 
                 if ((slot.pilot_id === null || slot.pilot_id === 0 || slot.node_index === null) && !heatResultAvailable && slot.method !== -1) {
-                    // Slot not seeded
-                    // could just get this data from the result_data
-                    //result_data.heats[4].rounds[flownRounds].nodes[i].pilot_id
-
-                    // Skip searching for results if the heat to seed from is not flown yet
-                    if(slot.seed_id <= bracketData.settings.currentHeat) {
-                        
-                        let seedHeatLeaderboard = this.getLeaderboardForHeat(resultHeatsArray, slot.seed_id)
-                        let seedPilotLeaderboard = null;
-
-                        if(seedHeatLeaderboard) {
-                            //const seedPilot = seedHeatLeaderboard.find(r => r.node_index === i);
-                            seedPilotLeaderboard = seedHeatLeaderboard.find(entry => entry.position == slot.seed_rank);
-                        }
-                        if(seedPilotLeaderboard) {
-                            pilotCallsign = seedPilotLeaderboard.callsign;
-                            pilotId = seedPilotLeaderboard.pilot_id;
-                        }
+                    // Slot not seeded yet: the pilot it will get once its source has a result,
+                    // else the seeding rule (source and rank).
+                    const seed = this.resolveSeed(rhData, resultHeatsArray, slot);
+                    if (seed.pilotId) {
+                        pilotCallsign = seed.callsign;
+                        pilotId = seed.pilotId;
+                    } else {
+                        pilotCallsign = seed.label;
                     }
-                    
-                    if(!pilotCallsign) {
-                        // Resolve seed_id to heat displayname
-                        const seedHeat = rhData.heat_data.heats.find(h => h.id === slot.seed_id);
-                        // Fallback: show seeding rule (source heat and source rank)
-                        pilotCallsign = seedHeat ? `${seedHeat.displayname} #${slot.seed_rank}` : "";
-                    }
-                } 
+                }
                 //else if (slot.pilot_id !== 0 && slot.node_index !== null && heatResultAvailable) {
                 else if ((slot.pilot_id !== null && slot.pilot_id !== 0) && slot.node_index !== null) {
                     // Slot is seeded
@@ -430,8 +452,11 @@ class DisplayHeats {
 
                     if(leaderboard) { // check if results are available
                         const pilotLeaderboard = leaderboard.find(r => r.pilot_id === slot.pilot_id);
-                        
-                        if (pilotLeaderboard[time] === "0:00.000" || pilotLeaderboard.position < 1) {
+
+                        if (!pilotLeaderboard) {
+                            // In the slot but not in the heat's result (changed after the race).
+                            pilotResult = "";
+                        } else if (pilotLeaderboard[time] === "0:00.000" || pilotLeaderboard.position < 1) {
                             pilotResult = "DNF";
                         } else {
                             pilotResult = String(pilotLeaderboard[time] + " ");  // total_time
@@ -831,6 +856,65 @@ class DisplayHeats {
      * @param {number|string} heat_id - The identifier used as heat_id.
      * @returns {string|null} - The pilot name if found; otherwise, null.
      */
+    /**
+     * The pilot a seeded slot will get, as RotorHazard seeds it (heat_automation.py): the entry at
+     * seed_rank - 1 of the seed heat's primary leaderboard (method 1), or of the seed class's
+     * ranking, else its primary leaderboard (method 2). seed_id names a heat in the first case
+     * and a class in the second. Until that entry exists, a label naming source and rank.
+     *
+     * @param {Object} rhData - The race data.
+     * @param {Array|null} resultHeatsArray - result_data.heats as an array.
+     * @param {Object} slot - The slot: method, seed_id, seed_rank.
+     * @returns {{pilotId: number|null, callsign: string, label: string}}
+     */
+    resolveSeed(rhData, resultHeatsArray, slot) {
+        const rank = slot.seed_rank;
+        let entries = null;
+        let source = "";
+        if (slot.method === 1) {
+            const seedHeat = rhData.heat_data.heats.find(h => h.id === slot.seed_id);
+            source = seedHeat ? seedHeat.displayname : "";
+            entries = this.getLeaderboardForHeat(resultHeatsArray, slot.seed_id);
+        } else if (slot.method === 2) {
+            const classes = (rhData.class_data && rhData.class_data.classes) || [];
+            const seedClass = classes.find(c => c.id === slot.seed_id);
+            source = seedClass ? seedClass.displayname : "";
+            entries = this.getLeaderboardForClass(rhData, slot.seed_id);
+        }
+        const entry = (entries && rank > 0) ? entries[rank - 1] : null;
+        if (entry && entry.pilot_id) {
+            return { pilotId: entry.pilot_id, callsign: entry.callsign || "", label: "" };
+        }
+        return { pilotId: null, callsign: "", label: (source && rank) ? `${source} #${rank}` : "" };
+    }
+
+    /**
+     * What RotorHazard seeds a class-result slot from: the class's ranking when a ranking method
+     * produced one, else the class leaderboard its format makes primary.
+     *
+     * @param {Object} rhData - The race data.
+     * @param {number} class_id - The class.
+     * @returns {Array|null}
+     */
+    getLeaderboardForClass(rhData, class_id) {
+        const classes = rhData.result_data && rhData.result_data.classes;
+        if (!classes) {
+            return null;
+        }
+        const list = Array.isArray(classes) ? classes : Object.values(classes);
+        const cls = list.find(c => c && c.id === class_id);
+        if (!cls) {
+            return null;
+        }
+        if (cls.ranking) {
+            // As RotorHazard's `if ranking:` - a ranking method that produced nothing seeds nobody.
+            return Array.isArray(cls.ranking.ranking) ? cls.ranking.ranking : null;
+        }
+        const board = cls.leaderboard;
+        const key = board && board.meta && board.meta.primary_leaderboard;
+        return (key && Array.isArray(board[key])) ? board[key] : null;
+    }
+
     getLeaderboardForHeat(resultHeatsArray, heat_id) {
         // Verify the basic structure exists
         /* if (!rhData || !rhData.result_data || !Array.isArray(rhData.result_data.heats)) {

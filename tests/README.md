@@ -46,6 +46,7 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `race-selection` | A timer naming its race: the upload with `race_id` updates exactly that race and never creates one — the lookup by title that D3 in the RotorHazard plugin's roadmap is about does not even run — while an upload without it still goes by title, for older timers. `GET /races` lists the 15 newest races the user may edit — counted after that check, read page by page past the ones they may not, the newer post first among equal starts; `POST /races` creates a race from the event, with its files from the start, and refuses a title another race has — the title as it would be stored, a race in the bin not counting — naming that race and saying whether the user may edit it. And the HTTP status of each refusal: 404 for no race, 403 without the right, 400 for a locked race, 409 for a title that is taken, 500 when the files cannot be written. A saved upload stays a success when working out who flies next fails or the push library throws, and says that nobody was notified (D8 in the connector's roadmap); a notification without a click URL links to its race's live page; its icon is one of the names `lunch`, `break` and `warning` for the images this plugin ships, a web address as it is, and the site's app icon for anything else (D6 there). And (1.8.1) a message to an archived race refused with 400 and its reason, to an ID that is no race or a race in the bin with 404, nothing logged or pushed either way; and a race created from an event live before its first files, so it has its parts from the first upload. Against the handler before, those seven checks fail. |
 | `compressed-bodies` | A timer's gzip-compressed body on the `rm/v1` routes: decoded on `rest_pre_dispatch`, before core would refuse it as invalid JSON, whatever the header's case, `x-gzip` too, and a 1.9 MB event as well as a small one; left alone without the header, for `identity`, on another namespace and when another filter has answered; refused with 400 when it is no gzip or cut short, with 415 for another encoding, and with 400 when it inflates past 10 MB — a 19 kB body that inflates to 20 MB stops there, the memory it took measured, because `gzdecode()`'s own limit does not hold; not inflated at all for a stranger, who gets the gate's 401 or 403 first. And that every answer of the namespace, a 415 included, carries `Accept-Encoding: gzip`, and no other does. And that a PHP without zlib does not say so and answers a compressed body 415 instead of a fatal error — in a PHP process of its own with `inflate_init()` disabled, which PHP 8 treats as not there; against 1.6.0 as merged that run died of `Call to undefined function inflate_init()`. |
 | `page-cache` | Every `rm/v1` request marked as not to be cached before any callback runs — `DONOTCACHEPAGE`, and LiteSpeed Cache's `litespeed_control_set_nocache` with a reason — and every answer, a refusal included, with `X-LiteSpeed-Cache-Control: no-cache`; another namespace left alone. What LiteSpeed Cache 7.9.1 makes of it was measured on the local site with the plugin active and LiteSpeed emulated: before, `public,max-age=604800` for a timer's `GET /races` and `GET /get-pilots`; after, `no-cache`, and the same with the constant alone or the call alone, while the header alone was overwritten with `public`. |
+| `nextup-schedule` | Who flies next, as every upload works it out for the "your next race" pushes (`rm_getUpcomingRacePilots()`). The heat on the timer is announced when it is the last one, and when the timer numbered its heats from 50 — the loop's guard counted from the heat's id and gave up at once in both cases, so no next-up push went out for a final. A slot the timer fills from a class's result (method 2) takes that class's pilot, from its ranking when it has one, not the pilot of the heat that carries the class's number; a slot filled from a heat's result takes the entry at `seed_rank - 1`, as RotorHazard seeds. Against 1.9.0 all five checks fail; with the guard fixed alone, the three seed checks still do, each for its own reason. |
 | `push-delivery` | Pushes after the answer: `rm_after_response()` hooks shutdown once, late, closes the connection before the first task — PHP-FPM's `fastcgi_finish_request()` here, LiteSpeed's `litespeed_finish_request()` and neither in a PHP process of their own — runs the tasks in order and each once, logs one that throws and goes on, and says in `debug.log` who closed the connection. The next-up pushes and a message to all followers are queued inside the request, with the followers' heat and slot stored there, and sent only after the answer: all at once with the asynchronous client, one after another without; a subscription its push service calls gone is forgotten, another failure logged. A new subscriber's confirmation still goes out at once. And, with the real library, the client the handler builds: 50 pushes at a time, 10 s each and 5 s to connect, on the asynchronous client as well. |
 
 ## Optional dependencies
@@ -87,6 +88,9 @@ npm run test:view-tabs                              # against https://racemanage
 npm run test:bracket-titles                         # against https://racemanager.ddev.site
 npm run test:class-templates                        # no WordPress and no browser, only Node
 npm run test:push-subscribe                         # no WordPress needed, only a browser
+npm run test:bracket-view                           # no WordPress needed, only a browser
+npm run test:loader-subscribe                       # no WordPress needed, only a browser
+npm run test:stats-ranking                          # no WordPress needed, only a browser
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -156,6 +160,39 @@ On the live pages a race with three slots showed "TestPilot4"; on the timer, who
 names blanked, the leftover still counted as pilot 49 to 52 when filtering by a pilot and on hover.
 The check: every entry a seeding label, every entry ID and race ID used once. Against the template
 before, both fail.
+
+### `tests/e2e/bracket-view.cjs`
+
+`js/rm-m-displayHeats.js`, the bracket view, against the real module in a real DOM, with the
+`dataLoader` and the pilot selector served as stubs and every race built in the test from the
+upload's shapes (no real names). No WordPress, no DDEV.
+
+One class the view cannot draw leaves the others drawn: a throw used to end the loop over the
+classes. A bracket class the template cannot hold — more heats than the template has races, or gaps
+in its heat ids — is drawn as a row: an FAI 32 bracket in an event of 12 pilots threw *Cannot set
+properties of undefined (setting 'rh_id')* at its 15th heat, and qualifying and training stayed
+empty. A slot filled from a class's result (method 2) is labelled with that class, not with the heat
+that carries the class's number; a slot filled from a heat's result takes the entry at
+`seed_rank - 1`, as RotorHazard seeds, so a pilot who did not start does not leave it unfilled; and a
+heat's results show whenever it has any, not only up to the current heat's id. Against the module
+before (1.9.0), all but one of its eleven checks fail.
+
+### `tests/e2e/loader-subscribe.cjs`
+
+`js/rm-m-dataLoader.js`: a subscriber that throws. A returning visitor has the race in
+`localStorage`, so `subscribe()` hands it over at once, inside the subscribing module's start-up; a
+throw there escaped `subscribe()` and ended that start-up half done. The check: `subscribe()` does
+not throw, and the next subscriber still gets the cached data. The page and every URL the loader
+asks for are answered by the test. Against the loader before (1.9.0), the first check fails.
+
+### `tests/e2e/stats-ranking.cjs`
+
+`js/rm-m-displayStats.js`: the class ranking panel, with `buildRanking()` called on the module's own
+instance. A class has a ranking once the timer ranks it with a ranking method — "Class Rank:
+Brackets" for a Chase the Ace final — and the panel called a translation function that was never
+imported. The checks: a ranking is a table with the method's own columns and the result the timer
+gave; a method that ranked nobody (`{}` and `{}`) and a ranking without meta each say so in a
+sentence. Against the module before (1.9.0), all seven fail with *__ is not defined*.
 
 ### `tests/e2e/live-resume.cjs`
 
