@@ -11,6 +11,9 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+// A race deleted for good takes its index and its parts with it.
+add_action( 'before_delete_post', 'rm_delete_race_parts_of_post' );
+
 /**
  * The index format this plugin writes. The loader uses an index only in a format it knows, and
  * downloads the whole payload otherwise.
@@ -216,6 +219,31 @@ function rm_remove_race_parts( $upload_path, $race_id, $keep ) {
         if ( 0 === strpos( $name, $prefix ) && str_ends_with( $name, '.json' ) && ! isset( $keep[ $upload_path . $name ] ) ) {
             @unlink( $upload_path . $name );
         }
+    }
+}
+
+/**
+ * Remove the index and the parts of a race that is deleted for good.
+ *
+ * The whole file and the timestamp are attachments of a race an upload created, and go with them
+ * (rm_delete_all_attachments(), in the admin). The index and the parts are not, and without this
+ * every race deleted would leave them behind -- from the admin and through the REST API alike.
+ *
+ * @param int $post_id The post being deleted.
+ * @return void
+ */
+function rm_delete_race_parts_of_post( $post_id ) {
+    if ( 'race' !== get_post_type( $post_id ) ) {
+        return;
+    }
+    $upload_path = rm_get_race_data_dir( false );
+    if ( is_wp_error( $upload_path ) || ! is_dir( $upload_path ) ) {
+        return;
+    }
+    $race_id = (int) $post_id;
+    rm_remove_race_parts( $upload_path, $race_id, array() );
+    if ( is_file( $upload_path . $race_id . '-index.json' ) ) {
+        @unlink( $upload_path . $race_id . '-index.json' );
     }
 }
 

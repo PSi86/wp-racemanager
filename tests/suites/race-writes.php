@@ -36,6 +36,10 @@ function current_time( $type ) {
 function get_post_meta( $id, $key = '', $single = false ) {
     return $GLOBALS['rm_meta'][ $id ][ $key ] ?? '';
 }
+// Hooks by name: race-files.php registers one as it is loaded.
+function add_action( $hook, $callback, $priority = 10, $args = 1 ) {
+    $GLOBALS['rm_actions'][ $hook ][] = $callback;
+}
 
 require_once RM_TEST_DIR . '/stubs/wordpress.php';
 require_once RM_PLUGIN_DIR . '/includes/race-data-functions.php';
@@ -251,6 +255,23 @@ rm_write_files( 42, rm_rw_read( 42, 'data' ) );
 $after = rm_rw_read( 42, 'index' );
 rm_test_check( 'the index does not end up inside itself', ! in_array( 'rm_index', rm_rw_paths( $after ), true ) && ! isset( rm_rw_read( 42, 'data' )['rm_index']['rm_index'] ) );
 rm_test_check( 'only the race log\'s hash changes', array( 'notifications' ) === array_keys( array_diff_assoc( rm_rw_hashes( $after ), rm_rw_hashes( $before ) ) ) );
+
+rm_test_section( 'A race deleted for good takes its index and parts with it' );
+
+// The whole file and the timestamp are attachments of a race an upload created, and go with them;
+// the index and the parts are not, and would be left behind.
+rm_rw_reset();
+rm_test_post( 42, 'race', 'autumn-cup', 'publish', 0, 'Autumn Cup' );
+rm_test_post( 43, 'post', 'news', 'publish', 0, 'News' );
+rm_write_files( 42, rm_rw_event( 2, array( 1 => 5 ) ) );
+rm_write_files( 43, rm_rw_event( 2, array( 1 => 5 ) ) );
+rm_test_check( 'hooked to before_delete_post as the file is loaded',
+    in_array( 'rm_delete_race_parts_of_post', $GLOBALS['rm_actions']['before_delete_post'] ?? array(), true ) );
+rm_delete_race_parts_of_post( 42 );
+rm_test_check( 'the index and every part are gone, the whole file and the timestamp left to the attachments',
+    array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ), implode( ', ', rm_rw_listing( 42 ) ) );
+rm_delete_race_parts_of_post( 43 );
+rm_test_check( 'a post that is no race: nothing removed', in_array( '43-index.json', rm_rw_listing( 43 ), true ) );
 
 /* --------------------------------------------------------------------------
  * The order
