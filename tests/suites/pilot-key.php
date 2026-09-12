@@ -125,8 +125,8 @@ rm_test_check( 'a registration without an address has none', '' === $keys[3] );
 rm_test_check( 'the record\'s own fields are still there',
     array( 1, 2, 3, 4 ) === array_column( $rows, 'id' ) && 12 === $rows[1]['user_id'] && '2026-09-01 10:00:00' === $rows[0]['form_date'] );
 rm_test_check( 'and form fields outside the whitelist are not', ! array_key_exists( 'secret', $rows[0] ) );
-rm_test_check( 'the admin list and the CSV export have the column, last',
-    'pilot_key' === end( $GLOBALS['rm_gui_columns'] ) );
+rm_test_check( 'the admin list and the CSV export have the column, after those before it',
+    array( 'form_date', 'pilot_key', 'pilot_country_1' ) === array_slice( $GLOBALS['rm_gui_columns'], -3 ) );
 
 // get-pilots is what RotorHazard reads. Checked on the endpoint itself: the key in a helper
 // nobody calls would change nothing for the timer.

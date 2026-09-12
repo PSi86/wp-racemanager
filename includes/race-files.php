@@ -12,6 +12,7 @@
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 require_once __DIR__ . '/race-status.php'; // rm_race_is_live(): the parts and the race log only while a race is live
+require_once __DIR__ . '/pilot-profiles.php'; // rm_race_pilot_profiles(): nationality and photo of the race's pilots
 
 // A race deleted for good takes its index and its parts with it.
 add_action( 'before_delete_post', 'rm_delete_race_parts_of_post' );
@@ -89,6 +90,11 @@ function rm_write_files( $race_id, $json_data, $create_wp_attachment = 0 ) {
         $json_data = add_notifications_to_race_json( $json_data, $race_id );
     } elseif ( is_array( $json_data ) ) {
         $json_data['notifications'] = array();
+    }
+    // The nationality and photo of the race's pilots, as their newest registration with the consent
+    // gave them (1.11.0) - live and archived alike, anew on every write.
+    if ( is_array( $json_data ) ) {
+        $json_data['pilot_profiles'] = rm_race_pilot_profiles( $json_data );
     }
 
     $files = array();

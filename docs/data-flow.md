@@ -37,6 +37,7 @@ The body is the **complete** result JSON, every time — there is no partial or 
 | `result_data` | Every lap, every ranking, per heat and overall | **constantly** |
 | `current_heat.current_heat` | Which heat is up | every heat |
 | `notifications` | Added server-side by `add_notifications_to_race_json()`; empty for an archived race (1.8.1) | on every push |
+| `pilot_profiles` | Added server-side by `rm_race_pilot_profiles()` (1.11.0): pilot key → `{country, photo}` for the race's pilots whose newest registration gave them under the consent `acceptance-media`, the photo as `uploads/rm-pilots/{key}.jpg?v={version}`; `[]` when there are none. Written anew on every write, live and archived | when a pilot registers again |
 
 `rm_update_race()` then writes into the race the upload names (requires `_race_live` to be `'1'`,
 otherwise the race is locked); an upload without `race_id` goes through `rm_find_or_create_race()`,
@@ -282,8 +283,8 @@ Subscribers get the entire object and pick what they need:
 
 | Module | View | Reads |
 |---|---|---|
-| `rm-m-displayHeats` | bracket, next-up | `heat_data`, `pilot_data`, `class_data`, `current_heat`, `result_data` |
-| `rm-m-displayStandings` | bracket, next-up | `heat_data`, `class_data`, `result_data` (heats, classes), through `rm-m-bracketStandings` |
+| `rm-m-displayHeats` | bracket, next-up | `heat_data`, `pilot_data`, `class_data`, `current_heat`, `result_data`, `pilot_profiles` |
+| `rm-m-displayStandings` | bracket, next-up | `heat_data`, `class_data`, `result_data` (heats, classes), through `rm-m-bracketStandings`; `pilot_data`, `pilot_profiles` |
 | `rm-m-displayStats` | stats | `result_data` |
 | `rm-m-displayPilotStats` | pilots | `pilot_data`, `result_data` |
 | `rm-m-pilotSelector` | bracket, stats, next-up | `pilot_data` |

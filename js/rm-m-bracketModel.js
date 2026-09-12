@@ -17,6 +17,8 @@
 //   heat_data.heats[]      id, displayname, class_id, order, slots[] {pilot_id, method, seed_rank, seed_id}
 //   result_data.heats      {heat_id: {rounds[] {leaderboard}, leaderboard}}, an object or a list
 //   result_data.classes    {class_id: {leaderboard, ranking}}
+//   pilot_data.pilots[]    pilot_id, callsign, pilot_key (from the connector)
+//   pilot_profiles         {pilot key: {country, photo}}, added by WP RaceManager (1.11.0)
 
 export const MODEL_VERSION = 1;
 
@@ -608,4 +610,32 @@ export function ctaState( data, bracket ) {
 export function classRanking( data, classId ) {
     const cls = classResult( data, classId );
     return cls && cls.ranking && Array.isArray( cls.ranking.ranking ) ? cls.ranking.ranking : null;
+}
+
+/* ------------------------------------------------------------------------------------------ *
+ * Pilots
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * A pilot's nationality and photo, as WP RaceManager's race files carry them since 1.11.0:
+ * pilot_profiles, by the pilot key the timer sent with the pilot. The timer's own data has none.
+ *
+ * @returns {{country: string|null, photo: string|null}|null} country an ISO code such as "AT",
+ *   photo a URL; null when the pilot has neither.
+ */
+export function pilotProfile( data, pilotId ) {
+    const profiles = data && data.pilot_profiles;
+    if ( ! pilotId || ! profiles || typeof profiles !== 'object' || Array.isArray( profiles ) ) {
+        return null;
+    }
+    const pilot = listOf( data.pilot_data && data.pilot_data.pilots ).find( ( p ) => p && p.pilot_id === pilotId );
+    const key = pilot && typeof pilot.pilot_key === 'string' ? pilot.pilot_key.toLowerCase() : '';
+    const entry = key ? profiles[ key ] : null;
+    if ( ! entry || typeof entry !== 'object' ) {
+        return null;
+    }
+    const country = typeof entry.country === 'string' && /^[A-Z]{2}$/.test( entry.country ) ? entry.country : null;
+    // Only a web address: the page puts it into an image's src.
+    const photo = typeof entry.photo === 'string' && /^(https?:\/\/|\/)/.test( entry.photo ) ? entry.photo : null;
+    return country || photo ? { country, photo } : null;
 }

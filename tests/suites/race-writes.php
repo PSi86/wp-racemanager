@@ -207,7 +207,7 @@ rm_test_check( 'dated like the timestamp', is_array( $index ) && '2026-09-12 10:
 $expected = array(
     'race_name', 'current_heat', 'pilot_data', 'heat_data',
     'result_data.heats.1', 'result_data.heats.2', 'result_data.heats_by_class',
-    'result_data.classes.1', 'result_data.event_leaderboard', 'notifications',
+    'result_data.classes.1', 'result_data.event_leaderboard', 'notifications', 'pilot_profiles',
 );
 rm_test_check( 'a part per top-level key, per heat and per class, in order', $expected === rm_rw_paths( $index ), implode( ', ', rm_rw_paths( $index ) ) );
 
@@ -496,7 +496,7 @@ rm_test_check( 'and holds the new upload', 3 === count( rm_rw_read( 42, 'data' )
 $expected = array(
     '42-data.json', '42-index.json',
     '42-part-current_heat.json', '42-part-heat_data.json', '42-part-notifications.json', '42-part-pilot_data.json',
-    '42-part-race_name.json', '42-part-result_data-classes-1.json', '42-part-result_data-event_leaderboard.json',
+    '42-part-pilot_profiles.json', '42-part-race_name.json', '42-part-result_data-classes-1.json', '42-part-result_data-event_leaderboard.json',
     '42-part-result_data-heats.json', '42-part-result_data-heats_by_class.json', '42-timestamp.json',
 );
 rm_test_check( 'nothing else is left in the directory', $expected === rm_rw_listing(), implode( ', ', rm_rw_listing() ) );

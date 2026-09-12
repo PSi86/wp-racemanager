@@ -42,6 +42,7 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `activation` | What the activation hook leaves behind, and what a *second* activation must not: the `CREATE TABLE` statement `dbDelta()` can actually parse, with the subscriptions' `pilot_key`, the CF7 example form being created once rather than once per activation, and the plugin header — one version number in three places, plus the `Requires` headers. And that an update brings the table up to date without the hook, which a ZIP replace does not run: on `plugins_loaded`, `dbDelta()` once, the schema recorded only once the column is there, and not again after; and a subscription stored with its pilot key, or none. |
 | `subscriptions-by-key` | Which pilot a push subscription follows once the upload names its pilots by key (the connector's `pilot_key`). Re-created pilots under new IDs: no push about the heat of whoever has the subscription's old ID now, the new ID stored, and the push when the pilot moves naming the right heat. A pilot the upload no longer has: told of leaving the heat, not of the other person's channel. A subscription from before keys: found by ID and given the key. An upload without keys, from an older connector: by ID as before, nothing rewritten. A key in capitals is the same key. And `rm_pilot_keys_by_id()`: by pilot ID, lower-cased, only valid keys. Against 1.6.1's handler the key cases fail, and each of six broken variants of the change fails it. |
 | `pilot-key` | The pilot key: a version-5 UUID computed as RFC 9562 defines it (checked against Python's documented `uuid5` value), one key per address whatever its case or blanks and the same on every call, derived in the site's own namespace — created once, another one giving other keys — and `RM_PILOT_NAMESPACE` winning, an invalid one handing out no key rather than falling back (in a PHP process of its own, since a constant cannot be undefined). And that every row of `get-pilots` carries the key, checked on the endpoint itself; against the old endpoint that check fails. And that `get-pilots` carries no address, phone number or consent flag, while the admin list keeps them, and that a field the admin list gains later stays off the timer (D1 in the connector's roadmap). |
+| `pilot-profiles` | A pilot's nationality and photo (1.11.0). The countries: a code of the list in upper case, Kosovo's XK among them, anything else none; every code with its flag under `assets/` and every flag with its code, the license beside them; the names in the site's language where intl is there ("Österreich", sorted among the O's). What a registration gives: with the consent `acceptance-media` its country, which a registration without one keeps and one repeating the profile leaves undated; a code not on the list changes nothing, a file that is no image is no photo; no address or nothing to keep stores nothing; the option is not autoloaded; without the consent the profile goes, photo and option with it. Deleting registrations: only the race's own, and the profile of a pilot with none left, not of one still registered for another race. A photo's metadata: EXIF, IPTC and comments go, GD's own included, the colour profile and Adobe's transform stay, the image data untouched and still an image of its size; no JPEG and a JPEG cut short are refused. What a race's files carry: its own pilots' profiles by key, a photo as its URL with version, nothing for a version that is none or a race without keys. Three of four mutations of the rules fail a check; the fourth is equivalent. The photo itself - upright, cut, without metadata, with GD and with Imagick - is `tests/e2e/pilot-profiles.cjs`. |
 | `rest-auth` | That the RotorHazard endpoints ask for a capability instead of just "is logged in", that every route and method is behind that gate — a route that answers GET and POST counted twice — that the upload's optional `race_id` is checked per race, and that the dead API key check stays gone. |
 | `race-selection` | A timer naming its race: the upload with `race_id` updates exactly that race and never creates one — the lookup by title that D3 in the RotorHazard plugin's roadmap is about does not even run — while an upload without it still goes by title, for older timers. `GET /races` lists the 15 newest races the user may edit — counted after that check, read page by page past the ones they may not, the newer post first among equal starts; `POST /races` creates a race from the event, with its files from the start, and refuses a title another race has — the title as it would be stored, a race in the bin not counting — naming that race and saying whether the user may edit it. And the HTTP status of each refusal: 404 for no race, 403 without the right, 400 for a locked race, 409 for a title that is taken, 500 when the files cannot be written. A saved upload stays a success when working out who flies next fails or the push library throws, and says that nobody was notified (D8 in the connector's roadmap); a notification without a click URL links to its race's live page; its icon is one of the names `lunch`, `break` and `warning` for the images this plugin ships, a web address as it is, and the site's app icon for anything else (D6 there). And (1.8.1) a message to an archived race refused with 400 and its reason, to an ID that is no race or a race in the bin with 404, nothing logged or pushed either way; and a race created from an event live before its first files, so it has its parts from the first upload. Against the handler before, those seven checks fail. |
 | `compressed-bodies` | A timer's gzip-compressed body on the `rm/v1` routes: decoded on `rest_pre_dispatch`, before core would refuse it as invalid JSON, whatever the header's case, `x-gzip` too, and a 1.9 MB event as well as a small one; left alone without the header, for `identity`, on another namespace and when another filter has answered; refused with 400 when it is no gzip or cut short, with 415 for another encoding, and with 400 when it inflates past 10 MB — a 19 kB body that inflates to 20 MB stops there, the memory it took measured, because `gzdecode()`'s own limit does not hold; not inflated at all for a stranger, who gets the gate's 401 or 403 first. And that every answer of the namespace, a 415 included, carries `Accept-Encoding: gzip`, and no other does. And that a PHP without zlib does not say so and answers a compressed body 415 instead of a fatal error — in a PHP process of its own with `inflate_init()` disabled, which PHP 8 treats as not there; against 1.6.0 as merged that run died of `Call to undefined function inflate_init()`. |
@@ -93,6 +94,7 @@ npm run test:bracket-model                          # no WordPress and no browse
 npm run test:bracket-standings                      # no WordPress and no browser, only Node
 npm run test:loader-subscribe                       # no WordPress needed, only a browser
 npm run test:stats-ranking                          # no WordPress needed, only a browser
+npm run test:pilot-profiles                         # against https://racemanager.ddev.site, and ddev
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -185,12 +187,36 @@ of an undecided Chase the Ace without places but with their wins, no result colu
 stands in it, no standing for a class that forms no bracket. Nothing throws - not on `{}`, not
 without results, not for an FAI 32 bracket flown by 12 pilots, not for a class the view cannot read,
 whose neighbours are still drawn. Seeds are labelled and resolved as RotorHazard seeds, and results
-show whenever a heat has them. A page with the old fixed containers still works.
+show whenever a heat has them. A page with the old fixed containers still works. And the pilots'
+flags and photos (1.11.0), from the race's `pilot_profiles` by pilot key whatever its case: no flag
+where the page does not say where the flags are, which is the timer's case; with it, the flag by the
+callsign in every heat, none for a pilot without a country or with one that is no code; in the
+standing the photo, the initials for a pilot without one and for a photo that fails to load, no photo
+from an address that is no web address; nothing at all for PHP's empty `[]`.
 
 Against 1.9.0, ten of the 1.9.1 checks failed (a throw at the 15th heat of an FAI 32 bracket in an
 event of 12 pilots, and every class after it empty). Against 1.9.1, every check of the sections,
 brackets and round names fails, and the run stops at the Chase the Ace node, which 1.9.1 does not
 draw.
+
+### `tests/e2e/pilot-profiles.cjs`
+
+A pilot's nationality and photo (1.11.0), sent through the registration form on the development site
+from a real browser: Contact Form 7 deletes its uploads once a submission is done, so only a real
+submission shows that the photo is taken in time. `tests/e2e/pilot-profiles-site.php`, through
+`ddev wp eval-file`, makes a race open for registration and a page with the example form, hands over
+a photo as a phone stores it - 600 x 400, red left and blue right, EXIF orientation 6 and an Artist
+tag - reports what the plugin made of it, and removes it all again, also after a run that did not
+finish.
+
+The form offers the countries and a photo field and is sent; the registration is stored with the
+country's code; the profile has the country and the photo; the photo is a square JPEG of 256 pixels,
+red on top and blue at the bottom - turned the way the phone meant it - with neither the EXIF block
+nor the Artist left; the photos' directory lists nothing; a race's files carry country and photo URL
+with the photo's version; deleting the registration takes profile and photo away. The same photo then
+goes through each image editor the site has, GD and Imagick. The first run failed the metadata check:
+WordPress's Imagick keeps EXIF, IPTC and XMP on purpose, and only the plugin's own filter of the JPEG's
+segments takes them off (`rm_jpeg_without_metadata()`).
 
 ### `tests/e2e/bracket-model.cjs`
 

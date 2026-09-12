@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP RaceManager
  * Description: Provides REST API endpoints for RotorHazard: download pilot registrations, upload race results. The "Races" menu item will be populated with the latest races. For more information, see the plugin settings.
- * Version: 1.10.1
+ * Version: 1.11.0
  * Author: Peter Simandl
  * Text Domain: wp-racemanager
  * Requires at least: 6.5
@@ -21,7 +21,7 @@ namespace RaceManager;  // Use your preferred namespace if you have one.
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-define( 'WP_RACEMANAGER_VERSION', '1.10.1' ); // keep in sync with the plugin header and package.json
+define( 'WP_RACEMANAGER_VERSION', '1.11.0' ); // keep in sync with the plugin header and package.json
 define( 'WP_RACEMANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 //define( 'WP_RACEMANAGER_ASSETS', WP_RACEMANAGER_URL . 'assets/build/' );
@@ -159,8 +159,10 @@ final class WP_RaceManager {
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-handler.php'; //
         include_once plugin_dir_path(__FILE__) . 'includes/race-archive.php'; // Race archive page (ordering by event start date)
         require_once plugin_dir_path(__FILE__) . 'includes/pilot-key.php'; // one reproducible key per registered email address
+        require_once plugin_dir_path(__FILE__) . 'includes/pilot-profiles.php'; // a pilot's nationality and photo, from the registration form
         require_once plugin_dir_path(__FILE__) . 'includes/admin-registrations.php'; // Admin functions for registrations
         include_once plugin_dir_path(__FILE__) . 'includes/sc-cf7-event-dropdown.php'; // SC for Contact Form 7
+        include_once plugin_dir_path(__FILE__) . 'includes/sc-cf7-country.php'; // [rm_country] for Contact Form 7
         include_once plugin_dir_path(__FILE__) . 'includes/cpt-meta-handler.php'; // cpt admin functions
         
         include_once plugin_dir_path(__FILE__) . 'includes/block-modifiers.php'; // filter modifiers for default wp blocks

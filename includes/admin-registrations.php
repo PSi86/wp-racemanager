@@ -7,6 +7,8 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+require_once __DIR__ . '/pilot-profiles.php'; // the nationality and photo a registration gives
+
 // Global configuration which fields to display in the UI and which to exclude in CSV processing.
 global $rm_gui_columns;
 // Define the allowed keys for display
@@ -18,7 +20,8 @@ $rm_gui_columns = array(
     'acceptance-communication',
     'user_id',
     'form_date',
-    'pilot_key', // last, so a CSV column that was there before keeps its place
+    'pilot_key', // after the others, so a CSV column that was there before keeps its place
+    'pilot_country_1', // 1.11.0, likewise
 );
 
 /**
@@ -115,7 +118,7 @@ function rm_save_submission($cf7) {
 
         global $wpdb;
         $registrations_table = $wpdb->prefix . 'rm_registrations';
-        $wpdb->insert(
+        $inserted = $wpdb->insert(
             $registrations_table,
             array(
                 'user_id'    => $user_id,
@@ -125,7 +128,54 @@ function rm_save_submission($cf7) {
             ),
             array('%d', '%d', '%s', '%s')
         );
+
+        // The pilot's nationality and photo (pilot-profiles.php), only for a registration that is
+        // stored: deleting it is what takes them away again. The photo has to be read now - Contact
+        // Form 7 deletes its uploads once the submission is done.
+        if ( $inserted ) {
+            $uploaded = $submission->uploaded_files();
+            $photos   = isset( $uploaded[ RM_PILOT_PHOTO_FIELD ] ) ? (array) $uploaded[ RM_PILOT_PHOTO_FIELD ] : array();
+            rm_pilot_profile_from_registration( $data, $photos ? (string) reset( $photos ) : null );
+        }
     }
+}
+
+/**
+ * Delete registrations of a race, and the profile of every pilot who has none left.
+ *
+ * @param int   $race_id The race; ids of another race's registrations are left alone.
+ * @param int[] $ids     The registrations.
+ * @return int How many were deleted.
+ */
+function rm_delete_registrations( $race_id, $ids ) {
+    global $wpdb;
+    $registrations_table = $wpdb->prefix . 'rm_registrations';
+    $ids = array_values( array_filter( array_map( 'absint', (array) $ids ) ) );
+    if ( ! $ids ) {
+        return 0;
+    }
+    // Scope the delete to this race. The capability check of the admin page only covers $race_id,
+    // so ids belonging to another race must not be deletable there.
+    $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+    $where        = array_merge( array( $race_id ), $ids );
+
+    // Whose they are, before they go: the key is worked out from the address.
+    $keys = array();
+    foreach ( rm_registration_rows( $wpdb->get_results( $wpdb->prepare(
+        "SELECT * FROM $registrations_table WHERE race_id = %d AND id IN ($placeholders)",
+        $where
+    ), ARRAY_A ) ) as $row ) {
+        $keys[] = $row['pilot_key'];
+    }
+
+    $deleted = $wpdb->query( $wpdb->prepare(
+        "DELETE FROM $registrations_table WHERE race_id = %d AND id IN ($placeholders)",
+        $where
+    ) );
+    if ( $deleted ) {
+        rm_forget_unregistered_pilot_profiles( $keys );
+    }
+    return (int) $deleted;
 }
 
 // Register a hidden submenu page for viewing race registrations
@@ -214,15 +264,8 @@ function rm_render_race_registrations() {
 
         $ids = array_filter( array_map('absint', (array) $_POST['registration_ids']) );
         if ( $ids ) {
-            // Scope the delete to this race. The capability check above only covers
-            // $race_id, so ids belonging to another race must not be deletable here.
-            $placeholders = implode( ',', array_fill( 0, count($ids), '%d' ) );
-            $deleted = $wpdb->query(
-                $wpdb->prepare(
-                    "DELETE FROM $registrations_table WHERE race_id = %d AND id IN ($placeholders)",
-                    array_merge( array($race_id), $ids )
-                )
-            );
+            // Only this race's, and with them the profile of a pilot who has no registration left.
+            $deleted = rm_delete_registrations( $race_id, $ids );
             printf(
                 '<div class="updated"><p>%s</p></div>',
                 esc_html( sprintf(
@@ -451,6 +494,7 @@ Name: [pilot_name_1]
 Nickname: [pilot_nickname_1]
 Mobile: [pilot_phone_1]
 Email: [pilot_mail_1]
+Nationalität: [pilot_country_1]
 Rennen: [race_id]
 
 
@@ -566,6 +610,49 @@ function rm_find_event_registration_cf7_form() {
 }
 
 /**
+ * The example form's content.
+ *
+ * Nationality and photo (1.11.0) are optional; the live pages show them under the consent
+ * acceptance-media, whose text names both. A site created before keeps its own form: the
+ * deployment notes say what to add to it (docs/deployment.md).
+ *
+ * @return string
+ */
+function rm_cf7_registration_form_content() {
+    return '<h4>Select Event</h4>
+[race race_id]
+
+<h4>Pilot Details </h4>
+Name: [text* pilot_name_1 autocomplete:name default:user_last_name placeholder "Vorname Nachname"]
+
+Callsign: [text* pilot_nickname_1 autocomplete:callsign default:user_nickname placeholder "Dein Nickname"]
+
+Mobile: [tel* pilot_phone_1 autocomplete:phone placeholder "Deine Mobile Nummer"]
+
+Mail: [email* pilot_mail_1 autocomplete:email default:user_email placeholder "Email Adresse"]
+
+Nationalität (optional): [rm_country pilot_country_1]
+
+Foto (optional, JPG, PNG oder WebP, bis 5 MB): [file pilot_photo_1 limit:5mb filetypes:jpg|jpeg|png|webp]
+
+<h4>Consent</h4>
+
+[acceptance acceptance-pay]
+Ich akzeptiere hiermit die Vollständigkeit der Angaben und bezahle den ausstehenden Betrag am Veranstaltungstag.
+[/acceptance]
+[acceptance acceptance-media]
+Ich bin mit der Veröffentlichung von Name, Alter, Nationalität und Bild im Rahmen des Wettkampfs einverstanden.
+[/acceptance]
+[acceptance acceptance-communication optional]
+Fügt mich zur Whatsapp-Gruppe / Discord-Server hinzu.
+[/acceptance]
+
+[cf7-simple-turnstile]
+
+[submit "Senden"]';
+}
+
+/**
  * Create the Contact Form 7 example form for event registration.
  *
  * Runs from the activation hook, which fires again on every reactivation -- and a plugin gets
@@ -587,40 +674,11 @@ function create_event_registration_cf7_form() {
         return $existing;
     }
 
-    // Define the form content.
-    $form_content = '<h4>Select Event</h4>
-[race race_id]
-
-<h4>Pilot Details </h4>
-Name: [text* pilot_name_1 autocomplete:name default:user_last_name placeholder "Vorname Nachname"]
-
-Callsign: [text* pilot_nickname_1 autocomplete:callsign default:user_nickname placeholder "Dein Nickname"]
-
-Mobile: [tel* pilot_phone_1 autocomplete:phone placeholder "Deine Mobile Nummer"]
-
-Mail: [email* pilot_mail_1 autocomplete:email default:user_email placeholder "Email Adresse"]
-
-<h4>Consent</h4>
-
-[acceptance acceptance-pay]
-Ich akzeptiere hiermit die Vollständigkeit der Angaben und bezahle den ausstehenden Betrag am Veranstaltungstag.
-[/acceptance]
-[acceptance acceptance-media]
-Ich bin mit der Veröffentlichung von Name, Alter und Bild im Rahmen des Wettkampfs einverstanden.
-[/acceptance]
-[acceptance acceptance-communication optional]
-Fügt mich zur Whatsapp-Gruppe / Discord-Server hinzu.
-[/acceptance]
-
-[cf7-simple-turnstile]
-
-[submit "Senden"]';
-
     // Create a new contact form using CF7 API.
     $contact_form = WPCF7_ContactForm::get_template();
     $contact_form->set_title( RM_CF7_FORM_TITLE );
     $contact_form->set_properties( array(
-        'form'                => $form_content,
+        'form'                => rm_cf7_registration_form_content(),
         'mail'                => rm_cf7_registration_mail( rm_registration_email() ),
         'additional_settings' => 'skip_mail: off',
         // additional properties (like messages, mail_2, etc.)
