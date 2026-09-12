@@ -68,6 +68,28 @@ function update_post_meta( $id, $key, $value ) {
     return true;
 }
 
+// Core's reading of what the one-time archiving asks for: 'any' is every status but the bin, and
+// 'ids' gives IDs.
+function get_posts( $args = array() ) {
+    $out = array();
+    foreach ( $GLOBALS['rm_posts'] ?? array() as $post ) {
+        if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
+            continue;
+        }
+        $status = $args['post_status'] ?? 'publish';
+        if ( 'any' === $status ? 'trash' === $post->post_status : $post->post_status !== $status ) {
+            continue;
+        }
+        $out[] = 'ids' === ( $args['fields'] ?? '' ) ? $post->ID : $post;
+    }
+    return $out;
+}
+// db-handler.php's, which deletes a race's rows from the subscriptions table.
+function rm_delete_all_race_subscriptions( $race_id ) {
+    $GLOBALS['rm_forgotten'][] = (int) $race_id;
+    return 1;
+}
+
 class WP_Query {
     public $posts = array();
     public function __construct( $args = array() ) {
@@ -124,6 +146,48 @@ rm_test_check( 'a race created in the admin, which the meta box saves as archive
 update_post_meta( 43, '_race_live', '1' );
 update_post_meta( 43, '_race_last_upload', '2026-09-12 10:00:00' );
 rm_test_check( 'a post that is no race: left alone', 0 === rm_rs_purges() );
+
+/* --------------------------------------------------------------------------
+ * Push subscriptions
+ * ----------------------------------------------------------------------- */
+
+rm_test_section( 'An archived race\'s push subscriptions go' );
+
+// Nothing reaches a follower of an archived race any more, and a subscription holds a browser's
+// endpoint and keys and the pilot it followed. rm_delete_all_race_subscriptions() existed, and
+// nothing called it.
+$GLOBALS['rm_forgotten'] = array();
+update_post_meta( 42, '_race_live', '0' );
+rm_test_check( 'set to archive: its subscriptions are deleted', array( 42 ) === $GLOBALS['rm_forgotten'], json_encode( $GLOBALS['rm_forgotten'] ) );
+$GLOBALS['rm_forgotten'] = array();
+update_post_meta( 42, '_race_live', '1' );
+rm_test_check( 'set live: nobody\'s', array() === $GLOBALS['rm_forgotten'] );
+do_action( 'before_delete_post', 42 );
+rm_test_check( 'deleted for good: its subscriptions go with it', array( 42 ) === $GLOBALS['rm_forgotten'] );
+$GLOBALS['rm_forgotten'] = array();
+do_action( 'before_delete_post', 43 );
+rm_test_check( 'a post that is no race: nobody\'s', array() === $GLOBALS['rm_forgotten'] );
+
+rm_test_section( 'The races archived before, once more for their subscriptions' );
+
+// 1.8.1 cleared their logs once and recorded it as rm_archived_races_cleared. A site that ran that
+// has to run it again, for the subscriptions.
+$GLOBALS['rm_posts'] = array();
+rm_test_post( 50, 'race', 'autumn-cup', 'publish', 0, 'Autumn Cup' );
+rm_test_post( 51, 'race', 'winter-cup', 'publish', 0, 'Winter Cup' );
+rm_test_post( 52, 'race', 'old-cup', 'trash', 0, 'Old Cup' );
+$GLOBALS['rm_meta'][50]['_race_live'] = '0';
+$GLOBALS['rm_meta'][51]['_race_live'] = '1';
+$GLOBALS['rm_meta'][52]['_race_live'] = '0';
+$GLOBALS['rm_options']   = array( 'rm_archived_races_cleared' => '2026-09-12 11:55:12' );
+$GLOBALS['rm_forgotten'] = array();
+rm_maybe_clear_archived_races();
+rm_test_check( 'run on a site that ran 1.8.1\'s: the archived race\'s subscriptions go', array( 50 ) === $GLOBALS['rm_forgotten'], json_encode( $GLOBALS['rm_forgotten'] ) );
+rm_test_check( 'recorded as schema 2, and 1.8.1\'s record removed',
+    RM_ARCHIVE_SCHEMA === get_option( 'rm_archive_schema' ) && 2 === RM_ARCHIVE_SCHEMA && false === get_option( 'rm_archived_races_cleared' ) );
+$GLOBALS['rm_forgotten'] = array();
+rm_maybe_clear_archived_races();
+rm_test_check( 'and not run again', array() === $GLOBALS['rm_forgotten'] );
 
 /* --------------------------------------------------------------------------
  * The dot on the live link

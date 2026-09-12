@@ -86,6 +86,13 @@ if ( ! function_exists( 'update_option' ) ) {
         return true;
     }
 }
+if ( ! function_exists( 'delete_option' ) ) {
+    function delete_option( $key ) {
+        $existed = array_key_exists( $key, $GLOBALS['rm_options'] );
+        unset( $GLOBALS['rm_options'][ $key ] );
+        return $existed;
+    }
+}
 if ( ! function_exists( 'get_post' ) ) {
     function get_post( $id ) {
         return isset( $GLOBALS['rm_posts'][ $id ] ) ? $GLOBALS['rm_posts'][ $id ] : null;

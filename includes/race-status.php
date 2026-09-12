@@ -18,6 +18,9 @@ add_action( 'updated_post_meta', 'rm_on_race_live_changed', 10, 4 );
 // A race's first results: from then on the race list shows it.
 add_action( 'added_post_meta', 'rm_on_race_first_results', 10, 4 );
 
+// A race deleted for good takes its push subscriptions with it.
+add_action( 'before_delete_post', 'rm_on_race_deleted' );
+
 // The races that were archived before 1.8.1, once.
 add_action( 'admin_init', 'rm_maybe_clear_archived_races' );
 
@@ -162,20 +165,23 @@ function rm_purge_page_caches() {
 }
 
 /**
- * What an archived race keeps: its results, whole. Its parts, its index and its race log go.
+ * What an archived race keeps: its results, whole. Its parts, its index, its race log and its push
+ * subscriptions go.
  *
  * Decided on 2026-09-12. The parts serve the updates of a live race, and an archived race takes
  * none: rm_update_race() refuses an upload, handle_notification_request() a message. The race log
  * belongs to the event while it runs; "order lunch now", with the link to the order, has no place
- * on a finished race's pages or in its public JSON.
+ * on a finished race's pages or in its public JSON. And with nothing left to tell anyone, a push
+ * subscription -- a browser's endpoint and keys, the pilot it followed -- has no use left (since
+ * 1.9.0); a race set live again is followed anew.
  *
- * The files first and the log after: when the files cannot be written, the log is still there to
- * go the next time. The timestamp moves, since the data changed, and a browser that held the log
- * downloads the whole file once.
+ * The files first and the rest after: when the files cannot be written, log and subscriptions are
+ * still there to go the next time. The timestamp moves, since the data changed, and a browser that
+ * held the log downloads the whole file once.
  *
  * @param int $race_id
  * @return true|WP_Error WP_Error for a race that is live, a whole file that cannot be read, or files
- *                       that cannot be written; the log is then left as it was.
+ *                       that cannot be written; log and subscriptions are then left as they were.
  */
 function rm_archive_race( $race_id ) {
     if ( rm_race_is_live( $race_id ) ) {
@@ -206,25 +212,59 @@ function rm_archive_race( $race_id ) {
         rm_remove_race_index_and_parts( $upload_path, $race_id );
     }
     delete_post_meta( $race_id, '_race_notification_log' );
+    rm_forget_race_followers( $race_id );
     return true;
 }
+
+/**
+ * Delete a race's push subscriptions: when it is archived, and when it is deleted for good.
+ *
+ * rm_delete_all_race_subscriptions() was there before, and nothing called it: every subscription
+ * ever made stayed, for races long over and races long gone.
+ *
+ * @param int $race_id
+ * @return void
+ */
+function rm_forget_race_followers( $race_id ) {
+    if ( false === rm_delete_all_race_subscriptions( $race_id ) ) {
+        error_log( 'rm_forget_race_followers: race ' . $race_id . ': the push subscriptions could not be deleted' );
+    }
+}
+
+/**
+ * A post is deleted for good: when it is a race, its push subscriptions go with it.
+ *
+ * @param int $post_id
+ * @return void
+ */
+function rm_on_race_deleted( $post_id ) {
+    if ( 'race' === get_post_type( $post_id ) ) {
+        rm_forget_race_followers( (int) $post_id );
+    }
+}
+
+/**
+ * What the one-time archiving of the races archived before has covered: 1 their race log and parts
+ * (1.8.1), 2 their push subscriptions as well (1.9.0). A site that ran 1.8.1's runs it again.
+ */
+const RM_ARCHIVE_SCHEMA = 2;
 
 /**
  * Archive, once, the races that were archived before 1.8.1.
  *
  * A race archived since is archived as it happens (rm_on_race_live_changed()). One archived before
- * still carries its race log, in the database and in its public whole file, and one archived under
- * 1.8.0 its parts. Decided on 2026-09-12: they are cleared once, on the first admin page after the
- * update. An organiser is at hand then and no visitor is kept waiting; an AJAX request, which runs
- * admin_init too and comes from the live pages, is left alone. A ZIP replace runs no activation
- * hook. Recorded once the run got through every race, so a run cut short goes on the next time;
- * rm_archive_race() does nothing for a race that is done. A race it could not archive is logged,
- * and waits for the next time its flag is stored.
+ * still carries its race log, in the database and in its public whole file, one archived under
+ * 1.8.0 its parts, and every one its push subscriptions. Decided on 2026-09-12: they are cleared
+ * once, on the first admin page after the update. An organiser is at hand then and no visitor is
+ * kept waiting; an AJAX request, which runs admin_init too and comes from the live pages, is left
+ * alone. A ZIP replace runs no activation hook. Recorded once the run got through every race, so a
+ * run cut short goes on the next time; rm_archive_race() does nothing for a race that is done. A
+ * race it could not archive is logged, and waits for the next time its flag is stored.
  *
  * @return void
  */
 function rm_maybe_clear_archived_races() {
-    if ( wp_doing_ajax() || get_option( 'rm_archived_races_cleared' ) ) {
+    if ( wp_doing_ajax() || (int) get_option( 'rm_archive_schema', 0 ) >= RM_ARCHIVE_SCHEMA ) {
         return;
     }
     $races = get_posts( array(
@@ -238,5 +278,6 @@ function rm_maybe_clear_archived_races() {
             rm_archive_race( (int) $race_id );
         }
     }
-    update_option( 'rm_archived_races_cleared', current_time( 'mysql' ) );
+    update_option( 'rm_archive_schema', RM_ARCHIVE_SCHEMA );
+    delete_option( 'rm_archived_races_cleared' ); // 1.8.1's record of the same, when it ran
 }
