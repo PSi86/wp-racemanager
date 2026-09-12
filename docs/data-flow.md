@@ -36,7 +36,7 @@ The body is the **complete** result JSON, every time — there is no partial or 
 | `class_data` | Race classes, brackets | rarely |
 | `result_data` | Every lap, every ranking, per heat and overall | **constantly** |
 | `current_heat.current_heat` | Which heat is up | every heat |
-| `notifications` | Added server-side by `add_notifications_to_race_json()` | on every push |
+| `notifications` | Added server-side by `add_notifications_to_race_json()`; empty for an archived race (1.8.1) | on every push |
 
 `rm_update_race()` then writes into the race the upload names (requires `_race_live` to be `'1'`,
 otherwise the race is locked); an upload without `race_id` goes through `rm_find_or_create_race()`,
@@ -69,7 +69,8 @@ and `result_data.heats` and `result_data.classes` are split once more, a part pe
 class (`RM_RACE_SPLIT`). Only a JSON object is split, and only when every key can go into a file
 name (`[A-Za-z0-9_]`): a list, an empty object and anything else stay one part, so the parts put
 back together are the payload whatever shape it came in. A payload whose top level cannot be split
-gets no index, and an old index is removed. Race 34, the Winter Whooprace, is 57 parts.
+gets no index, and an old index is removed; so does a race that is not live (since 1.8.1, see
+below). Race 34, the Winter Whooprace, is 57 parts.
 
 Why that deep, measured on the three races from production (Brotli, as production serves them):
 
@@ -95,7 +96,27 @@ median, against 12 ms for the whole file and the timestamp alone.
 
 **A notification writes the files again** (`handle_notification_request()` reads the whole file back
 and hands it to `rm_write_files()`): the index it carries is taken out and made anew, and only the
-race log's hash changes. A viewer downloads that one part rather than the whole file.
+race log's hash changes. A viewer downloads that one part rather than the whole file. Only for a
+live race: since 1.8.1 `notify-racers` refuses an archived race with 400, *Race is locked and takes
+no messages.*, before anything is stored or pushed, and an ID that is no race with 404.
+
+**An archived race keeps its results, whole, and nothing else** (since 1.8.1, decided on
+2026-09-12). The parts serve the updates of a live race, and an archived race takes none; the race
+log belongs to the event while it runs — the file of Fall Whooprace 2025 copied from production
+still carried *Mittagsbestellung abgeben!* with the link to the order. So `rm_write_files()` stores
+parts and the race log for a live race only, and setting a race to archive — the meta box, Quick
+Edit, WP-CLI, anything that stores `_race_live` — runs `rm_archive_race()`:
+
+1. the files are written again, as a race that is not live gets them: the whole file with an empty
+   race log, and the timestamp, with a new time since the data changed; index and parts go;
+2. then the race log goes from the database, for good.
+
+In that order, so that a write that fails leaves the log for the next time. A race whose files
+carry nothing to clear is left as it is — Quick Edit stores the flag as a number, and WordPress
+takes that for a change on every save. Set live again, a race starts with an empty log, and its
+next upload brings the parts back. The races archived before 1.8.1 are cleared the same way,
+once, on the first admin page after the update (`rm_archived_races_cleared`, see
+[`deployment.md`](deployment.md)).
 
 **The body may come gzip-compressed** (`Content-Encoding: gzip`, since 1.6.0). A full event
 shrinks to about 7 % that way — 1,642,049 bytes went over the wire as 126,911 in the local test.

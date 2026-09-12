@@ -20,6 +20,11 @@ function race_log_shortcode( $atts ) {
         return '<p><em>No race specified.</em></p>';
     }
 
+    // The race log belongs to a live race; an archived one has none (rm_archive_race()).
+    if ( ! rm_race_is_live( $race_id ) ) {
+        return '';
+    }
+
     // Fetch the logged notifications
     $notifications = get_post_meta( $race_id, '_race_notification_log', true );
     if ( empty( $notifications ) || ! is_array( $notifications ) ) {

@@ -33,10 +33,38 @@ function wp_upload_dir() {
 function current_time( $type ) {
     return $GLOBALS['rm_now'];
 }
+// Every race is live unless a case says otherwise, with '_race_live' as the meta box stores it.
 function get_post_meta( $id, $key = '', $single = false ) {
+    if ( '_race_live' === $key && ! isset( $GLOBALS['rm_meta'][ $id ][ $key ] ) ) {
+        return '1';
+    }
     return $GLOBALS['rm_meta'][ $id ][ $key ] ?? '';
 }
-// Hooks by name: race-files.php registers one as it is loaded.
+function delete_post_meta( $id, $key, $value = '' ) {
+    unset( $GLOBALS['rm_meta'][ $id ][ $key ] );
+    return true;
+}
+// Core's reading of what the one-time clearing asks for: 'any' is every status but the bin, and
+// 'ids' gives IDs. The shared stub knows neither.
+function get_posts( $args = array() ) {
+    $out = array();
+    foreach ( $GLOBALS['rm_posts'] ?? array() as $post ) {
+        if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
+            continue;
+        }
+        $status = $args['post_status'] ?? 'publish';
+        if ( 'any' === $status ? 'trash' === $post->post_status : $post->post_status !== $status ) {
+            continue;
+        }
+        $out[] = 'ids' === ( $args['fields'] ?? '' ) ? $post->ID : $post;
+    }
+    return $out;
+}
+function wp_doing_ajax() {
+    return ! empty( $GLOBALS['rm_doing_ajax'] );
+}
+$GLOBALS['rm_options'] = array();
+// Hooks by name: race-files.php registers them as it is loaded.
 function add_action( $hook, $callback, $priority = 10, $args = 1 ) {
     $GLOBALS['rm_actions'][ $hook ][] = $callback;
 }
@@ -272,6 +300,130 @@ rm_test_check( 'the index and every part are gone, the whole file and the timest
     array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ), implode( ', ', rm_rw_listing( 42 ) ) );
 rm_delete_race_parts_of_post( 43 );
 rm_test_check( 'a post that is no race: nothing removed', in_array( '43-index.json', rm_rw_listing( 43 ), true ) );
+
+/* --------------------------------------------------------------------------
+ * An archived race (1.8.1)
+ * ----------------------------------------------------------------------- */
+
+// Decided on 2026-09-12: the parts and the race log belong to a race while it is live. An
+// archived race keeps its results, whole; "order lunch now", with the link to the order, has no
+// place on a finished race's pages or in its public JSON.
+
+rm_test_section( 'A race that is not live keeps its results whole, and no race log' );
+
+rm_rw_reset();
+$GLOBALS['rm_meta'][42]['_race_live']              = '0';
+$GLOBALS['rm_meta'][42]['_race_notification_log'] = array( array( 'msg_title' => 'Lunch' ) );
+rm_write_files( 42, rm_rw_event( 2, array( 1 => 5 ) ) );
+rm_test_check( 'the whole file and the timestamp, nothing else',
+    array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ), implode( ', ', rm_rw_listing( 42 ) ) );
+$data = rm_rw_read( 42, 'data' );
+rm_test_check( 'no race log in it, though the database holds one', array() === ( $data['notifications'] ?? null ) );
+rm_test_check( 'and no index', is_array( $data ) && ! array_key_exists( 'rm_index', $data ) );
+
+rm_test_section( 'Set to archive: the parts, the index and the race log go' );
+
+rm_test_check( 'hooked to added_post_meta and updated_post_meta',
+    in_array( 'rm_on_race_live_changed', $GLOBALS['rm_actions']['added_post_meta'] ?? array(), true )
+    && in_array( 'rm_on_race_live_changed', $GLOBALS['rm_actions']['updated_post_meta'] ?? array(), true ) );
+// deleted_post_meta fires for every meta of a race being deleted, after its attachments took the
+// whole file and the timestamp: archiving then would write them again.
+rm_test_check( 'not to deleted_post_meta', ! in_array( 'rm_on_race_live_changed', $GLOBALS['rm_actions']['deleted_post_meta'] ?? array(), true ) );
+
+rm_rw_reset();
+rm_test_post( 42, 'race', 'autumn-cup', 'publish', 0, 'Autumn Cup' );
+$GLOBALS['rm_meta'][42]['_race_notification_log'] = array( array( 'msg_title' => 'Lunch', 'msg_url' => 'https://example.test/order' ) );
+$event = rm_rw_event( 2, array( 1 => 5 ) );
+rm_write_files( 42, $event );
+rm_test_check( 'live: parts, an index and the race log',
+    is_file( rm_rw_file( 42, 'index' ) ) && 1 === count( rm_rw_read( 42, 'data' )['notifications'] ?? array() ) );
+
+// WordPress fires the hook after it stored the value.
+$GLOBALS['rm_meta'][42]['_race_live'] = '0';
+$GLOBALS['rm_now'] = '2026-09-12 18:00:00';
+rm_on_race_live_changed( 1, 42, '_race_live', '0' );
+rm_test_check( 'archived: the whole file and the timestamp are all that is left',
+    array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ), implode( ', ', rm_rw_listing( 42 ) ) );
+$data = rm_rw_read( 42, 'data' );
+rm_test_check( 'the results as they were',
+    is_array( $data ) && $event['result_data'] === $data['result_data'] && $event['heat_data'] === $data['heat_data'] );
+rm_test_check( 'the race log empty, and no index', array() === ( $data['notifications'] ?? null ) && ! array_key_exists( 'rm_index', $data ) );
+rm_test_check( 'the timestamp moved, since the data changed', array( 'time' => '2026-09-12 18:00:00' ) === rm_rw_read( 42, 'timestamp' ) );
+rm_test_check( 'and the race log is gone from the database', ! isset( $GLOBALS['rm_meta'][42]['_race_notification_log'] ) );
+
+// Quick Edit passes 0 where the database holds '0', and WordPress compares strictly: every save of
+// an archived race there fires the hook again.
+$GLOBALS['rm_now'] = '2026-09-12 18:30:00';
+rm_on_race_live_changed( 1, 42, '_race_live', 0 );
+rm_test_check( 'stored again: nothing to do, nothing done', array( 'time' => '2026-09-12 18:00:00' ) === rm_rw_read( 42, 'timestamp' ) );
+
+rm_on_race_live_changed( 1, 42, '_race_reg_closed', '0' );
+$GLOBALS['rm_meta'][42]['_race_live'] = '1';
+rm_on_race_live_changed( 1, 42, '_race_live', '1' );
+rm_test_check( 'another key, or live again: nothing happens',
+    array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ) && array( 'time' => '2026-09-12 18:00:00' ) === rm_rw_read( 42, 'timestamp' ) );
+rm_write_files( 42, rm_rw_event( 2, array( 1 => 5, 2 => 4 ) ) );
+rm_test_check( 'until the next upload brings the parts back, with a race log begun anew',
+    is_file( rm_rw_file( 42, 'index' ) ) && array() === ( rm_rw_read( 42, 'data' )['notifications'] ?? null ) );
+
+rm_test_post( 43, 'post', 'news', 'publish', 0, 'News' );
+rm_write_files( 43, rm_rw_event( 2, array( 1 => 5 ) ) );
+$GLOBALS['rm_meta'][43]['_race_live'] = '0';
+rm_on_race_live_changed( 1, 43, '_race_live', '0' );
+rm_test_check( 'a post that is no race is left alone', is_file( rm_rw_file( 43, 'index' ) ) );
+
+rm_test_section( 'Archiving that cannot write keeps the race log' );
+
+rm_rw_reset();
+$GLOBALS['rm_meta'][42]['_race_notification_log'] = array( array( 'msg_title' => 'Lunch' ) );
+rm_write_files( 42, rm_rw_event( 2, array( 1 => 5 ) ) );
+$GLOBALS['rm_meta'][42]['_race_live'] = '0';
+unlink( rm_rw_file( 42, 'timestamp' ) );
+mkdir( rm_rw_file( 42, 'timestamp' ) );
+$result = rm_archive_race( 42 );
+rm_test_check( 'a file that cannot be written: WP_Error', is_wp_error( $result ) );
+rm_test_check( 'and the race log is still in the database, to go the next time',
+    array( array( 'msg_title' => 'Lunch' ) ) === ( $GLOBALS['rm_meta'][42]['_race_notification_log'] ?? null ) );
+rmdir( rm_rw_file( 42, 'timestamp' ) );
+rm_test_check( 'the next time it goes', true === rm_archive_race( 42 ) && ! isset( $GLOBALS['rm_meta'][42]['_race_notification_log'] )
+    && ! is_file( rm_rw_file( 42, 'index' ) ) );
+
+rm_rw_reset();
+rm_write_files( 42, rm_rw_event( 2, array( 1 => 5 ) ) );
+$result = rm_archive_race( 42 );
+rm_test_check( 'a live race is not archived', is_wp_error( $result ) && 'race_live' === $result->get_error_code() && is_file( rm_rw_file( 42, 'index' ) ) );
+
+rm_test_section( 'The races archived before 1.8.1, once' );
+
+// Race 42 archived under 1.8.0, with its parts and its log; 43 live; 44 archived with nothing to
+// clear. Archived without the hook, as an older version did.
+rm_rw_reset();
+$GLOBALS['rm_posts']   = array();
+$GLOBALS['rm_options'] = array();
+rm_test_post( 42, 'race', 'autumn-cup', 'publish', 0, 'Autumn Cup' );
+rm_test_post( 43, 'race', 'winter-cup', 'publish', 0, 'Winter Cup' );
+rm_test_post( 44, 'race', 'spring-cup', 'draft', 0, 'Spring Cup' );
+foreach ( array( 42, 43 ) as $race_id ) {
+    $GLOBALS['rm_meta'][ $race_id ]['_race_notification_log'] = array( array( 'msg_title' => 'Lunch' ) );
+    rm_write_files( $race_id, rm_rw_event( 2, array( 1 => 5 ) ) );
+}
+$GLOBALS['rm_meta'][42]['_race_live'] = '0';
+$GLOBALS['rm_meta'][44]['_race_live'] = '0';
+
+$GLOBALS['rm_doing_ajax'] = true;
+rm_maybe_clear_archived_races();
+rm_test_check( 'not in an AJAX request, which the live pages make', is_file( rm_rw_file( 42, 'index' ) ) && false === get_option( 'rm_archived_races_cleared' ) );
+$GLOBALS['rm_doing_ajax'] = false;
+
+rm_maybe_clear_archived_races();
+rm_test_check( 'an archived race: whole file and timestamp only, no race log',
+    array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ) && array() === ( rm_rw_read( 42, 'data' )['notifications'] ?? null )
+    && ! isset( $GLOBALS['rm_meta'][42]['_race_notification_log'] ), implode( ', ', rm_rw_listing( 42 ) ) );
+rm_test_check( 'a live race untouched', is_file( rm_rw_file( 43, 'index' ) ) && isset( $GLOBALS['rm_meta'][43]['_race_notification_log'] ) );
+rm_test_check( 'recorded as done', false !== get_option( 'rm_archived_races_cleared' ) );
+$GLOBALS['rm_meta'][42]['_race_notification_log'] = array( array( 'msg_title' => 'Break' ) );
+rm_maybe_clear_archived_races();
+rm_test_check( 'and not run again', isset( $GLOBALS['rm_meta'][42]['_race_notification_log'] ) );
 
 /* --------------------------------------------------------------------------
  * The order

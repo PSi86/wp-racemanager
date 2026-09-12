@@ -25,6 +25,9 @@ function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $m
 }
 
 function get_post_meta( $id, $key, $single = false ) {
+    if ( '_race_notification_log' === $key ) {
+        return $GLOBALS['rm_test_race_log'] ?? '';
+    }
     return '_race_live' === $key ? ( $GLOBALS['rm_test_race_live'] ?? '1' ) : '';
 }
 // The page being rendered, which is how rm_current_view_slug() knows which view tab is current.
@@ -300,6 +303,15 @@ rm_test_check( 'the config object is printed once', 1 === substr_count( $head, '
 rm_test_check( 'the head hook holds one callback',
     array( 'rm_print_js_module_config' ) === array_values( array_unique( $GLOBALS['rm_head_actions'], SORT_REGULAR ) ),
     implode( ', ', array_map( 'strval', $GLOBALS['rm_head_actions'] ) ) );
+
+rm_test_section( '[rm_race_log] shows the race log of a live race only (1.8.1)' );
+require_once RM_PLUGIN_DIR . '/includes/sc-race-log.php';
+$GLOBALS['rm_test_race_log'] = array( array( 'msg_time' => '2026-09-12 12:02:46', 'msg_title' => 'Lunch', 'msg_body' => 'Order now.', 'msg_url' => '', 'msg_icon' => '' ) );
+$GLOBALS['rm_test_race_live'] = '1';
+rm_test_check( 'a live race: its log', str_contains( race_log_shortcode( array() ), 'Lunch' ) );
+$GLOBALS['rm_test_race_live'] = '0';
+rm_test_check( 'an archived race: nothing, whatever the database still holds', '' === race_log_shortcode( array() ) );
+unset( $GLOBALS['rm_test_race_live'], $GLOBALS['rm_test_race_log'] );
 
 rm_test_section( 'The loader is told where the index and the parts are (L7)' );
 $loader_config = $config['dataLoader'] ?? array();

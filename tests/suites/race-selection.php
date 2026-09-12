@@ -369,6 +369,9 @@ $response = rm_handle_create_race( new WP_REST_Request( json_encode( rm_rs_event
 rm_test_check( 'creates a race: 201', 201 === $response->status, print_r( $response->data, true ) );
 rm_test_check( 'answers with the new ID', array( $response->data['id'] ) === $GLOBALS['rm_inserted'] );
 rm_test_check( 'with the event\'s files from the start', rm_rs_written( $response->data['id'] ) );
+// rm_write_files() stores the parts of a live race only, and the race used to be flagged live
+// after its first files were written.
+rm_test_check( 'and its parts: it is live before they are written', is_file( $GLOBALS['rm_data_dir'] . $response->data['id'] . '-index.json' ) );
 
 // A second race of a name that exists is what D3 was about; the organiser chooses that race.
 rm_rs_reset();
@@ -509,6 +512,50 @@ foreach ( array( 'coffee', 'javascript:alert(1)', 'lunch.svg' ) as $other ) {
         var_export( rm_rs_logged_icon( 2578 ), true ) );
 }
 rm_test_check( 'the icons\' license ships beside them', is_file( RM_PLUGIN_DIR . '/img/notification/LICENSE-tabler-icons.txt' ) );
+
+rm_test_section( 'notify-racers: a race that is live, and nothing else' );
+
+// Decided on 2026-09-12: an archived race keeps no race log and follows no event any more. A
+// message to one was logged and pushed, and filled the log of a finished race again. Refused like
+// an upload, before anything is stored or pushed.
+function rm_rs_pusher() {
+    return new class() {
+        public $pushed = 0;
+        public function send_notification_to_all_in_race( $race_id, $title, $body ) {
+            ++$this->pushed;
+        }
+    };
+}
+$message = array( 'race_id' => '2580', 'msg_title' => 'Break', 'msg_body' => 'Back at 3pm.' );
+
+rm_rs_reset();
+rm_rs_race( 2580, 'Finished', false );
+$pusher = \RaceManager\WP_RaceManager::instance()->pwa_subscription_handler = rm_rs_pusher();
+$response = rm_rs_notify( $message );
+rm_test_check( 'an archived race: 400', 400 === $response->status, print_r( $response->data, true ) );
+rm_test_check( 'saying why, for the timer\'s toast', str_contains( $response->data['error'] ?? '', 'locked' ), print_r( $response->data, true ) );
+rm_test_check( 'nothing logged', '' === get_post_meta( 2580, '_race_notification_log', true ) );
+rm_test_check( 'nothing pushed', 0 === $pusher->pushed );
+
+rm_rs_reset();
+rm_test_post( 77, 'post', 'news', 'publish', 0, 'News' );
+$GLOBALS['rm_editable'] = array( 77 );
+$pusher = \RaceManager\WP_RaceManager::instance()->pwa_subscription_handler = rm_rs_pusher();
+$response = rm_rs_notify( array( 'race_id' => '77' ) + $message );
+rm_test_check( 'an ID that is no race: 404, nothing logged or pushed',
+    404 === $response->status && '' === get_post_meta( 77, '_race_notification_log', true ) && 0 === $pusher->pushed );
+
+rm_rs_reset();
+rm_rs_race( 2579, 'Binned', true, 'trash' );
+rm_test_check( 'a race in the bin: 404', 404 === rm_rs_notify( array( 'race_id' => '2579' ) + $message )->status );
+
+rm_rs_reset();
+rm_rs_race( 2578, 'Autumn Cup' );
+$pusher = \RaceManager\WP_RaceManager::instance()->pwa_subscription_handler = rm_rs_pusher();
+$response = rm_rs_notify( array( 'race_id' => '2578' ) + $message );
+rm_test_check( 'a live race: 200, logged and pushed',
+    200 === $response->status && 1 === count( get_post_meta( 2578, '_race_notification_log', true ) ) && 1 === $pusher->pushed,
+    print_r( $response->data, true ) );
 
 rm_test_section( 'rm_race_error_response()' );
 

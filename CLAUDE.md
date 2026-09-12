@@ -29,7 +29,7 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/live-routing.php` | The live micro-site's URLs. Resolves the selected race from the path, builds canonical URLs, rewrites navigation links and marks the navigation that switches views (`rm-live-nav`), handles legacy redirects. Start here for anything about `/live/`. |
 | `includes/livepage-handler.php` | The four live-page shortcodes, the JS module configuration they emit, and the view tabs fixed to the foot of a phone's screen — emitted once per page, like the pill, with a stylesheet that is loaded only where the tabs are. |
 | `includes/rest-handler.php` | The REST endpoints RotorHazard talks to. |
-| `includes/race-files.php` | What an upload leaves in `uploads/races/`: the payload in parts — per section, per result heat and per class (`RM_RACE_SPLIT`) — the whole file with the index inside as `rm_index`, the index, and the timestamp **last**, each file replaced whole. `rm_race_part_filename()` names a part for writer and loader alike. A race deleted for good takes its index and parts with it. |
+| `includes/race-files.php` | What an upload leaves in `uploads/races/`: the payload in parts — per section, per result heat and per class (`RM_RACE_SPLIT`) — the whole file with the index inside as `rm_index`, the index, and the timestamp **last**, each file replaced whole. `rm_race_part_filename()` names a part for writer and loader alike. Parts and race log only while a race is live (`rm_race_is_live()`): setting it to archive runs `rm_archive_race()` — whole file and timestamp with an empty log, index, parts and the log in the database gone (1.8.1). A race deleted for good takes its index and parts with it. |
 | `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
 | `includes/pilot-key.php` | The pilot key: one version-5 UUID per registered email address, the same every time, derived in a namespace of this site's own. What RotorHazard is to match a returning pilot by, since `user_id` is 0 for everyone without an account. `rm_registration_rows()` in `admin-registrations.php` puts it into the admin list, the CSV and `get-pilots` alike. |
@@ -211,12 +211,14 @@ either — DDEV greps the whole file. See "Building the blocks" in
 | `rm_callsign_field` | Name of the CF7 field holding the pilot callsign. |
 | `rm_pwa_files_signature` | Hash of the values baked into `manifest.json` / `pwa-sw.js`; a mismatch regenerates them. |
 | `rm_event_dates_migrated` | Timestamp of the last event-date migration run. |
+| `rm_archived_races_cleared` | When the races archived before 1.8.1 lost their race log and parts, once, on the first admin page after the update. Delete it to run that again. |
 
 ## How the data reaches the viewer
 
 RotorHazard uploads the **whole** result JSON. The plugin stores it whole and, since 1.8.0, in
 parts — per section, per result heat and per class — with an index naming each part's hash, and a
-timestamp file announcing all of it. The browser polls the timestamp; when it changed, it reads the
+timestamp file announcing all of it. The parts and the race log exist while the race is live; an
+archived race keeps the whole file only, takes no upload and, since 1.8.1, no message either. The browser polls the timestamp; when it changed, it reads the
 index and downloads the parts whose hash changed — after a heat 8–15 KB instead of 58–78 KB. A
 first visit downloads the whole file, which carries the index. The contract, its costs and what
 could replace it are in [`docs/data-flow.md`](docs/data-flow.md) — read that before changing
