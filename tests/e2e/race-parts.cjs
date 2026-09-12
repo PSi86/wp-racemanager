@@ -130,14 +130,16 @@ async function prepare( context ) {
 	} );
 }
 
+// Read so that a loader from before 1.8.0, which has none of this, fails the checks rather than
+// the harness.
 const state = ( page ) => page.evaluate( async () => {
 	const l = await window.rmTestLoader();
 	return {
 		cachedTimestamp: l.cachedTimestamp,
 		index: l.index ? { time: l.index.time, n: l.index.parts.length } : null,
-		storedAsParts: l.storedAsParts,
+		storedAsParts: !! l.storedAsParts,
 		failures: l.consecutiveFailures,
-		pending: [ ...l.pendingParts.keys() ],
+		pending: l.pendingParts ? [ ...l.pendingParts.keys() ] : [],
 		lastError: l.lastError,
 		hasData: !! l.data,
 	};
