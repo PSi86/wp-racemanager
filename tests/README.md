@@ -204,7 +204,9 @@ A pilot put into a later heat by hand, a seed from another class and a generator
 not match the heats are reported; heats seeding each other in a circle and a generator run twice
 into one class give a row; nothing throws. Seeds resolve by index; the rulebook comes from the
 generator's record. Chase the Ace: off without the "Brackets" ranking method or with its switch off,
-decided by the timer's ranking or else by two round wins. And the three real events of the local
+decided by the timer's ranking or else by two round wins; a round flown after the deciding one
+counts neither as a round nor as a win, as in Class Rank: Brackets (failed against 1.10.0, which
+showed "3/2"; found on the RotorHazard 4.4.0 bench with that plugin). And the three real events of the local
 site, when there: FAI 32 double elimination each, laid out without overlap.
 
 ### `tests/e2e/bracket-standings.cjs`
@@ -216,7 +218,9 @@ nobody counting as done; a single elimination's small final is 5-8. While a roun
 share its range, counted from the bottom; nobody above is placed yet. A timer with more nodes than
 the heats seat: the empty slots are no places. Inside a round of several heats FAI orders by
 qualifying rank, MultiGP by the rank in the heat first. Chase the Ace: undecided without places,
-two wins then points, or the timer's ranking as it is. A hand-edited bracket gets a notice. On the
+two wins then points, or the timer's ranking as it is. Points count up to the round that decided,
+which also breaks ties, as in Class Rank: Brackets; a round flown after it changes nothing (failed
+against 1.10.0, which counted it and reordered places 2-4). A hand-edited bracket gets a notice. On the
 real events of the local site the places 5 to N equal those of the ranking before 1.10.0
 (`tests/fixtures/brackets/old-ranking.cjs`), except two pilots without a qualifying result, who
 share a place the old ranking split by heat order. Three cases failed against the first version of

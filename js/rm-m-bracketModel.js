@@ -548,6 +548,8 @@ export function layout( bracket, visibleIds = null ) {
  * (FiorixF1), switched on with its "Chase the Ace" setting - on by default, and RotorHazard sends
  * a class's ranksettings only as far as someone changed them, so a missing value counts as on.
  * The timer's ranking decides (it applies the Iron Man rule too); without one, two round wins do.
+ * The round that decides is the last that counts, as in Class Rank: Brackets: a round flown after
+ * it changes neither the rounds nor the wins shown.
  *
  * @returns {{enabled: boolean, ironMan: boolean, needed: number, rounds: number,
  *   wins: Map<number, number>, decided: boolean, winnerId: number|null, source: string|null}}
@@ -578,6 +580,9 @@ export function ctaState( data, bracket ) {
         const winner = board[ 0 ] && board[ 0 ].pilot_id;
         if ( winner ) {
             state.wins.set( winner, ( state.wins.get( winner ) || 0 ) + 1 );
+            if ( state.wins.get( winner ) >= state.needed ) {
+                break;
+            }
         }
     }
 

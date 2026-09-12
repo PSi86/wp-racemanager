@@ -219,6 +219,12 @@ function layoutProblems( model, bracket ) {
 		const byRounds = races.chaseTheAce( base(), finalId, [ [ 1, 2, 3, 4 ], [ 2, 1, 3, 4 ], [ 2, 3, 1, 4 ] ] );
 		s = model.ctaState( byRounds, build( byRounds ) );
 		check( 'two wins decide without a ranking', s.decided && s.winnerId === 2 && s.source === 'rounds', JSON.stringify( s ) );
+		// P1 has won twice after round 2; P4 wins a third round flown after that. Class Rank:
+		// Brackets stops at the round that decided, and so does the count.
+		const afterDecision = races.chaseTheAce( base(), finalId, [ [ 1, 2, 3, 4 ], [ 1, 3, 2, 4 ], [ 4, 2, 3, 1 ] ] );
+		s = model.ctaState( afterDecision, build( afterDecision ) );
+		check( 'a round flown after the decision does not count', s.decided && s.winnerId === 1 && s.rounds === 2 && s.wins.get( 1 ) === 2 && ! s.wins.has( 4 ),
+			JSON.stringify( { rounds: s.rounds, wins: [ ...s.wins ] } ) );
 		const byRanking = races.chaseTheAce( base(), finalId, [ [ 1, 2, 3, 4 ] ], { ranking: [ 1, 2, 3, 4 ] } );
 		s = model.ctaState( byRanking, build( byRanking ) );
 		check( "the timer's ranking decides (Iron Man: one round)", s.decided && s.winnerId === 1 && s.source === 'ranking', JSON.stringify( s ) );

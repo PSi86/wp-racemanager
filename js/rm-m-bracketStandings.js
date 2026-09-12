@@ -64,7 +64,9 @@ function heatStates( data, bracket ) {
     return state;
 }
 
-// The final's order under Chase the Ace, from its rounds; null until a pilot has two wins.
+// The final's order under Chase the Ace, from its rounds; null until a pilot has two wins. As in
+// Class Rank: Brackets, the round that decides is the last that counts, and it breaks ties on
+// points: a round flown after it changes nothing.
 function chaseTheAceOrder( data, finalId ) {
     const result = model.heatResult( data, finalId );
     const rounds = ( result && Array.isArray( result.rounds ) ? result.rounds : [] )
@@ -73,6 +75,7 @@ function chaseTheAceOrder( data, finalId ) {
     const wins = new Map();
     const points = new Map();
     const callsign = new Map();
+    let deciding = null;
     for ( const board of rounds ) {
         board.forEach( ( entry, index ) => {
             if ( ! entry || ! entry.pilot_id ) {
@@ -84,16 +87,20 @@ function chaseTheAceOrder( data, finalId ) {
                 wins.set( entry.pilot_id, ( wins.get( entry.pilot_id ) || 0 ) + 1 );
             }
         } );
+        const first = board[ 0 ] && board[ 0 ].pilot_id;
+        if ( first && wins.get( first ) >= 2 ) {
+            deciding = board;
+            break;
+        }
     }
-    const winner = [ ...wins ].find( ( [ , n ] ) => n >= 2 );
-    if ( ! winner ) {
+    if ( ! deciding ) {
         return null;
     }
-    const last = rounds[ rounds.length - 1 ];
-    const lastIndex = ( pilotId ) => last.findIndex( ( e ) => e && e.pilot_id === pilotId );
-    const others = [ ...points.keys() ].filter( ( p ) => p !== winner[ 0 ] )
-        .sort( ( a, b ) => points.get( a ) - points.get( b ) || lastIndex( a ) - lastIndex( b ) );
-    return [ winner[ 0 ], ...others ].map( ( pilotId ) => ( { pilot_id: pilotId, callsign: callsign.get( pilotId ) } ) );
+    const winnerId = deciding[ 0 ].pilot_id;
+    const decidingIndex = ( pilotId ) => deciding.findIndex( ( e ) => e && e.pilot_id === pilotId );
+    const others = [ ...points.keys() ].filter( ( p ) => p !== winnerId )
+        .sort( ( a, b ) => points.get( a ) - points.get( b ) || decidingIndex( a ) - decidingIndex( b ) );
+    return [ winnerId, ...others ].map( ( pilotId ) => ( { pilot_id: pilotId, callsign: callsign.get( pilotId ) } ) );
 }
 
 /**
