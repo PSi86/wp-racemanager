@@ -75,6 +75,10 @@ function rm_register_rest_routes_rh() {
     // A timer may send its body gzip-compressed, and learns from every answer that it may.
     add_filter( 'rest_pre_dispatch', 'rm_decode_compressed_body', 10, 3 );
     add_filter( 'rest_post_dispatch', 'rm_announce_compressed_bodies', 10, 3 );
+
+    // Every answer here belongs to the user who asked; no page cache may hand it to anyone else.
+    add_filter( 'rest_pre_dispatch', 'rm_keep_out_of_page_caches', 0, 3 );
+    add_filter( 'rest_post_dispatch', 'rm_say_no_cache', 10, 3 );
 }
 //);
 
@@ -213,6 +217,56 @@ function rm_gunzip( $data, $limit ) {
 function rm_announce_compressed_bodies( $response, $server, $request ) {
     if ( rm_can_inflate() && $response instanceof WP_HTTP_Response && 0 === strpos( $request->get_route(), '/rm/v1/' ) ) {
         $response->header( 'Accept-Encoding', 'gzip' );
+    }
+    return $response;
+}
+
+/**
+ * Keep the answers of this namespace out of page caches.
+ *
+ * Each belongs to the user who asked: the races they may edit, a race's registrations with the
+ * pilots' names. WordPress says so (Cache-Control: no-store, private), but LiteSpeed Cache takes
+ * a request that logs in with an application password for a guest's: it asks at init, and
+ * WordPress logs such a request in only once it knows it is a REST request. With its shipped
+ * defaults ("Cache REST API" on, 7 days) it then tells the server to keep the answer for anyone.
+ * Found on production on 2026-09-12, where two races' registrations and a timer user's race list
+ * came out of the cache for requests without any login. Reproduced on the local site with
+ * LiteSpeed Cache 7.9.1: X-LiteSpeed-Cache-Control: public,max-age=604800 for both GET routes.
+ *
+ * DONOTCACHEPAGE is what LiteSpeed Cache and the other common page-cache plugins honour;
+ * litespeed_control_set_nocache is LiteSpeed Cache's own call, which also names the reason in its
+ * debug log. Both before any callback, and whatever the answer turns out to be.
+ *
+ * @param mixed           $result  An answer another filter already has, passed on.
+ * @param WP_REST_Server  $server  Unused.
+ * @param WP_REST_Request $request The request.
+ * @return mixed $result, untouched.
+ */
+function rm_keep_out_of_page_caches( $result, $server, $request ) {
+    if ( 0 === strpos( $request->get_route(), '/rm/v1/' ) ) {
+        if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+            define( 'DONOTCACHEPAGE', true );
+        }
+        do_action( 'litespeed_control_set_nocache', 'WP RaceManager: an rm/v1 answer belongs to the user who asked' );
+    }
+    return $result;
+}
+
+/**
+ * Tell a LiteSpeed server itself not to keep the answer.
+ *
+ * For a site whose server caches without LiteSpeed Cache, by rules that act on this header. Where
+ * LiteSpeed Cache runs, it sends the header itself, last, and says no-cache because of
+ * rm_keep_out_of_page_caches().
+ *
+ * @param WP_HTTP_Response|mixed $response The answer.
+ * @param WP_REST_Server         $server   Unused.
+ * @param WP_REST_Request        $request  The request it answers.
+ * @return WP_HTTP_Response|mixed The answer, with the header on this namespace's routes.
+ */
+function rm_say_no_cache( $response, $server, $request ) {
+    if ( $response instanceof WP_HTTP_Response && 0 === strpos( $request->get_route(), '/rm/v1/' ) ) {
+        $response->header( 'X-LiteSpeed-Cache-Control', 'no-cache' );
     }
     return $response;
 }

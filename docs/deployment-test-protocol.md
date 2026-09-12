@@ -140,9 +140,16 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
       with `WP_DEBUG_LOG` on, `debug.log` has `rm_after_response: 1 task(s) after the answer,
       connection closed by litespeed`. *closed by nothing* means the server made the timer
       wait for the pushes, as before 1.6.0.
-- [ ] **Compressed uploads are welcome (1.6.0).** `curl -sI https://<site>/wp-json/rm/v1/races`
-      answers 401 with the header `Accept-Encoding: gzip`. A timer with the connector's
-      compression then sends its uploads gzip-compressed; the race looks the same either way.
+- [ ] **Compressed uploads are welcome (1.6.0).** After the purge in the next item,
+      `curl -s -D - -o /dev/null https://<site>/wp-json/rm/v1/races` answers 401 with the header
+      `Accept-Encoding: gzip`. A timer with the connector's compression then sends its uploads
+      gzip-compressed; the race looks the same either way.
+- [ ] **Answers for timers stay out of the page cache (1.6.1).** Purge LiteSpeed Cache once
+      (*Toolbox → Purge All*): an answer it kept before the update stays for up to 7 days. Then
+      let the timer press **Load races** and **Download Pilots**, and fetch the same two URLs
+      without a login — `curl -s -D - -o /dev/null 'https://<site>/wp-json/rm/v1/get-pilots?race_id=<id>'`
+      and `…/rm/v1/races`. Both answer 401, without `X-LiteSpeed-Cache: hit`. Before 1.6.1 both
+      answered 200 with the timer's data, out of the cache.
 - [ ] *Optional:* **force a write failure.** Make `uploads/races/` read-only briefly and upload.
       Expected: an **error** instead of `201 Created`, and no empty race left behind.
 

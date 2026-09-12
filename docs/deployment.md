@@ -279,6 +279,13 @@ Also worth a look on the first deployment after a longer break:
 - **Tools → Site Health** for a PHP version warning.
 - Any caching or optimisation plugin: purge it. The live pages are cacheable by design, and a
   cached `/live/{race}/` 301 from before the change will send visitors to the wrong place.
+- **LiteSpeed Cache: keep `/wp-json/rm/v1/` out of it.** Its shipped defaults cache REST answers
+  for 7 days (*Cache REST API*), and it takes a timer's request, which logs in with an
+  application password, for a guest's. Before 1.6.1 that put a timer user's race list and whole
+  registration lists into the cache for anyone (found on production on 2026-09-12). 1.6.1 marks
+  every `rm/v1` answer as not to be cached. Purge once after updating to it: what was stored
+  before stays until it expires. Adding `/wp-json/rm/v1/` under *Cache → Excludes → Do Not Cache
+  URIs* costs nothing and holds whatever a later version of either plugin does.
 - Browsers cache the `/live/{race}/` → `/live/{race}/{view}/` redirect. Test in a private window.
 
 ### Assets, and which of them a release actually refreshes
