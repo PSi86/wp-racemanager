@@ -115,8 +115,10 @@ In that order, so that a write that fails leaves the log for the next time. A ra
 carry nothing to clear is left as it is — Quick Edit stores the flag as a number, and WordPress
 takes that for a change on every save. Set live again, a race starts with an empty log, and its
 next upload brings the parts back. The races archived before 1.8.1 are cleared the same way,
-once, on the first admin page after the update (`rm_archived_races_cleared`, see
-[`deployment.md`](deployment.md)).
+once, on the first admin page after the update (`rm_archive_schema`, see
+[`deployment.md`](deployment.md)). Since 1.9.0 archiving also deletes the race's push
+subscriptions, and a race nobody archives is archived a day after its end and its last upload;
+everything that follows from a race's state is in [`race-status.md`](race-status.md).
 
 **The body may come gzip-compressed** (`Content-Encoding: gzip`, since 1.6.0). A full event
 shrinks to about 7 % that way — 1,642,049 bytes went over the wire as 126,911 in the local test.

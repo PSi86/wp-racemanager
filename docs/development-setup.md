@@ -441,6 +441,13 @@ and dies on the host's 8.1 is exactly the class of bug this environment exists t
   not empty.
 - **Outgoing mail.** DDEV captures everything in Mailpit (`ddev launch -m`), so the CF7
   confirmation mails stay local.
+- **Archiving by itself.** From 1.9.0 on the plugin archives a live race a day after its end and
+  its last upload ([`race-status.md`](race-status.md)). The races copied from production are
+  months old, and the browser suites need one of them live: it would be archived within the hour,
+  and again after every `ddev wp post meta update <id> _race_live 1`. So the local `wp-config.php`
+  has `define( 'RM_AUTO_ARCHIVE', false );`, which `bin/bootstrap-devenv.sh` sets before the plugin
+  is active. Switching it on for a moment archives at once: the run is scheduled for now, and
+  WordPress spawns WP-Cron on the same request.
 
 ### Reading production's structure without a database dump
 
