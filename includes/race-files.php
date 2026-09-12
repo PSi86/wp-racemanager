@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
 require_once __DIR__ . '/race-status.php'; // rm_race_is_live(): the parts and the race log only while a race is live
 require_once __DIR__ . '/pilot-profiles.php'; // rm_race_pilot_profiles(): nationality and photo of the race's pilots
+require_once __DIR__ . '/race-winner.php'; // rm_store_race_winners(): who won, for the race's card
 
 // A race deleted for good takes its index and its parts with it.
 add_action( 'before_delete_post', 'rm_delete_race_parts_of_post' );
@@ -135,6 +136,11 @@ function rm_write_files( $race_id, $json_data, $create_wp_attachment = 0 ) {
     rm_remove_race_parts( $upload_path, $race_id, array_keys( $files ) );
     if ( null === $index && is_file( $filename_index ) ) {
         @unlink( $filename_index );
+    }
+
+    // Who won, from what was just written (1.12.0): the race list's card shows it.
+    if ( is_array( $json_data ) ) {
+        rm_store_race_winners( $race_id, $json_data );
     }
 
     // if no errors occured, create the wp attachment if requested

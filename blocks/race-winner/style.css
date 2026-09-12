@@ -1,0 +1,52 @@
+/* The race-winner block: one line per winner - the cup, photo or initials, flag, callsign. */
+.rm-race-winner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+}
+
+.rm-race-winner-line {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    flex-wrap: wrap;
+}
+
+.rm-race-winner-avatar {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2em;
+    height: 2em;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #dcdcdc;
+    color: #444;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.rm-race-winner-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.rm-race-winner-flag {
+    width: 1.33em;
+    height: 1em;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.rm-race-winner-callsign {
+    font-weight: bold;
+}
+
+.rm-race-winner-class {
+    opacity: 0.75;
+}

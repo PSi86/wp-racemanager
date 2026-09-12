@@ -55,7 +55,8 @@ which updates the race of that title or has `rm_create_race()` make one. Either 
 All of them are plain files served by the web server, each written beside itself and renamed over
 the old one, so a browser reading it meanwhile gets the old file or the new one, whole. Parts the
 payload no longer has — a heat deleted on the timer — are removed once the new index is out.
-Nothing is stored in the database except post meta (`_race_last_upload`, `_race_live`).
+Nothing is stored in the database except post meta (`_race_last_upload`, `_race_live`, and since
+1.12.0 `_race_winner`, which every write works out from the payload for the race's card).
 
 **The timestamp goes last** (since 1.8.0). It is the promise that what it announces is there, and it
 used to be written first: a browser polling between the two writes took the new timestamp with the

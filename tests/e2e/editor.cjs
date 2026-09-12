@@ -198,6 +198,9 @@ try {
 		let frameOpened = false;
 		let frameTitle = '';
 		try {
+			// The block inserted last stays selected, and its floating toolbar can sit over the
+			// gallery's button - race-winner's did (1.12.0). Nothing selected, nothing in the way.
+			await page.evaluate( () => window.wp.data.dispatch( 'core/block-editor' ).clearSelectedBlock() );
 			await canvasFrame.getByRole( 'button', { name: /Edit Gallery \/ Add Media/i } ).first().click( { timeout: 15000 } );
 			// wp.media renders into the PARENT document -- the block's JavaScript
 			// runs there, only its DOM lives in the iframe.
@@ -209,6 +212,73 @@ try {
 		}
 		check( 'its wp.media frame opens over the iframe', frameOpened, frameTitle );
 	}
+
+	// ------------------------------------------- the race announcement (1.12.0)
+	// A pattern of core blocks, as markup: whatever the editor would save differently from it, it
+	// reports as changed ("This block contains unexpected or invalid content").
+	const pattern = await page.evaluate( async () => {
+		const all = await window.wp.apiFetch( { path: '/wp/v2/block-patterns/patterns' } );
+		const found = ( all || [] ).find( ( p ) => p.name === 'wp-racemanager/race-announcement' );
+		if ( ! found ) {
+			return null;
+		}
+		const invalid = [];
+		const walk = ( blocks ) => blocks.forEach( ( b ) => {
+			if ( ! b.isValid ) invalid.push( b.name );
+			walk( b.innerBlocks || [] );
+		} );
+		const blocks = window.wp.blocks.parse( found.content );
+		walk( blocks );
+		return { names: blocks.map( ( b ) => b.name ), invalid };
+	} );
+	check( 'the race announcement pattern is registered', !! pattern );
+	check( 'its blocks are what the editor saves - none reported as changed',
+		pattern && pattern.invalid.length === 0 && pattern.names.includes( 'core/table' ) && pattern.names.includes( 'core/list' ),
+		JSON.stringify( pattern ) );
+	const styles = await page.evaluate( () => {
+		const blocks = window.wp.data.select( 'core/blocks' );
+		return {
+			table: ( blocks.getBlockStyles( 'core/table' ) || [] ).map( ( s ) => s.name ),
+			list: ( blocks.getBlockStyles( 'core/list' ) || [] ).map( ( s ) => s.name ),
+		};
+	} );
+	check( 'its styles are offered: schedule, checklist, allowed, not allowed',
+		styles.table.includes( 'rm-schedule' ) && [ 'rm-checklist', 'rm-allowed', 'rm-banned' ].every( ( n ) => styles.list.includes( n ) ),
+		JSON.stringify( styles ) );
+
+	// A new race starts with it, in the Details block: the template's core/pattern is replaced by the
+	// pattern's blocks, which the organiser edits. In a tab of its own, since leaving the editor above
+	// with unsaved blocks asks first.
+	const race = await context.newPage();
+	race.on( 'pageerror', ( e ) => consoleLines.push( `pageerror: ${ e.message }` ) );
+	await race.goto( `${ BASE }/wp-admin/post-new.php?post_type=race`, { waitUntil: 'domcontentloaded' } );
+	let started = null;
+	try {
+		await race.waitForFunction( () => {
+			const sel = window.wp && window.wp.data && window.wp.data.select( 'core/block-editor' );
+			const all = [];
+			const walk = ( blocks ) => blocks.forEach( ( b ) => {
+				all.push( b );
+				walk( b.innerBlocks || [] );
+			} );
+			walk( sel ? sel.getBlocks() : [] );
+			return all.some( ( b ) => b.name === 'core/table' ) && ! all.some( ( b ) => b.name === 'core/pattern' );
+		}, null, { timeout: 30000 } );
+		started = await race.evaluate( () => {
+			const details = window.wp.data.select( 'core/block-editor' ).getBlocks().find( ( b ) => b.name === 'core/details' );
+			const inside = details ? details.innerBlocks : [];
+			return {
+				inside: inside.map( ( b ) => b.name ),
+				schedule: inside.some( ( b ) => b.name === 'core/table' && /is-style-rm-schedule/.test( b.attributes.className || '' ) ),
+				invalid: window.wp.data.select( 'core/block-editor' ).getBlocks().filter( ( b ) => ! b.isValid ).map( ( b ) => b.name ),
+			};
+		} );
+	} catch ( e ) {
+		started = { error: e.message.split( '\n' )[ 0 ] };
+	}
+	check( 'a new race starts with the announcement in its Details block', !! ( started && started.schedule ), JSON.stringify( started ) );
+	check( 'and every block of it valid', !! ( started && started.invalid && started.invalid.length === 0 ), JSON.stringify( started && started.invalid ) );
+	await race.close();
 
 	// -------------------------------------------------------------- the console
 	const deprecations = consoleLines.filter( ( l ) => /API version 2 or lower/i.test( l ) );

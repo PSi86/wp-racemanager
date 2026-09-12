@@ -44,6 +44,11 @@ function delete_post_meta( $id, $key, $value = '' ) {
     unset( $GLOBALS['rm_meta'][ $id ][ $key ] );
     return true;
 }
+// Every write keeps the race's winner since 1.12.0 (race-winner.php).
+function update_post_meta( $id, $key, $value ) {
+    $GLOBALS['rm_meta'][ $id ][ $key ] = $value;
+    return true;
+}
 // Core's reading of what the one-time clearing asks for: 'any' is every status but the bin, and
 // 'ids' gives IDs. The shared stub knows neither.
 function get_posts( $args = array() ) {
