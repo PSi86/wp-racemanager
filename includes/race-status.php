@@ -67,6 +67,28 @@ function rm_live_race_exists() {
 }
 
 /**
+ * The slugs of the races that are live: where the installed app may take a visitor back to.
+ *
+ * @return string[]
+ */
+function rm_live_race_slugs() {
+    $slugs = array();
+    $races = get_posts( array(
+        'post_type'   => 'race',
+        'post_status' => 'publish',
+        'numberposts' => -1,
+        'meta_key'    => '_race_live',
+        'meta_value'  => '1',
+    ) );
+    foreach ( $races as $race ) {
+        if ( rm_race_is_live( $race->ID ) ) {
+            $slugs[] = $race->post_name;
+        }
+    }
+    return $slugs;
+}
+
+/**
  * Remember, or tell, whether a race was live before its flag was stored again.
  *
  * @param int       $race_id
