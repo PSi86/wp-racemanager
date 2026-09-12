@@ -63,6 +63,10 @@ function get_posts( $args = array() ) {
 function wp_doing_ajax() {
     return ! empty( $GLOBALS['rm_doing_ajax'] );
 }
+// db-handler.php's; an archived race's push subscriptions are race-status' to check.
+function rm_delete_all_race_subscriptions( $race_id ) {
+    return 0;
+}
 $GLOBALS['rm_options'] = array();
 // Hooks by name: race-files.php registers them as it is loaded.
 function add_action( $hook, $callback, $priority = 10, $args = 1 ) {
@@ -412,7 +416,7 @@ $GLOBALS['rm_meta'][44]['_race_live'] = '0';
 
 $GLOBALS['rm_doing_ajax'] = true;
 rm_maybe_clear_archived_races();
-rm_test_check( 'not in an AJAX request, which the live pages make', is_file( rm_rw_file( 42, 'index' ) ) && false === get_option( 'rm_archived_races_cleared' ) );
+rm_test_check( 'not in an AJAX request, which the live pages make', is_file( rm_rw_file( 42, 'index' ) ) && false === get_option( 'rm_archive_schema' ) );
 $GLOBALS['rm_doing_ajax'] = false;
 
 rm_maybe_clear_archived_races();
@@ -420,7 +424,7 @@ rm_test_check( 'an archived race: whole file and timestamp only, no race log',
     array( '42-data.json', '42-timestamp.json' ) === rm_rw_listing( 42 ) && array() === ( rm_rw_read( 42, 'data' )['notifications'] ?? null )
     && ! isset( $GLOBALS['rm_meta'][42]['_race_notification_log'] ), implode( ', ', rm_rw_listing( 42 ) ) );
 rm_test_check( 'a live race untouched', is_file( rm_rw_file( 43, 'index' ) ) && isset( $GLOBALS['rm_meta'][43]['_race_notification_log'] ) );
-rm_test_check( 'recorded as done', false !== get_option( 'rm_archived_races_cleared' ) );
+rm_test_check( 'recorded as done', RM_ARCHIVE_SCHEMA === get_option( 'rm_archive_schema' ) );
 $GLOBALS['rm_meta'][42]['_race_notification_log'] = array( array( 'msg_title' => 'Break' ) );
 rm_maybe_clear_archived_races();
 rm_test_check( 'and not run again', isset( $GLOBALS['rm_meta'][42]['_race_notification_log'] ) );

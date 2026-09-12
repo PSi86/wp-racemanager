@@ -746,7 +746,8 @@ function rm_enqueue_live_resume_script() {
         false // In the head: the resume redirect should happen before the page paints.
     );
 
-    $race = rm_get_current_race();
+    $race         = rm_get_current_race();
+    $is_selection = rm_live_page_id() === (int) get_queried_object_id();
 
     wp_add_inline_script(
         'rm-live-resume',
@@ -755,7 +756,10 @@ function rm_enqueue_live_resume_script() {
             'raceSlug'     => $race ? $race->post_name : '',
             'raceTitle'    => $race ? get_the_title( $race ) : '',
             'selectionUrl' => rm_live_selection_url(),
-            'isSelection'  => rm_live_page_id() === (int) get_queried_object_id(),
+            'isSelection'  => $is_selection,
+            // Where ?resume=1 may go straight to (1.9.0). A change of state empties the page
+            // cache, so a cached copy of this page does not keep an old list.
+            'liveRaces'    => $is_selection ? rm_live_race_slugs() : array(),
         ) ) . ';',
         'before'
     );

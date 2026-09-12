@@ -82,8 +82,11 @@ const selectionState = ( page ) =>
 			path: new URL( a.href ).pathname,
 			slug: new URL( a.href ).pathname.split( '/' ).filter( Boolean )[ 1 ],
 			title: a.textContent.trim(),
+			live: a.closest( '.race-select-item' ).classList.contains( 'is-live' ),
 		} ) )
 	);
+	// Which races are live, asked of the site rather than taken from the list under test.
+	const liveSlugs = await page.evaluate( () => ( window.RmLiveResume && window.RmLiveResume.liveRaces ) || null );
 
 	if ( races.length < 2 ) {
 		await browser.close();
@@ -155,13 +158,49 @@ const selectionState = ( page ) =>
 		storedAfterMarker ? `stored ${ storedAfterMarker.slug }` : 'nothing stored'
 	);
 
-	// --------------------------------------------------- 4 · ?resume=1 goes straight there
-	await page.goto( `${ BASE }/live/?resume=1`, { waitUntil: 'networkidle' } );
+	// --------------------------------- 4 · the list marks the live races, by their flag (1.9.0)
+	// It marked a race with an upload in the last two hours, and a cached copy of the page kept
+	// whatever it said.
 	check(
-		'?resume=1 goes straight to the stored race',
-		new URL( page.url() ).pathname === first.path,
-		`landed on ${ new URL( page.url() ).pathname }, expected ${ first.path }`
+		'the page names the live races',
+		Array.isArray( liveSlugs ),
+		`liveRaces: ${ JSON.stringify( liveSlugs ) }`
 	);
+	const liveRace = races.find( ( r ) => ( liveSlugs || [] ).includes( r.slug ) );
+	const pastRace = races.find( ( r ) => ! ( liveSlugs || [] ).includes( r.slug ) );
+	check(
+		'"Live:" on exactly the live races',
+		races.every( ( r ) => r.live === ( liveSlugs || [] ).includes( r.slug ) && r.live === r.title.startsWith( 'Live:' ) ),
+		JSON.stringify( races.map( ( r ) => ( { slug: r.slug, live: r.live, title: r.title } ) ) )
+	);
+
+	// ------------------------ 5 · ?resume=1 goes straight to a race that is still live
+	if ( ! liveRace || ! pastRace ) {
+		process.stdout.write( '          (the list needs a live race and an archived one for the checks below)\n' );
+	} else {
+		await page.goto( `${ BASE }${ liveRace.path }`, { waitUntil: 'networkidle' } );
+		await page.goto( `${ BASE }/live/?resume=1`, { waitUntil: 'networkidle' } );
+		check(
+			'?resume=1 goes straight to the stored race when it is live',
+			new URL( page.url() ).pathname === liveRace.path,
+			`landed on ${ new URL( page.url() ).pathname }, expected ${ liveRace.path }`
+		);
+
+		// The app installed at one event and opened at the next landed in the race long over.
+		await page.goto( `${ BASE }${ pastRace.path }`, { waitUntil: 'networkidle' } );
+		await page.goto( `${ BASE }/live/?resume=1`, { waitUntil: 'networkidle' } );
+		const stayed = await selectionState( page );
+		check(
+			'and stays on the selection page when it is over',
+			new URL( page.url() ).pathname === new URL( `${ BASE }/live/` ).pathname,
+			`landed on ${ new URL( page.url() ).pathname }`
+		);
+		check(
+			'where the race is still offered',
+			stayed.resumeHref === pastRace.path && stayed.marked === pastRace.path,
+			JSON.stringify( stayed )
+		);
+	}
 
 	await browser.close();
 

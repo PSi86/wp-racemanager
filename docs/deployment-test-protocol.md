@@ -164,13 +164,23 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
       class, the event leaderboard, `current_heat`, `heat_data` — and not for `…-data.json`, and
       shows the new result. A reload in a private window downloads `…-data.json` once, as a first
       visit does. A race uploaded before the update keeps the whole file until its next upload.
-- [ ] **Archived races keep their results only (1.8.1).** After the update, open any admin page
-      once; then `wp option get rm_archived_races_cleared` has a time, and the `…-data.json` of an
+- [ ] **Before the update to 1.9.0: which races are live?** The admin's race list, *Race Status*.
+      Every live race whose end and last upload are more than a day past is archived on the first
+      request after the update, race log and push subscriptions included. Correct the end of any
+      that is not over.
+- [ ] **A race's state shows at once (1.9.0).** Archive a live race in the meta box, then open
+      `/live/` in a private window: no *Live:* on it, and no dot on the live link while no race is
+      live — without purging LiteSpeed Cache by hand. Its next-up view says *This race is over.*
+      Set it live again: *Live:* is back straight away. The installed app, started from the home
+      screen after viewing that race, goes straight into it only while it is live.
+- [ ] **Archived races keep their results only (1.8.1, 1.9.0).** After the update, open any admin page
+      once; then `wp option get rm_archive_schema` is `2`, and the `…-data.json` of an
       archived race that had messages shows `"notifications":[]` and no `rm_index`, with no
-      `…-part-…` or `…-index.json` beside it. Set a live race to *Archive (Locked)* in the meta box:
-      the same, and its timestamp moves. From the timer, **Send** to that race: *Notification
-      failed - Race is locked and takes no messages.*, and no push arrives. Set it live again and
-      upload: the parts are back.
+      `…-part-…` or `…-index.json` beside it, and `wp_rm_subscriptions` holds no row for it. Set a
+      live race to *Archive (Locked)* in the meta box: the same, and its timestamp moves. From the
+      timer, **Send** to that race: *Notification failed - Race is locked and takes no messages.*,
+      and no push arrives. Set it live again and upload: the parts are back, and its followers have
+      to subscribe again.
 - [ ] *Optional:* **force a write failure.** Make `uploads/races/` read-only briefly and upload.
       Expected: an **error** instead of `201 Created`, and no empty race left behind. From 1.8.0 on
       the race's timestamp keeps its old time.

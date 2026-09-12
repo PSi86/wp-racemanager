@@ -177,13 +177,25 @@ recorded in the option `rm_subscriptions_schema`), so its `pilot_key` column nee
 reactivation.
 
 **From 1.8.1 on, the first admin page after an update clears the archived races**
-(`rm_maybe_clear_archived_races()`, recorded in the option `rm_archived_races_cleared`). Every race
-that is not live loses its race log, from the database **for good**, and its files are written
-again without it, and without the parts 1.8.0 may have left: the whole file and the timestamp,
-with a new time. The database backup of section 3 is the only way back. A race whose files carry
-no log is left as it is. An AJAX request does not run it, since the live pages make those; a
-deployment by SFTP alone runs it with the first admin page anyone opens. To run it again, delete
-the option.
+(`rm_maybe_clear_archived_races()`, recorded in the option `rm_archive_schema`). Every race that is
+not live loses its race log and, from 1.9.0 on, its push subscriptions, from the database **for
+good**, and its files are written again without the log, and without the parts 1.8.0 may have
+left: the whole file and the timestamp, with a new time. The database backup of section 3 is the
+only way back. A race whose files carry no log is not written again. An AJAX request does not run
+it, since the live pages make those; a deployment by SFTP alone runs it with the first admin page
+anyone opens. To run it again, delete the option. A site that ran 1.8.1's version, recorded as
+`rm_archived_races_cleared`, runs it once more for the subscriptions.
+
+**From 1.9.0 on, the first request after an update archives every live race whose end and last
+upload are more than a day past** ([`race-status.md`](race-status.md)). The hourly run is scheduled
+for now, and WordPress runs it on that same request: those races lose their race logs and push
+subscriptions at once, as above. **Before updating, look at the admin's race list** — *Race
+Status* — and correct the end of any live race that is not over, or archive by hand the ones that
+are. `define( 'RM_AUTO_ARCHIVE', false );` in `wp-config.php` switches the archiving off.
+
+**A change of a race's state empties LiteSpeed's page cache** (1.9.0). Production serves the home
+page, `/live/` and the race views from it (measured on 2026-09-12), and the state is in their
+markup; a change used to show only once the cached pages expired.
 
 **Deactivate → Activate is safe again**, and it is the simplest way to run the hook after a ZIP
 replace. It used to be the thing not to do: `create_event_registration_cf7_form()` inserted
@@ -353,7 +365,8 @@ has carried one, and treats an index older than the timestamp as not there.
 2. **Settings → Permalinks → Save** again — the rewrite rules of the new version are still cached
    in the `rm_live_routing` option and in WordPress's own rewrite cache.
 3. Only restore the database if the event-date migration ran and produced something unexpected,
-   or if the race logs of the archived races are wanted back (1.8.1 clears them, see section 6).
+   or if the race logs and push subscriptions of the archived races are wanted back (1.8.1 and
+   1.9.0 clear them, and 1.9.0 archives races past their end, see section 6).
    Those two are the steps in a deployment that write to existing data; everything else is code.
    The clearing also rewrote those races' files; the download of section 3 has them as they were.
 4. Going back from 1.8.0 or later, the races' `{id}-index.json` and `{id}-part-….json` stay in

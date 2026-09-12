@@ -96,7 +96,12 @@
 
     var params = new URLSearchParams( window.location.search );
 
-    if ( params.get( 'resume' ) === '1' ) {
+    // Straight there only when the race is still live. The app installed at one event and opened
+    // at the next used to land in the race long over; now it stays here, where the running race
+    // is marked and the last one is still offered below. A page from before 1.9.0 names no live
+    // races, and goes as it always went.
+    var live = config.liveRaces;
+    if ( params.get( 'resume' ) === '1' && ( ! Array.isArray( live ) || live.indexOf( stored.slug ) !== -1 ) ) {
         // replace() so the selection page does not end up in the back stack -- otherwise
         // "back" from the race would bounce straight into another resume.
         window.location.replace( stored.url );

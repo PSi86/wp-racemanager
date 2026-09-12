@@ -29,7 +29,8 @@ bin/                      build-plugin-zip.sh (deployable artifact), dev-doctor.
 | `includes/live-routing.php` | The live micro-site's URLs. Resolves the selected race from the path, builds canonical URLs, rewrites navigation links and marks the navigation that switches views (`rm-live-nav`), handles legacy redirects. Start here for anything about `/live/`. |
 | `includes/livepage-handler.php` | The four live-page shortcodes, the JS module configuration they emit, and the view tabs fixed to the foot of a phone's screen — emitted once per page, like the pill, with a stylesheet that is loaded only where the tabs are. |
 | `includes/rest-handler.php` | The REST endpoints RotorHazard talks to. |
-| `includes/race-files.php` | What an upload leaves in `uploads/races/`: the payload in parts — per section, per result heat and per class (`RM_RACE_SPLIT`) — the whole file with the index inside as `rm_index`, the index, and the timestamp **last**, each file replaced whole. `rm_race_part_filename()` names a part for writer and loader alike. Parts and race log only while a race is live (`rm_race_is_live()`): setting it to archive runs `rm_archive_race()` — whole file and timestamp with an empty log, index, parts and the log in the database gone (1.8.1). A race deleted for good takes its index and parts with it. |
+| `includes/race-files.php` | What an upload leaves in `uploads/races/`: the payload in parts — per section, per result heat and per class (`RM_RACE_SPLIT`) — the whole file with the index inside as `rm_index`, the index, and the timestamp **last**, each file replaced whole. `rm_race_part_filename()` names a part for writer and loader alike. Parts and race log only while a race is live. A race deleted for good takes its index and parts with it. |
+| `includes/race-status.php` | A race's two states and everything that follows from them — the table is [`docs/race-status.md`](docs/race-status.md). `rm_race_is_live()` is the one reading of `_race_live`. A change of state, however it is stored, runs `rm_on_race_live_changed()`: to archive, `rm_archive_race()` (files, race log, push subscriptions), and any change empties the page cache. `rm_auto_archive_races()` archives a race by the hour once its end and last upload are a day past, unless `RM_AUTO_ARCHIVE` is false. |
 | `includes/vapid-handler.php` | Web Push keys — the single source of truth. |
 | `includes/cpt-handler.php` | The `race` custom post type and its meta. |
 | `includes/pilot-key.php` | The pilot key: one version-5 UUID per registered email address, the same every time, derived in a namespace of this site's own. What RotorHazard is to match a returning pilot by, since `user_id` is 0 for everyone without an account. `rm_registration_rows()` in `admin-registrations.php` puts it into the admin list, the CSV and `get-pilots` alike. |
@@ -115,7 +116,7 @@ when any of that is missing.
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
-| `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage |
+| `npm run test:live-resume` | remembering the last race, and the selection page presenting it the same way whether it came from the URL or from storage; *Live:* on exactly the live races, and the installed app resuming straight on only into a race that is still live |
 | `npm run test:update-status` | the data path and the freshness pill — where the cache goes, that a returning visitor does not download the payload again (measured in bytes off the wire), and that the pill never claims freshness it does not have — and, offline, is there and says so |
 | `npm run test:flaky-network` | the live app on a bad mobile link: a payload that never arrives, a body that stalls after the headers, an impatient viewer hammering refresh, a slow-but-working connection, and an outage with a warm cache. This is the regression guard for the field failure described above |
 | `npm run test:race-parts` | the payload in parts (L7): a first visit's whole file and the parts it learns from it, an update after a heat downloading exactly the parts that changed and putting the payload together, a return from storage, an upload overtaking the index, a part that fails or stalls committing nothing, and the whole file where the parts will not do. Writes the race's files through WP-CLI and puts them back byte for byte |
@@ -125,7 +126,10 @@ when any of that is missing.
 | `npm run test:stats-filter` | the pilot filter on the stats view — marking, filtering, the per-round lap tables going with the leaderboards, pruning of what the filter emptied, and that the bracket view's own filter is unmoved |
 
 `test:update-status` needs a race that is flagged live (`ddev wp post meta update <id> _race_live
-1`), or the polling half of it has nothing to watch; it says so and carries on with the rest.
+1`), or the polling half of it has nothing to watch; it says so and carries on with the rest. Since
+1.9.0 the plugin archives a race a day after its end, and the local races are from 2025: the local
+`wp-config.php` has `RM_AUTO_ARCHIVE` false, or the race would be archived within the hour. Do not
+switch it on to try it — the run is scheduled for now, and WP-Cron runs it on that same request.
 
 **When changing the live routing, run `php tests/run.php live` and make sure `live-links` does
 not skip** — that suite needs a WordPress checkout, and it is the one that would catch a
@@ -211,7 +215,7 @@ either — DDEV greps the whole file. See "Building the blocks" in
 | `rm_callsign_field` | Name of the CF7 field holding the pilot callsign. |
 | `rm_pwa_files_signature` | Hash of the values baked into `manifest.json` / `pwa-sw.js`; a mismatch regenerates them. |
 | `rm_event_dates_migrated` | Timestamp of the last event-date migration run. |
-| `rm_archived_races_cleared` | When the races archived before 1.8.1 lost their race log and parts, once, on the first admin page after the update. Delete it to run that again. |
+| `rm_archive_schema` | How far the one-time archiving of the races archived before has gone: 2 is race log, parts and push subscriptions (1.9.0). Run on the first admin page after the update; delete it to run it again. It replaced 1.8.1's `rm_archived_races_cleared`, which it removes. |
 
 ## How the data reaches the viewer
 
@@ -283,4 +287,7 @@ next to the corrected one.
 - [`docs/deployment.md`](docs/deployment.md) — building the artifact and installing it on a host
   without WP-CLI. Note that a ZIP replace does **not** re-run the activation hook, and that
   reactivating to force it duplicates the CF7 registration form (E10).
+- [`docs/race-status.md`](docs/race-status.md) — live and archived: everything that follows from a
+  race's state, what a change sets off (the page cache among it), archiving by itself, and what is
+  deliberately not tied to the state.
 - [`tests/README.md`](tests/README.md) — how to run and extend the suites.

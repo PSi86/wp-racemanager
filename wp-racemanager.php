@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP RaceManager
  * Description: Provides REST API endpoints for RotorHazard: download pilot registrations, upload race results. The "Races" menu item will be populated with the latest races. For more information, see the plugin settings.
- * Version: 1.8.1
+ * Version: 1.9.0
  * Author: Peter Simandl
  * Text Domain: wp-racemanager
  * Requires at least: 6.5
@@ -21,7 +21,7 @@ namespace RaceManager;  // Use your preferred namespace if you have one.
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-define( 'WP_RACEMANAGER_VERSION', '1.8.1' ); // keep in sync with the plugin header and package.json
+define( 'WP_RACEMANAGER_VERSION', '1.9.0' ); // keep in sync with the plugin header and package.json
 define( 'WP_RACEMANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 //define( 'WP_RACEMANAGER_ASSETS', WP_RACEMANAGER_URL . 'assets/build/' );
@@ -75,6 +75,16 @@ register_activation_hook(
     __NAMESPACE__ . '\\rm_activate'  // "RaceManager\\rm_activate"
 );
 
+// The hourly archiving of races nobody archived (includes/race-status.php) goes with the plugin;
+// activating it again schedules it again, on init.
+function rm_deactivate() {
+    wp_clear_scheduled_hook( 'rm_auto_archive_races' );
+}
+register_deactivation_hook(
+    __FILE__,
+    __NAMESPACE__ . '\\rm_deactivate'
+);
+
 
 final class WP_RaceManager {
 
@@ -112,7 +122,7 @@ final class WP_RaceManager {
         //require_once WP_RACEMANAGER_DIR . 'vendor/autoload.php'; // if you’re using Composer
         // First load helper functions or implement them here
         // Init global variables
-        add_action( 'init', [ $this, 'is_a_race_live' ] ); // Check if a race has been updated in the last two hours
+        add_action( 'init', [ $this, 'is_a_race_live' ] ); // Whether a race is live, for the dot on the live link
         
         // Load the REST API handling
         //require_once __DIR__ . '/../../../../vendor/autoload.php'; // Relative path to the vendor directory (currently in root of httpdocs)
@@ -136,6 +146,7 @@ final class WP_RaceManager {
         require_once plugin_dir_path(__FILE__) . 'includes/vapid-handler.php'; // VAPID keys for Web Push (frontend needs the public key)
         require_once plugin_dir_path(__FILE__) . 'includes/race-data-functions.php'; // helpers for the per-race JSON files (path/URL), used by REST and the viewers
         require_once plugin_dir_path(__FILE__) . 'includes/race-files.php'; // writes a race's files, and removes its parts when the race is deleted
+        require_once plugin_dir_path(__FILE__) . 'includes/race-status.php'; // live and archived, and what follows from each
         require_once plugin_dir_path(__FILE__) . 'includes/race-dates.php'; // one canonical format for the event dates
         require_once plugin_dir_path(__FILE__) . 'includes/live-routing.php'; // resolves the selected race from the URL path
         require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php'; // PWA meta/manifest; also refreshes the generated files in admin
@@ -222,32 +233,18 @@ final class WP_RaceManager {
         return false;
     }
 
+    /**
+     * Whether a race is live, for the dot on the live link in the main navigation.
+     *
+     * By the live flag since 1.9.0, no longer by an upload in the last two hours; see
+     * rm_live_race_exists().
+     */
     public function is_a_race_live() {
-        //
-        // Generate the datetime string for two hours ago
-        $two_hours_ago = date( 'Y-m-d H:i:s', strtotime( '-2 hours', current_time( 'timestamp' ) ) );
+        $this->live_race_in_progress = rm_live_race_exists();
 
-        $args = array(
-            'post_type'      => 'race',
-            'posts_per_page' => 1,              // Limit to one result
-            'fields'         => 'ids',          // Only retrieve IDs for efficiency
-            'meta_query'     => array(
-                array(
-                    'key'     => '_race_last_upload',
-                    'value'   => $two_hours_ago,
-                    'compare' => '>',
-                    'type'    => 'DATETIME'
-                ),
-            ),
-        );
-
-        $query = new \WP_Query( $args );
-        $this->live_race_in_progress = $query->have_posts();
-        
         if($this->live_race_in_progress) {
             add_filter( 'render_block', 'rm_indicate_live_race', 10, 2 );
         }
-        //return $query->have_posts();
     }
     
     public static function write_log($log) {
