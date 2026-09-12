@@ -187,10 +187,11 @@ function rm_race_splittable( $value ) {
 }
 
 /**
- * The file name of a part: {race}-part-{the path's keys, joined by "-"}.json.
+ * The file name of one part of a race's payload: {race}-part-{the path's keys, joined by "-"}.json.
  *
- * The keys hold no "-" (rm_race_splittable()), so the name is unambiguous. The loader builds the
- * same name from the path, out of the pattern rm_print_js_module_config() hands it.
+ * The keys hold no "-" (rm_race_splittable()), so the name is unambiguous. rm_write_files() writes
+ * the parts under it, and the live pages hand the loader the same name with "%s" for the path
+ * (rm_print_js_module_config()), so that writer and reader cannot disagree about it.
  *
  * @param int      $race_id
  * @param string[] $path

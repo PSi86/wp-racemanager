@@ -18,19 +18,17 @@
 
 require_once __DIR__ . '/../bootstrap.php';
 
-$GLOBALS['rm_data_dir'] = sys_get_temp_dir() . '/rm-race-writes-' . getmypid() . '/';
-$GLOBALS['rm_meta']     = array();
-$GLOBALS['rm_now']      = '2026-09-12 10:00:00';
+$GLOBALS['rm_upload_base'] = sys_get_temp_dir() . '/rm-race-writes-' . getmypid();
+$GLOBALS['rm_data_dir']    = $GLOBALS['rm_upload_base'] . '/races/';
+$GLOBALS['rm_meta']        = array();
+$GLOBALS['rm_now']         = '2026-09-12 10:00:00';
 
 // A write that fails is logged; read here instead of printed among the checks.
 $GLOBALS['rm_log'] = sys_get_temp_dir() . '/rm-race-writes-' . getmypid() . '.log';
 ini_set( 'error_log', $GLOBALS['rm_log'] );
 
-function rm_get_race_data_dir( $create = true ) {
-    if ( $create && ! is_dir( $GLOBALS['rm_data_dir'] ) ) {
-        mkdir( $GLOBALS['rm_data_dir'], 0777, true );
-    }
-    return $GLOBALS['rm_data_dir'];
+function wp_upload_dir() {
+    return array( 'basedir' => $GLOBALS['rm_upload_base'], 'baseurl' => 'https://example.test/wp-content/uploads', 'error' => '' );
 }
 function current_time( $type ) {
     return $GLOBALS['rm_now'];
@@ -40,6 +38,7 @@ function get_post_meta( $id, $key = '', $single = false ) {
 }
 
 require_once RM_TEST_DIR . '/stubs/wordpress.php';
+require_once RM_PLUGIN_DIR . '/includes/race-data-functions.php';
 require_once RM_PLUGIN_DIR . '/includes/race-files.php';
 
 /* --------------------------------------------------------------------------
@@ -364,6 +363,7 @@ foreach ( $found as $n => $file ) {
 // Clean up.
 rm_rw_reset();
 @rmdir( $GLOBALS['rm_data_dir'] );
+@rmdir( $GLOBALS['rm_upload_base'] );
 @unlink( $GLOBALS['rm_log'] );
 
 rm_test_finish();

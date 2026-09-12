@@ -40,6 +40,8 @@
 
 if (!defined('ABSPATH')) exit; // Exit if accessed directly
 
+require_once __DIR__ . '/race-files.php'; // rm_race_part_filename(), for the loader's configuration
+
 $rm_js_config = null; // Global variable to store the JS configuration object
 
 /**
@@ -528,6 +530,11 @@ function rm_print_js_module_config() {
             'refreshInterval' => $race_live ? 10000 : 0,
             'timestampUrl'    => $file_timestamp_url,
             'dataUrl'         => $file_data_url,
+            // The index and the parts (L7). The loader turns to them only once the whole file has
+            // said, with its rm_index, that the race has them: a race stored before 1.8.0 costs no
+            // request for an index that is not there.
+            'indexUrl'        => $upload_path_url . $race_id . '-index.json',
+            'partUrl'         => $upload_path_url . rm_race_part_filename( $race_id, array( '%s' ) ),
             'storageKey'      => $race_id,
             'timeout'         => 9000,
         );

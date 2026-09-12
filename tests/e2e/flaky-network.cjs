@@ -63,12 +63,13 @@ try {
 
 // The link, under our control. `mode` is read on every request, so it can be changed between
 // steps without re-routing: 'ok', 'dead' (nothing gets through), 'no-payload' (the timestamp
-// arrives, the payload does not -- the exact shape of the original failure), or 'slow'.
+// arrives, the payload does not -- the exact shape of the original failure), or 'slow'. The
+// payload is everything but the timestamp: the whole file, and since 1.8.0 the index and the parts.
 const link = { mode: 'ok', delayMs: 0, timestamps: 0, payloads: 0 };
 
 async function connect( page ) {
 	await page.route( '**/uploads/races/**', async ( route ) => {
-		const isPayload = /-data\.json/.test( route.request().url() );
+		const isPayload = ! /-timestamp\.json/.test( route.request().url() );
 		if ( isPayload ) {
 			link.payloads++;
 		} else {

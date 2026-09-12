@@ -196,16 +196,25 @@ const statusLine = ( page ) =>
 		return out;
 	} );
 	const raceId = String( config && config.storageKey );
-	check( 'the payload is in localStorage under a prefixed key',
-		!! store[ `rm_data_${ raceId }` ] && store[ `rm_data_${ raceId }` ] > 1000,
+	// Two layouts since 1.8.0: a race with an index is stored in parts, a key each, which the
+	// metadata names; a race without one is stored whole, as before.
+	const ownKeys = Object.keys( store ).filter(
+		( key ) => key === `rm_data_${ raceId }` || key.startsWith( `rm_data_${ raceId }_part_` ) );
+	check( 'the payload is in localStorage under prefixed keys',
+		ownKeys.reduce( ( sum, key ) => sum + store[ key ], 0 ) > 1000,
 		JSON.stringify( store ) );
 	check( 'with its metadata beside it', !! store[ `rm_data_${ raceId }_meta` ], JSON.stringify( store ) );
 	check( 'and nothing is left in sessionStorage',
 		await page.evaluate( ( id ) => ! sessionStorage.getItem( id ), raceId ) );
 
 	// Eviction has to be able to find our entries without finding anyone else's. rm_last_race
-	// belongs to js/rm-live-resume.js and sits one careless prefix away from being swept up.
-	await page.evaluate( () => localStorage.setItem( 'rm_data_999999', 'another race' ) );
+	// belongs to js/rm-live-resume.js and sits one careless prefix away from being swept up, and a
+	// race whose ID begins with this one's is another race.
+	await page.evaluate( ( id ) => {
+		localStorage.setItem( 'rm_data_999999', 'another race' );
+		localStorage.setItem( 'rm_data_999999_part_heat_data', 'a part of another race' );
+		localStorage.setItem( `rm_data_${ id }0_part_heat_data`, 'a part of race ' + id + '0' );
+	}, raceId );
 	await page.evaluate( async () => {
 		const tag = document.querySelector( 'script[type="module"][src*="rm-m-"]' );
 		const mod = await import( new URL( './rm-m-dataLoader.js', tag.src ).href );
@@ -213,10 +222,15 @@ const statusLine = ( page ) =>
 	} );
 	const afterEviction = await page.evaluate( ( id ) => ( {
 		other: localStorage.getItem( 'rm_data_999999' ),
-		ours: !! localStorage.getItem( `rm_data_${ id }` ),
+		otherPart: localStorage.getItem( 'rm_data_999999_part_heat_data' ),
+		longerId: localStorage.getItem( `rm_data_${ id }0_part_heat_data` ),
+		ours: !! localStorage.getItem( `rm_data_${ id }` ) ||
+			Object.keys( localStorage ).some( ( key ) => key.startsWith( `rm_data_${ id }_part_` ) ),
 		resume: localStorage.getItem( 'rm_last_race' ),
 	} ), raceId );
 	check( 'another race is evicted', afterEviction.other === null );
+	check( 'its parts as well', afterEviction.otherPart === null );
+	check( 'and so is a race whose ID begins with this one\'s', afterEviction.longerId === null );
 	check( 'this race is not', afterEviction.ours === true );
 	check( 'and rm_last_race, which is not ours, is left alone', afterEviction.resume !== null,
 		'the resume entry was swept up by the eviction prefix' );
