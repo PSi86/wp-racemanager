@@ -323,8 +323,12 @@ Known limits:
 
 - **The first visit pays about 1.3 KB more**, the index inside the whole file (102,144 B against
   100,833 B locally). A returning visitor still pays 110 B.
-- **A race uploaded before 1.8.0 keeps the whole file** until its next upload; an archived race for
-  good. Nothing asks for its index.
+- **A race uploaded before 1.8.0 keeps the whole file** until its next upload. Nothing asks for its
+  index.
+- **An archived race keeps the whole file only** (1.8.1, decided on 2026-09-12): setting a race to
+  archive removes its parts, its index and its race log, and the races archived before are cleared
+  once after the update — see [`data-flow.md`](data-flow.md#the-upload). The parts serve the updates
+  of a live race, and an archived race takes none.
 - **The timestamp has one-second resolution**, as it always had: two writes within the same second —
   an upload and a race-log message, say — look like one to a browser that polled in between. Older
   than L7, and no worse for it.

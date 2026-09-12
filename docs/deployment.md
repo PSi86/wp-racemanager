@@ -176,6 +176,15 @@ brought up to date on the first request after an update (`rm_maybe_upgrade_subsc
 recorded in the option `rm_subscriptions_schema`), so its `pilot_key` column needs no
 reactivation.
 
+**From 1.8.1 on, the first admin page after an update clears the archived races**
+(`rm_maybe_clear_archived_races()`, recorded in the option `rm_archived_races_cleared`). Every race
+that is not live loses its race log, from the database **for good**, and its files are written
+again without it, and without the parts 1.8.0 may have left: the whole file and the timestamp,
+with a new time. The database backup of section 3 is the only way back. A race whose files carry
+no log is left as it is. An AJAX request does not run it, since the live pages make those; a
+deployment by SFTP alone runs it with the first admin page anyone opens. To run it again, delete
+the option.
+
 **Deactivate → Activate is safe again**, and it is the simplest way to run the hook after a ZIP
 replace. It used to be the thing not to do: `create_event_registration_cf7_form()` inserted
 another *Event Registration Example* form on every run, because the duplicate check in it was
@@ -343,9 +352,10 @@ has carried one, and treats an index older than the timestamp as not there.
    (Route A users: keep a ZIP of the previous release for exactly this.)
 2. **Settings → Permalinks → Save** again — the rewrite rules of the new version are still cached
    in the `rm_live_routing` option and in WordPress's own rewrite cache.
-3. Only restore the database if the event-date migration ran and produced something unexpected.
-   The migration is the sole step in a deployment that writes to existing data; everything else is
-   code.
+3. Only restore the database if the event-date migration ran and produced something unexpected,
+   or if the race logs of the archived races are wanted back (1.8.1 clears them, see section 6).
+   Those two are the steps in a deployment that write to existing data; everything else is code.
+   The clearing also rewrote those races' files; the download of section 3 has them as they were.
 4. Going back from 1.8.0 or later, the races' `{id}-index.json` and `{id}-part-….json` stay in
    `uploads/races/`. The older plugin neither writes nor reads them, and a later update writes them
    anew; they can be deleted, or left.
