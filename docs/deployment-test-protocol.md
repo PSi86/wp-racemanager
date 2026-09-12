@@ -127,7 +127,8 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
       now returns *"link expired"* — expected, that path was unprotected before.
 - [ ] **Upload a *new* race from RotorHazard.** One that does not exist yet. The
       `uploads/races/` directory is created on demand; afterwards `{id}-data.json` and
-      `{id}-timestamp.json` exist.
+      `{id}-timestamp.json` exist, and from 1.8.0 on `{id}-index.json` and a `{id}-part-….json` per
+      section, result heat and class.
 - [ ] **Upload an existing race.** Response 200, data updated, the live page shows the new
       values within ten seconds.
 - [ ] **Pilot keys (1.5.0).** The registrations list of a race has a *Pilot key* column, filled
@@ -157,8 +158,15 @@ The scope stays `/live/`, so installed apps do not need reinstalling.
       live race on a phone, re-create the pilots on the timer (*Clear pilots before download*,
       then **Download Pilots**) and upload. Pushes keep coming for that pilot, and none for
       whoever has their old ID now.
+- [ ] **Only what changed reaches a viewer (1.8.0).** On a live race, open a view with the
+      browser's developer tools on the network tab, then upload from the timer after a heat. The
+      view asks for the timestamp, the index and a handful of `…-part-….json` — that heat, its
+      class, the event leaderboard, `current_heat`, `heat_data` — and not for `…-data.json`, and
+      shows the new result. A reload in a private window downloads `…-data.json` once, as a first
+      visit does. A race uploaded before the update keeps the whole file until its next upload.
 - [ ] *Optional:* **force a write failure.** Make `uploads/races/` read-only briefly and upload.
-      Expected: an **error** instead of `201 Created`, and no empty race left behind.
+      Expected: an **error** instead of `201 Created`, and no empty race left behind. From 1.8.0 on
+      the race's timestamp keeps its old time.
 
 ## 6 · The cleanup round (PRs #10 and #11)
 

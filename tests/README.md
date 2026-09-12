@@ -6,8 +6,8 @@ Two runners, and they answer different questions.
 installation required, so it runs anywhere and it is fast.
 
 **`npm run test:e2e`**, **`test:pilot-selector`**, **`test:live-resume`**,
-**`test:update-status`**, **`test:flaky-network`**, **`test:stats-filter`**, **`test:offline`**,
-**`test:view-tabs`** and **`test:bracket-titles`**
+**`test:update-status`**, **`test:flaky-network`**, **`test:race-parts`**, **`test:stats-filter`**,
+**`test:offline`**, **`test:view-tabs`** and **`test:bracket-titles`**
 use a real browser, because some behaviour is what the DOM, the network, the service worker and the
 browser's own storage do rather than what the source says. They are deliberately kept out
 of the PHP runner — see [Browser checks](#browser-checks) at the end, which also has
@@ -29,7 +29,7 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 |---|---|
 | `live-routing` | The `/live/{race}/{view}/` rewrite rule, above all what it must **not** match — `/live/page/2/` (the race list's own pagination), `/live/{race}/feed/`, `/live/bracket/`. Plus URL building, race resolution, draft visibility, and that the legacy `?race_id` redirect stays inside the live area so `/register/?race_id=` keeps working. |
 | `live-links` | Rewriting the live navigation so every item carries the current race, run against the **real** `WP_HTML_Tag_Processor`. Includes the full "visitor on race 66" scenario and the cases that must stay untouched. Plus the `rm-live-nav` marking of a navigation with view links — with its links already rewritten, which is how the navigation block meets them — and that the filter is registered for both of its arguments. |
-| `live-shortcodes` | The four live-page shortcodes against the **verbatim WordPress 7.1 signatures** of the script module API. This is the regression guard for the 6.9 breakage: `wp_register_script_module()` gained a fifth `array $args` parameter, and anything else there is an uncaught `TypeError` that kills the whole page. Also the view tabs every view emits: one row per page, a tab per view in page order, the current one marked, none without a race, one on a finished race's next-up view, and a routing cache from before the tabs rebuilt with the page titles. |
+| `live-shortcodes` | The four live-page shortcodes against the **verbatim WordPress 7.1 signatures** of the script module API. This is the regression guard for the 6.9 breakage: `wp_register_script_module()` gained a fifth `array $args` parameter, and anything else there is an uncaught `TypeError` that kills the whole page. Also the view tabs every view emits: one row per page, a tab per view in page order, the current one marked, none without a race, one on a finished race's next-up view, and a routing cache from before the tabs rebuilt with the page titles. And the loader told where a race's index and parts are (1.8.0): the index beside the whole file, a part named as the writer names it, `%s` for its path. |
 | `asset-versions` | That every asset the plugin enqueues carries `WP_RACEMANAGER_VERSION`. Read from the source with the tokenizer rather than from a rendered page, so it reaches the call sites no other suite executes — the admin, the navigation, the service worker registration — and a new file is covered the day it is added. Bundled libraries under `assets/` are versioned by the release in their directory name; the legacy `[rm_viewer]` shortcode is exempt by name, and the suite fails once that exemption has nothing left to cover. |
 | `pwa-files` | `manifest.json` and `pwa-sw.js` as the plugin writes them into the WordPress root: every placeholder a template uses has a value, the worker's cache is named for the plugin version and the template, and a template changed **without** a version bump is written out all the same — it used to stay on disk as it was, because the signature that decides about rewriting did not cover the templates. Works on a copy of `templates/` so it can change one. |
 | `vapid` | Key generation, the refusal to generate while subscriptions exist, key and contact validation, and constants beating the database. Runs against the real `minishlink/web-push`. |
@@ -37,7 +37,7 @@ failed. A single suite exits 0 (passed), 1 (failed) or 2 (skipped).
 | `seo-head` | That `<head>` carries exactly one `<title>` — the SEO handler used to echo its own next to core's — that the per-post override reaches it through `pre_get_document_title`, and that an archive or 404 produces no undefined-variable warnings. |
 | `settings-vapid` | That a plain settings save can never wipe the stored private key — it is not rendered into the form, so nothing in the request carries it. |
 | `race-files` | The per-race JSON directory being created on demand and reporting failure, and the SQL scoping that keeps a bulk delete inside one race. |
-| `race-writes` | What an upload leaves in `uploads/races/`. The timestamp is written last, so that a data file that cannot be written leaves it announcing what is there — it was written first, and a browser then held the old standing under the new timestamp until the next upload. Every file replaced whole rather than rewritten in place, told by its inode, and nothing half-written left behind when a write fails, with the log naming the file. Against the writer before, the timestamp check and both inode checks fail. And the parts (L7, 1.8.0): a part per top-level key, per result heat and per class, each with the hash the index names; put back together they are the payload, checked with `===` on a synthetic event and on every real payload the local site has; an update changes the hash of what changed and of nothing else, and a notification only the race log's; a list, an empty object or a key that cannot name a file keeps its object whole; parts that are gone are removed, another race's left alone; and a part or an index that cannot be written leaves index and timestamp as they were. |
+| `race-writes` | What an upload leaves in `uploads/races/`. The timestamp is written last, so that a data file that cannot be written leaves it announcing what is there — it was written first, and a browser then held the old standing under the new timestamp until the next upload. Every file replaced whole rather than rewritten in place, told by its inode, and nothing half-written left behind when a write fails, with the log naming the file. Against the writer before, the timestamp check and both inode checks fail. And the parts (L7, 1.8.0): a part per top-level key, per result heat and per class, each with the hash the index names; put back together they are the payload, checked with `===` on a synthetic event and on every real payload the local site has; an update changes the hash of what changed and of nothing else, and a notification only the race log's; a list, an empty object or a key that cannot name a file keeps its object whole; parts that are gone are removed, another race's left alone; and a part or an index that cannot be written leaves index and timestamp as they were. A race deleted for good takes its index and parts with it — hooked as the file is loaded, so from the admin and the REST API alike — and leaves the whole file and the timestamp to its attachments; a post that is no race keeps its files. |
 | `activation` | What the activation hook leaves behind, and what a *second* activation must not: the `CREATE TABLE` statement `dbDelta()` can actually parse, with the subscriptions' `pilot_key`, the CF7 example form being created once rather than once per activation, and the plugin header — one version number in three places, plus the `Requires` headers. And that an update brings the table up to date without the hook, which a ZIP replace does not run: on `plugins_loaded`, `dbDelta()` once, the schema recorded only once the column is there, and not again after; and a subscription stored with its pilot key, or none. |
 | `subscriptions-by-key` | Which pilot a push subscription follows once the upload names its pilots by key (the connector's `pilot_key`). Re-created pilots under new IDs: no push about the heat of whoever has the subscription's old ID now, the new ID stored, and the push when the pilot moves naming the right heat. A pilot the upload no longer has: told of leaving the heat, not of the other person's channel. A subscription from before keys: found by ID and given the key. An upload without keys, from an older connector: by ID as before, nothing rewritten. A key in capitals is the same key. And `rm_pilot_keys_by_id()`: by pilot ID, lower-cased, only valid keys. Against 1.6.1's handler the key cases fail, and each of six broken variants of the change fails it. |
 | `pilot-key` | The pilot key: a version-5 UUID computed as RFC 9562 defines it (checked against Python's documented `uuid5` value), one key per address whatever its case or blanks and the same on every call, derived in the site's own namespace — created once, another one giving other keys — and `RM_PILOT_NAMESPACE` winning, an invalid one handing out no key rather than falling back (in a PHP process of its own, since a constant cannot be undefined). And that every row of `get-pilots` carries the key, checked on the endpoint itself; against the old endpoint that check fails. And that `get-pilots` carries no address, phone number or consent flag, while the admin list keeps them, and that a field the admin list gains later stays off the timer (D1 in the connector's roadmap). |
@@ -79,6 +79,7 @@ npm run test:pilot-selector                         # no WordPress needed, only 
 npm run test:live-resume                            # against https://racemanager.ddev.site
 npm run test:update-status                          # against https://racemanager.ddev.site
 npm run test:flaky-network                          # against https://racemanager.ddev.site
+npm run test:race-parts                             # against https://racemanager.ddev.site, and ddev
 npm run test:stats-filter                           # against https://racemanager.ddev.site
 npm run test:offline                                # against https://racemanager.ddev.site
 npm run test:view-tabs                              # against https://racemanager.ddev.site
@@ -179,9 +180,11 @@ a race that has result data; the polling half additionally needs that race flagg
 Its four groups are different kinds of claim, and the difference is the point:
 
 - **The cache** is checked by looking at `localStorage` directly: the payload under its prefixed
-  key, the metadata beside it, nothing left in `sessionStorage`, another race evicted on demand —
-  and `rm_last_race`, which belongs to `js/rm-live-resume.js`, still there afterwards. That last
-  one guards a prefix that is one careless character away from sweeping up the resume entry.
+  keys — whole, or in parts for a race with an index (1.8.0) — the metadata beside it, nothing left
+  in `sessionStorage`, another race evicted on demand with its parts, and so is a race whose ID
+  begins with this one's — and `rm_last_race`, which belongs to `js/rm-live-resume.js`, still there
+  afterwards. That last one guards a prefix that is one careless character away from sweeping up
+  the resume entry.
 - **The scheduling** is exercised by calling `scheduleNext()` and `currentDelay()` directly rather
   than by waiting out real intervals: twelve delays all within ±20 % and not all equal, the
   backoff doubling to its cap, and a hidden page scheduling nothing at all.
@@ -234,7 +237,41 @@ report:
 5. With a warm cache, a total outage shows the last known standing rather than an empty page —
    the difference between "the app is broken" and "the app is behind".
 
-Needs a race flagged live, like `update-status.cjs`.
+Needs a race flagged live, like `update-status.cjs`. The payload it blocks is everything but the
+timestamp — the whole file and, since 1.8.0, the index and the parts. Every scenario starts without a
+cache, so it runs on the whole file; the parts on a bad link are `race-parts.cjs`'s.
+
+### `tests/e2e/race-parts.cjs`
+
+The payload in parts (L7, 1.8.0): `js/rm-m-dataLoader.js` against the files
+`includes/race-files.php` writes. Measured on the three real races, an update after a heat costs
+13–18 % of the whole file when only the parts that changed are downloaded; this suite checks that
+the loader does exactly that, and that neither load-bearing ordering is lost on the way.
+
+It needs `ddev` besides the site, because it writes the race's files the way an upload does:
+`tests/e2e/race-parts-site.php`, run through `ddev wp eval-file`, keeps a copy of the race's
+files, writes them anew with the plugin's own writer, marks a heat as flown — the heat, its class,
+the event leaderboard, `current_heat` — and at the end puts every file back byte for byte, whatever
+happened. A copy left by a run that died is put back first. It does nothing when requested over
+HTTP. Service workers are blocked: the worker never touches race JSON, and `offline.cjs` covers it.
+
+1. **A first visit** downloads the whole file once, no index, no part; the loader knows every part
+   from `rm_index`, hands on the payload without it, and stores it in parts, a key each.
+2. **An update after a heat**: the timestamp, the index, then exactly the parts that changed and not
+   the whole file; the data put together from them equals the new whole file; a fraction of its
+   bytes (locally 11,365 B against 102,039 B, gzip).
+3. **Coming back** asks for the timestamp only and puts the payload together from storage.
+4. **An upload that overtakes the index** while a part is on its way — the next upload is written
+   while that request is held: the index is read again, the part is not downloaded twice.
+5. **A part that does not arrive**: the update fails, and neither timestamp, index nor storage
+   moves; the parts that did arrive are kept, and the next attempt downloads only the missing one.
+   **A part whose body stalls** after the headers is given up at the deadline, as a failure that
+   commits nothing.
+6. **The whole file instead** where the parts will not do: no index, more than half changed, an
+   index older than the timestamp (read three times first).
+7. **A race stored before 1.8.0** costs no request for an index and is stored whole.
+
+Against the loader from before 1.8.0, 33 of its 45 checks fail.
 
 ### `tests/e2e/offline.cjs`
 
