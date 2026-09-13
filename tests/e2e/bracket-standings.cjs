@@ -189,6 +189,33 @@ const ranges = ( standing ) => {
 		check( 'a notice, no standing', s.rows.length === 0 && /by hand/.test( s.notice || '' ), JSON.stringify( s ) );
 	}
 
+	// includes/race-winner.php keeps a race's podium in PHP (1.14.0): without the timer's ranking, the
+	// final's first three in its result's order. The race's cards show that one, its page this
+	// standing: they must agree.
+	const podiumAgrees = ( data, bracket, s ) => {
+		const top = s.rows.filter( ( r ) => r.placeFrom !== null && r.placeFrom <= 3 ).map( ( r ) => r.pilotId );
+		const board = ( model.heatBoard( data, bracket.finalId ) || [] ).filter( ( e ) => e && e.pilot_id ).slice( 0, 3 ).map( ( e ) => e.pilot_id );
+		return { ok: top.length > 0 && top.join() === board.join(), detail: `standing ${ top.join( ',' ) } / final ${ board.join( ',' ) }` };
+	};
+	section( 'Places 1 to 3 as the race\'s podium has them (1.14.0)' );
+	for ( const key of Object.keys( races.PLANS ) ) {
+		for ( const pilots of [ undefined, 12 ] ) {
+			let data;
+			try {
+				data = races.fly( races.raceFromPlan( key, pilots ? { pilots } : {} ) );
+			} catch ( e ) {
+				continue; // a plan too small for 12 pilots
+			}
+			const bracket = model.buildBracket( data, races.BRACKET );
+			const s = computeStandings( data, bracket );
+			if ( ! s || ! s.rows.length ) {
+				continue; // no bracket: no podium either
+			}
+			const { ok, detail } = podiumAgrees( data, bracket, s );
+			check( `${ key }${ pilots ? ` with ${ pilots } pilots` : '' }: the final's first three`, ok, detail );
+		}
+	}
+
 	section( 'The events on the local site, against the ranking of 1.9' );
 	const real = [ 32, 33, 34 ].map( ( id ) => path.join( REAL_RACES, `${ id }-data.json` ) ).filter( ( f ) => fs.existsSync( f ) );
 	if ( ! real.length ) {
@@ -211,6 +238,8 @@ const ranges = ( standing ) => {
 		check( `${ path.basename( file ) }: places 5 to N as the old ranking gave them (${ old.length } places)`, old.length > 0 && ! diff.length,
 			diff.map( ( e ) => `P${ e.pilot_id } old ${ e.place } new ${ mine.has( e.pilot_id ) ? place( mine.get( e.pilot_id ) ) : '-' }` ).join( ' | ' ) );
 		check( `${ path.basename( file ) }: every pilot of the first round placed once, 1 to ${ pilots.size }`, validStanding( s, pilots.size ), s.rows.map( place ).join( ' ' ) );
+		const agrees = podiumAgrees( data, bracket, s );
+		check( `${ path.basename( file ) }: places 1 to 3 as the race's podium has them`, agrees.ok, agrees.detail );
 	}
 
 	const failed = results.filter( ( r ) => ! r.ok ).length;

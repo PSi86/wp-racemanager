@@ -1,0 +1,82 @@
+/*
+ * The standing of a bracket class (js/rm-m-displayStandings.js), a pilot's flag and photo: under the
+ * brackets, as the next-up view's final ranking, and in the race-winner block on a race's own page
+ * (1.14.0). Out of css/rm_viewer.css, the bracket's stylesheet, which a race's page must not load:
+ * it styles the page's lists and inputs as well.
+ */
+
+/* The standing under the brackets, and the next-up view's final ranking (1.10.0). */
+.rm-standings {
+    margin-top: 1.5em;
+}
+
+.rm-standings-table {
+    border-collapse: collapse;
+    min-width: 20em;
+}
+
+.rm-standings-table th,
+.rm-standings-table td {
+    padding: 0.3em 0.8em;
+    border-bottom: 1px solid #e0e0e0;
+    text-align: left;
+}
+
+.rm-standings-table .place {
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.rm-standings-table .rm-place-first .place { color: #b8860b; }
+.rm-standings-table .rm-place-second .place { color: #7a7a7a; }
+.rm-standings-table .rm-place-third .place { color: #a0522d; }
+
+.rm-standings-notice {
+    font-style: italic;
+}
+
+/* A pilot's flag and photo (1.11.0). The flag lets the pointer through, so that hovering it still
+   highlights the pilot, which the view reads from the element under the pointer. */
+.pilot-flag {
+    width: 1.33em;
+    height: 1em;
+    margin-right: 0.35em;
+    vertical-align: -0.12em;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+}
+
+.pilot-flag-none {
+    display: inline-block;
+    box-shadow: none;
+}
+
+.rm-standings-table .pilot {
+    white-space: nowrap;
+}
+
+.rm-avatar {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.5em;
+    vertical-align: middle;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #dcdcdc;
+    color: #444;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.rm-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
