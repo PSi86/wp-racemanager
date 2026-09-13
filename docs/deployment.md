@@ -453,6 +453,12 @@ as the fixed containers had it before 1.10.0 - and the standings under it likewi
 version, so a new visit takes them at once; the next-up view reaches them unversioned, and a browser
 holding the 1.12.0 copies shows the old order there until it fetches them again.
 
+1.12.2 shows the heats no class claims - class 0, RotorHazard's "Unclassified", or a class the timer
+no longer has - in a section of their own at the foot of the bracket view, `#class-0-display`
+titled "Unclassified Heats". Before, they were drawn nowhere, and an event without classes left the
+page empty. It changes `rm-m-displayHeats.js` alone, which the bracket page enqueues with the
+version. An event whose heats all have a class looks as before.
+
 ---
 
 ## 8 · Rollback

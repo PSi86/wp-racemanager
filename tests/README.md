@@ -180,7 +180,10 @@ DDEV.
 Every class of the event gets a section, whatever its name (1.10.0), the newest on top: the timer's
 order turned round, by `order` or else by id, and the standings under them likewise (1.12.1; 1.10.0
 drew them in the timer's order, which put training on top where the page's fixed containers had had
-the elimination - the three checks of that failed against 1.12.0). A class
+the elimination - the three checks of that failed against 1.12.0). The heats no class claims - class
+0, or a class the timer no longer has - get a section of their own, "Unclassified Heats", last; an
+event without classes shows its heats there, and the section goes when its heats get a class (1.12.2;
+1.12.1 drew them nowhere - four of the six checks failed against it). A class
 whose heats form a bracket is drawn as that bracket: "Winners Bracket" and "Losers Bracket" titles, a
 header per round ("Quarterfinals", "LB Round 3", "Grand Final"), a line per link in the path shape
 `bracket-titles.cjs` measures, the grand final marked; a single elimination in one section with its

@@ -3,7 +3,8 @@
 // The bracket view: every class of the event, the newest on top, each drawn as the bracket its
 // heats' seeding forms (rm-m-bracketModel.js) - winners and losers bracket, a column per round
 // under its name, the grand final at the end, Chase the Ace in the final - or, for a class that
-// forms none (training, qualifying, a ladder), as its heats in a row. And the next-up row.
+// forms none (training, qualifying, a ladder), as its heats in a row. Below them, the heats no
+// class claims, in a row, as RotorHazard lists them last under "Unclassified". And the next-up row.
 //
 // This file also runs on the timer: the RotorHazard connector's /bracketview takes it over byte
 // for byte, next to its own dataLoader, which reads RotorHazard's socket. A change has to work
@@ -21,6 +22,8 @@ import { pilotSelectInstance } from './rm-m-pilotSelector.js';
 import * as bracketModel from './rm-m-bracketModel.js';
 
 const NEXT_UP_COUNT = 5;
+// The section of the heats without a class (1.12.2). Class id 0 is RotorHazard's "no class".
+const UNCLASSIFIED = { id: 0, name: 'Unclassified Heats', displayname: 'Unclassified Heats', rounds: 1 };
 
 class DisplayHeats {
     constructor() {
@@ -151,12 +154,28 @@ class DisplayHeats {
         return classes.sort((a, b) => b.id - a.id);
     }
 
+    // The heats no class of the event claims - class 0, or a class that is gone - in the timer's
+    // order. An event without classes has only these: before 1.12.2 its page stayed empty.
+    unclassifiedHeats(data) {
+        const classIds = new Set((data.class_data.classes || []).map(c => c.id));
+        const heats = (data.heat_data.heats || []).filter(h => !classIds.has(h.class_id));
+        const byId = (a, b) => a.id - b.id;
+        if (heats.every(h => typeof h.order === 'number')) {
+            return heats.sort((a, b) => a.order - b.order || byId(a, b));
+        }
+        return heats.sort(byId);
+    }
+
     // With #raceclass-sections on the page, one container per class, the newest first, made and
-    // removed as the classes come and go. A page with fixed containers ({name}-display) keeps them.
+    // removed as the classes come and go, and the heats without a class last. A page with fixed
+    // containers ({name}-display) keeps them.
     syncSections(data) {
         const wrapper = document.getElementById('raceclass-sections');
         if (!wrapper) return;
         const classes = this.classesInOrder(data);
+        if (this.unclassifiedHeats(data).length) {
+            classes.push(UNCLASSIFIED);
+        }
         const wanted = new Set(classes.map(c => `class-${c.id}-display`));
         for (const el of [...wrapper.children]) {
             if (el.classList.contains('raceclass-container') && !wanted.has(el.id)) {
@@ -191,6 +210,10 @@ class DisplayHeats {
         const data = this.cr_rh_data;
         if (container.id === 'nextup-display') {
             this.render(container, this.nextUpView(data));
+            return;
+        }
+        if (container.dataset.classId === String(UNCLASSIFIED.id)) {
+            this.render(container, this.rowView(data, UNCLASSIFIED, this.unclassifiedHeats(data)));
             return;
         }
         const cls = this.classFor(container, data);
