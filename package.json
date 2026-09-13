@@ -1,6 +1,6 @@
 {
     "name": "wp-racemanager",
-    "version": "1.16.0",
+    "version": "1.17.0",
     "scripts": {
         "test": "php tests/run.php",
       "test:e2e": "node tests/e2e/editor.cjs",
@@ -21,6 +21,7 @@
       "test:loader-subscribe": "node tests/e2e/loader-subscribe.cjs",
       "test:stats-ranking": "node tests/e2e/stats-ranking.cjs",
       "test:pilot-profiles": "node tests/e2e/pilot-profiles.cjs",
+      "test:top-bar": "node tests/e2e/top-bar.cjs",
         "build": "wp-scripts build --source-path=blocks-src --output-path=blocks && npm run copy-json",
         "start": "wp-scripts start --source-path=blocks-src --output-path=blocks",
         "copy-json": "copyfiles -u 1 \"blocks-src/**/block.json\" blocks/"

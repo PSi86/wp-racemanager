@@ -558,6 +558,25 @@ the upload - 85 right of 85, the page and WordPress alike every time; with 1.15.
 - **Browser:** `rm-m-bracketModel.js` changes; a browser holding the 1.15 copy goes by the rounds'
   seats until it fetches it again.
 
+1.17.0 makes two things easier on a phone.
+
+- **Heats in a row go on to the next line.** A class that forms no bracket - training,
+  qualifying, a ladder - and the heats without a class stood side by side in one long row, and a
+  phone scrolled sideways through them: on the local site's race, Qualifying 964 px and Training
+  938 px past the screen, the "2026-09-11 Testrace" on production 1279 px on a 380 px screen. Now
+  they go on to the next line where the screen ends, as next up always did; only a bracket, whose
+  columns are its rounds, still scrolls sideways. `rm-m-displayHeats.js` marks such a row
+  (`row-grid`), `css/rm_viewer.css` lets it wrap; both enqueued with the version, the next-up view
+  reaching the module unversioned as before. The timer's `/bracketview` has no style for it and
+  draws its rows as before.
+- **The top bar slides away while scrolling down.** The theme's header - logo and burger - is
+  pinned to the top of the screen by a sticky group around it (a site-editor setting) and took its
+  88 px on every screen. As on droneracingslovakia.com, measured there, it now stays while the page
+  is scrolled 120 px or less, goes on the next scroll down and comes back on the first scroll up.
+  On every page of the site, and only while the navigation shows its burger; never while its menu
+  is open. `js/rm-top-bar.js` and `css/rm-top-bar.css`, enqueued with the version on every page. A
+  site whose header is not pinned - the local one - sees nothing change.
+
 ---
 
 ## 8 · Rollback

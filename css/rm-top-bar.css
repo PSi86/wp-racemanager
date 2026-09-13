@@ -1,0 +1,24 @@
+/**
+ * The site's top bar on a phone, out of the way while the visitor scrolls down (1.17.0).
+ *
+ * js/rm-top-bar.js gives .rm-top-bar to the element that pins the theme's header, and only where
+ * one does and its navigation shows the burger; it adds .rm-top-bar-hidden while the visitor
+ * scrolls down. The bar slides up by its own height and a little more, so that its shadow goes
+ * too - as droneracingslovakia.com's header does, and as fast (measured 2026-09-13).
+ *
+ * Shown, the bar has no transform at all: a transform would make it the frame of the burger's
+ * menu, which is fixed to the screen, and the open menu would fill the bar instead.
+ */
+.rm-top-bar {
+	transition: transform 0.3s cubic-bezier( 0.4, 0, 0.2, 1 );
+}
+
+.rm-top-bar.rm-top-bar-hidden {
+	transform: translateY( calc( -100% - 2rem ) );
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.rm-top-bar {
+		transition: none;
+	}
+}
