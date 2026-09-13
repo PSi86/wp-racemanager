@@ -488,6 +488,15 @@ before, the channel of the slot's place in the plan went out and was corrected l
 - **Timer:** the connector's `/bracketview` shows the channels with its next take of the shared
   files, which needs the style for `.pilot-channel` in its page.
 
+1.13.1 lets a push subscription start over when a browser moves it to another pilot or race - the
+live pages' "Update Subscription". It kept the heat, slot and channel the pilot before had been
+told, so the new pilot's follower was told "Reassigned to Heat 7" instead of "Next race is Heat 7",
+"Channel changed" for a heat never announced, or - while the pilot before was still up - "You have
+been removed from your scheduled heat". Every version since subscriptions stored a schedule did so,
+1.7.0 on production among them. The same pilot of the same race keeps it: new keys of the browser,
+or the pilot re-created on the timer and found by the key. It changes `includes/db-handler.php`
+alone; nothing in the database changes but the rows of subscriptions being moved.
+
 ---
 
 ## 8 · Rollback

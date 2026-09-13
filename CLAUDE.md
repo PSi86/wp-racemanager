@@ -113,7 +113,9 @@ Consequences worth keeping in mind when changing this:
   push (`rm_heat_seats_fixed()`) decide it alike, as RotorHazard's own event page does; the channel
   comes from `frequency_data`. A free seat gets no line. The push keeps the channel it told in
   `rm_subscriptions.channel` (schema 3) - NULL is a subscription from before, compared by heat and
-  slot.
+  slot. A browser has one subscription, by endpoint; moved to another pilot or race it starts its
+  schedule over (`rm_upsert_subscription()`, 1.13.1), or the push compares the new pilot's heats
+  with what the pilot before was told.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is

@@ -115,6 +115,13 @@ function rm_get_subscription_by_endpoint( $endpoint ) {
 /**
  * Store a browser's subscription to a pilot of a race, or move it to another.
  *
+ * A browser has one subscription, found by its endpoint, whatever it follows. Moved to another
+ * pilot or race - the live pages' "Update Subscription" - it starts its schedule over (1.13.1): the
+ * heat, slot and channel it stored are what the pilot before was told, and the next upload compared
+ * the new pilot's heats with them. Measured on the local site with 1.13.0: the new pilot's follower
+ * was told "Reassigned to Heat 7" instead of "Next race is Heat 7", "Channel changed" for a heat
+ * never announced, or "You have been removed from your scheduled heat" of the pilot before.
+ *
  * @param string $pilot_key The pilot's key where the race data has one (rm_valid_pilot_key()): the
  *                          subscription follows it when the timer re-creates its pilots.
  */
@@ -122,10 +129,10 @@ function rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint
     global $wpdb;
     $table = $wpdb->prefix . 'rm_subscriptions';
 
-    // Check if subscription already exists for (race_id, endpoint).
+    // The browser's subscription, whatever race and pilot it follows.
     $existing = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT id FROM $table WHERE endpoint = %s LIMIT 1",
+            "SELECT id, race_id, pilot_id, pilot_key FROM $table WHERE endpoint = %s LIMIT 1",
             $endpoint
         )
     );
@@ -142,14 +149,47 @@ function rm_upsert_subscription( $race_id, $pilot_id, $pilot_callsign, $endpoint
     ];
 
     if ( $existing ) {
-        // Update existing
+        if ( ! rm_subscription_follows( $existing, $race_id, $pilot_id, $pilot_key ) ) {
+            // Another pilot or race: nothing told yet, as for a new subscription. The next upload
+            // then says "Next race is ..." for the pilot followed now.
+            $data['heat_id']          = 0;
+            $data['slot_id']          = 0;
+            $data['heat_displayname'] = '';
+            if ( (int) get_option( 'rm_subscriptions_schema', 0 ) >= 3 ) {
+                $data['channel'] = null; // the column exists from schema 3 on
+            }
+        }
         return $wpdb->update( $table, $data, [ 'id' => $existing->id ] );
     }
 
     // Insert new
     $data['created_at'] = current_time( 'mysql' );
     return $wpdb->insert( $table, $data );
-}    
+}
+
+/**
+ * Whether a stored subscription follows this pilot of this race already: the same race, and the
+ * same pilot - by the pilot key when both have one, since the timer gives re-created pilots new
+ * IDs, else by ID. js/rm-m-pwa-subscribe.js's isSamePilot() decides it alike for its button.
+ *
+ * @param object     $row       The subscription's race_id, pilot_id and pilot_key.
+ * @param int|string $race_id   The race.
+ * @param int|string $pilot_id  The pilot's ID on the timer.
+ * @param string     $pilot_key The pilot's key, or ''.
+ * @return bool
+ */
+function rm_subscription_follows( $row, $race_id, $pilot_id, $pilot_key ) {
+    if ( (int) $row->race_id !== (int) $race_id ) {
+        return false;
+    }
+    // Lower case and trimmed, as the push handler reads a stored key: older rows may hold capitals.
+    $stored = strtolower( trim( (string) ( $row->pilot_key ?? '' ) ) );
+    $given  = strtolower( trim( (string) $pilot_key ) );
+    if ( '' !== $stored && '' !== $given ) {
+        return $stored === $given;
+    }
+    return (int) $row->pilot_id === (int) $pilot_id;
+}
 
 function rm_delete_subscription( $endpoint ) {
     // remove individual subscription
