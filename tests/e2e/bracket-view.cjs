@@ -192,8 +192,8 @@ function planRace( key, options ) {
 	}
 	const context = await browser.newContext( { viewport: { width: 1600, height: 1200 } } );
 
-	async function openPage( html = SECTIONS_PAGE ) {
-		const tab = await context.newPage();
+	async function openPage( html = SECTIONS_PAGE, on = context ) {
+		const tab = await on.newPage();
 		tab.__errors = [];
 		tab.on( 'pageerror', ( e ) => tab.__errors.push( e.message ) );
 		tab.on( 'console', ( msg ) => {
@@ -307,6 +307,49 @@ function planRace( key, options ) {
 			`${ ( await containers( tab ) ).join() } / ${ await nodeCount( tab, 'class-1-display' ) } nodes` );
 		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
 		await tab.close();
+	}
+
+	section( 'On a phone: heats in a row go on to the next line, a bracket scrolls (1.17.0)' );
+	{
+		// An FAI 16 bracket, its training heat, and six heats without a class, four pilots each.
+		const data = planRace( 'double-fai16' );
+		for ( let i = 0; i < 6; i++ ) {
+			data.heat_data.heats.push( {
+				id: 90 + i,
+				displayname: `Heat ${ 90 + i }`,
+				class_id: null,
+				slots: [ 0, 1, 2, 3 ].map( ( n ) => ( { id: ( 90 + i ) * 10 + n, node_index: n, pilot_id: ( ( i * 4 + n ) % 16 ) + 1, method: 0, seed_rank: null, seed_id: null } ) ),
+			} );
+		}
+		const layout = ( tab ) => tab.evaluate( () => [ ...document.querySelectorAll( '.raceclass-container' ) ].map( ( c ) => {
+			const nodes = [ ...c.querySelectorAll( '.node' ) ];
+			const title = c.querySelector( '.class-title' );
+			return {
+				id: c.id,
+				lines: new Set( nodes.map( ( n ) => n.offsetTop ) ).size,
+				sideways: c.scrollWidth > c.clientWidth + 1,
+				titleAbove: ! title || ! nodes.length || title.getBoundingClientRect().bottom <= nodes[ 0 ].getBoundingClientRect().top + 1,
+				grid: getComputedStyle( c.querySelector( '.grid-container' ) ).display,
+			};
+		} ) );
+		const phone = await browser.newContext( { viewport: { width: 390, height: 844 } } );
+		const tab = await openPage( STYLED_PAGE, phone );
+		const thrown = await deliver( tab, data );
+		let got = await layout( tab );
+		const unclassified = got.find( ( c ) => c.id === 'class-0-display' );
+		const bracketClass = got.find( ( c ) => c.id === 'class-3-display' );
+		check( 'no throw, no error', thrown === null && ! tab.__errors.length, thrown || tab.__errors.join( ' | ' ) );
+		check( 'the heats without a class: on as many lines as the screen needs, no sideways scrolling',
+			unclassified && unclassified.lines > 1 && ! unclassified.sideways && unclassified.titleAbove, JSON.stringify( unclassified ) );
+		check( 'the bracket keeps its grid and scrolls sideways', bracketClass && bracketClass.grid === 'grid' && bracketClass.sideways, JSON.stringify( bracketClass ) );
+		await tab.close();
+		await phone.close();
+		// On a wide screen the six fit side by side: one line, as before.
+		const wide = await openPage( STYLED_PAGE );
+		await deliver( wide, data );
+		got = await layout( wide );
+		check( 'on a wide screen: one line, as before', got.find( ( c ) => c.id === 'class-0-display' ).lines === 1, JSON.stringify( got.find( ( c ) => c.id === 'class-0-display' ) ) );
+		await wide.close();
 	}
 
 	section( 'A line per pilot, with the channel once the seats are fixed (1.13.0)' );

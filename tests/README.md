@@ -98,6 +98,7 @@ npm run test:bracket-standings                      # no WordPress and no browse
 npm run test:loader-subscribe                       # no WordPress needed, only a browser
 npm run test:stats-ranking                          # no WordPress needed, only a browser
 npm run test:pilot-profiles                         # against https://racemanager.ddev.site, and ddev
+npm run test:top-bar                                # no WordPress needed, only a browser
 npm run test:e2e                                    # against https://racemanager.ddev.site
 RM_E2E_URL=https://other.ddev.site npm run test:e2e
 RM_E2E_SHOT=shot.png npm run test:e2e               # also save a screenshot
@@ -199,7 +200,11 @@ empty place for a pilot who has not flown, so that the callsigns stand in line; 
 anyone in a heat with a seed from a heat not flown yet, but one from a flown heat that had no such
 rank brings nobody and the others are told; none for two pilots from the same seat; a flown heat
 with its own channels; called, the channels without the mark. Against 1.14.0 four of these fail -
-the others hold there too, as they should. Where the pilots carry RotorHazard's own
+the others hold there too, as they should. On a phone (390 px, the bracket page's stylesheet), the
+heats in a row - here six without a class - go on to the next line where the screen ends, with no
+sideways scrolling and the title above them, while an FAI 16 bracket keeps its grid and scrolls
+sideways; on a wide screen the six stand in one line as before (1.17.0). Against 1.16.0 the row
+check fails: one line, scrolling sideways. Where the pilots carry RotorHazard's own
 `used_frequencies` (1.16.0), those count and not the rounds' seats; against 1.15.0 that check
 fails. A class
 whose heats form a bracket is drawn as that bracket: "Winners Bracket" and "Losers Bracket" titles, a
@@ -494,6 +499,22 @@ marked only in the markup.
 Against the plugin as it was, 16 of the 20 checks that run fail; the navigation section skips,
 since nothing marked the navigation then.
 
+### `tests/e2e/top-bar.cjs`
+
+The site's top bar on a phone (1.17.0), `js/rm-top-bar.js` and `css/rm-top-bar.css` on a page built
+as production's is: a sticky group around the header template part, core's navigation with a burger
+that core's stylesheet hides from 600 px on. As droneracingslovakia.com does it - measured there on
+2026-09-13 at 390 x 844 -, the bar stays down to 120 px, goes on the next scroll down, its shadow
+with it, comes back 2 px up, goes again 5 px down, and slides in 0.3 s. With the burger's menu open
+it stays, and the menu still fills the screen; closed, the bar goes on the next scroll down; the
+keyboard moving into it brings it back. Nothing happens on a wide screen, nor where the header is
+not pinned; the header pinned itself is the bar. Reduced motion: no sliding, the bar still goes.
+With the two files empty, 8 of the 17 checks fail; the others hold without it, as they should.
+
+Checked once on the local site as well, whose header is not pinned - a style in the page's HTML
+pinned it for the check: the two files come with the version, the bar goes and comes back, and core's
+own burger opens its menu over the whole screen with the bar in place.
+
 ### `tests/e2e/bracket-titles.cjs`
 
 The bracket view scrolled sideways on a phone. Every race class is a horizontally scrolling
@@ -506,6 +527,11 @@ top, to the pixel, and whole in view; the row it sits in holds no race; the race
 moved by exactly the distance scrolled; and the title has an opaque background, because its row
 does hold lines — scrolled to the end, the drop from the winner bracket into the looser final
 crosses *Elimination: Looser Bracket*, and the suite reports it.
+
+Since 1.17.0 only a bracket runs past the screen: the classes that form none - *Qualifying*,
+*Training* - go on to the next line instead, and have nothing to scroll (on the local site's race,
+964 and 938 px before, 0 after), so the suite checks the bracket's two titles, 10 checks where it
+checked 20.
 
 Against the bracket as it was, 8 of the 16 checks of the first version fail: all four titles
 scroll away. Without the background, the 4 background checks fail. The spanning of the titles over

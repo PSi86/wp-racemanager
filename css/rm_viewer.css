@@ -53,6 +53,25 @@
     flex-wrap: wrap;
 }
 
+/*
+ * Heats in a row -- a class that forms no bracket (training, qualifying, a ladder), the heats
+ * without a class, next up: side by side as far as the screen goes, then on the next line, as next
+ * up has always shown them. Their columns mean nothing, so a phone need not scroll sideways
+ * through them; a bracket's columns are its rounds and keep the grid (1.17.0). The class title
+ * takes a line of its own above them.
+ */
+.grid-container.row-grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    width: auto;
+}
+
+.grid-container.row-grid > .class-title {
+    flex: 0 0 100%;
+}
+
 .svg-container {
     position: absolute;
     top: 0;
