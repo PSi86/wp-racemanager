@@ -527,7 +527,13 @@ assignment gives without drawing lots, from the seats the pilots flew on before 
 race 32 with automatic frequencies 82 of 142 seats, 81 of them right; none for a pilot it leaves to
 chance, and none in a heat while a seed may still bring someone. A timer set to manual calibration
 assigns by another of RotorHazard's rules (`find_best_slot_node_basic`), which this does not follow:
-there a likely channel can be wrong.
+there a likely channel can be wrong. And it goes by the seats of the rounds flown, while RotorHazard
+goes by each pilot's frequencies (`used_frequencies`, not in the upload): the same as long as the
+saved races were flown on the frequency profile in use. Races of an earlier event on another profile
+in the same database, or a database a RotorHazard update migrated - which empties the frequencies and
+keeps the races - make it wrong for some pilots. On the 4.4.0 bench, with the test database of 2024
+and two FAI 16 brackets flown on it, 56 of 62 were right; the misses looked into came from the 2024
+rounds, which RotorHazard holds on 5769 MHz, a frequency today's profile does not have.
 
 - **Database:** nothing new. The column `channel` of the subscriptions keeps a likely channel as
   "R3?". Going back to 1.14 reads that as a channel told, so a pilot told a likely one gets it once
