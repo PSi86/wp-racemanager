@@ -105,6 +105,15 @@ Consequences worth keeping in mind when changing this:
   first place. The `race-winner` block renders it. The race announcement is a pattern of core blocks
   (`includes/race-announcement.php`); its markup is what WordPress 7.1's editor serializes, and
   `test:e2e` checks the editor still takes it as valid.
+- **A pilot's channel is the seat's, and only once the seats are fixed (1.13.0).** RotorHazard makes
+  a slot per node and the seat is the slot's `node_index` - not its place in the list, which differs
+  while RotorHazard gives the seats out. A heat's seats are fixed when it is locked, confirmed
+  (status 2) or assigns no frequencies by itself; its generator switches that on for every heat, and
+  such a heat gets its seats only when it is called. `rm-m-displayHeats.js` (`seatsFixed()`) and the
+  push (`rm_heat_seats_fixed()`) decide it alike, as RotorHazard's own event page does; the channel
+  comes from `frequency_data`. A free seat gets no line. The push keeps the channel it told in
+  `rm_subscriptions.channel` (schema 3) - NULL is a subscription from before, compared by heat and
+  slot.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -132,7 +141,7 @@ when any of that is missing.
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
-| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class and one for the heats without a class, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it, flags and photos by pilot key (no flag without `flagBaseUrl`); nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
+| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class and one for the heats without a class, a line per pilot with the seat's channel once the seats are fixed, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it, flags and photos by pilot key (no flag without `flagBaseUrl`); nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
 | `npm run test:bracket-model` | the bracket worked out of the seeding: every regulation bracket RotorHazard ships as what it is, round names, no bracket for ladders, a layout without overlaps, hand-edited and circular brackets reported not thrown, seeds by index, Chase the Ace. Node only |
 | `npm run test:bracket-standings` | a bracket's standing: places 1..N also when not full, the rulebook ranges, ranges while a round runs, FAI and MultiGP order, Chase the Ace, and on the local site's real events the places of the ranking before 1.10.0. Node only |
 | `npm run test:loader-subscribe` | a subscriber that throws on the cached data `subscribe()` hands over at once does not escape `subscribe()`. Browser only, no WordPress |

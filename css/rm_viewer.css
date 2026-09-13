@@ -188,6 +188,27 @@
     /*border: rgb(255, 0, 0) 1px solid;*/
 }
 
+/* A pilot's video channel before the callsign, once the heat's seats are fixed (1.13.0). */
+.pilot-channel {
+    flex: none;
+    min-width: 2.2em;
+    margin-right: 0.4em;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+}
+
+/* The callsign next to the channel, the result still at the right-hand end. */
+.pilot-channel + .pilot-name {
+    margin-right: auto;
+    padding-right: 10px;
+}
+
+/* The channel's width on top of the callsign's room, not taken from it. */
+.node.seated .pilots-container {
+    max-width: calc(180px + 2.6em);
+}
+
 .activeHeat {
     /* border: rgb(255, 0, 0) 3px solid; */
     /* border: #0050a0 4px solid; */

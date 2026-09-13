@@ -60,6 +60,8 @@ function rm_get_race_data_url() {
  *
  * Each entry:
  *   - heat_id, heat_displayname, pilot_id, callsign, slot_id, channel
+ *   - slot_id is the pilot's seat (the slot's node) and channel its name ("R1") once the heat's seats
+ *     are fixed (rm_heat_seats_fixed()); before that 0 and '' (1.13.0).
  */
 function rm_getUpcomingRacePilots($rhData) {
     if (!$rhData
@@ -71,8 +73,6 @@ function rm_getUpcomingRacePilots($rhData) {
         error_log("rm_getUpcomingRacePilots: Missing required data in rhData");
         return null;
     }
-
-    $channelMapping = rm_buildChannelMapping($rhData);
 
     // pilot_id => callsign map (avoid repeated scans)
     $pilotCallsignById = array();
@@ -165,8 +165,9 @@ function rm_getUpcomingRacePilots($rhData) {
 
         $heatDisplayname = isset($heat['displayname']) ? (string)$heat['displayname'] : ('Heat ' . $heatId);
         if (!isset($heat['slots']) || !is_array($heat['slots'])) continue;
+        $seatsFixed = rm_heat_seats_fixed($heat);
 
-        foreach ($heat['slots'] as $slotIndex => $slot) {
+        foreach ($heat['slots'] as $slot) {
             $pilotId = isset($slot['pilot_id']) ? (int)$slot['pilot_id'] : 0;
             $callsign = $pilotId ? ($pilotCallsignById[$pilotId] ?? '') : '';
 
@@ -195,13 +196,19 @@ function rm_getUpcomingRacePilots($rhData) {
             if (isset($seen[$key])) continue;
             $seen[$key] = true;
 
+            // The seat is the slot's node, and it tells the channel only once it is fixed. Until
+            // 1.13.0 the slot's place in the list stood for the seat - the same number once the
+            // seats are fixed, but not while RotorHazard gives them out, when the free slots have
+            // no node and come first - and a heat's seats counted as fixed from the start.
+            $seat = ($seatsFixed && isset($slot['node_index']) && is_numeric($slot['node_index'])) ? (int)$slot['node_index'] : null;
+
             $upcomingPilots[] = array(
                 'heat_id'          => $heatId,
                 'heat_displayname' => $heatDisplayname,
                 'pilot_id'         => $pilotId,
                 'callsign'         => $callsign,
-                'slot_id'          => $slotIndex,
-                'channel'          => isset($channelMapping[$slotIndex]) ? $channelMapping[$slotIndex] : 'unknown',
+                'slot_id'          => null === $seat ? 0 : $seat,
+                'channel'          => null === $seat ? '' : rm_channel_label($rhData, $seat),
             );
         }
     }
@@ -442,14 +449,43 @@ function rm_getPilotCallsign($pilotId, $rhData) {
     return "";
 }
 
-function rm_buildChannelMapping($rhData) {
-    $mapping = array();
-    if (isset($rhData['frequency_data']['fdata']) && is_array($rhData['frequency_data']['fdata'])) {
-        foreach ($rhData['frequency_data']['fdata'] as $index => $fdata) {
-            $band    = isset($fdata['band']) ? $fdata['band'] : '';
-            $channel = isset($fdata['channel']) ? $fdata['channel'] : '';
-            $mapping[$index] = $band . $channel;
-        }
+/**
+ * Whether a heat's seats are those its pilots will fly on (1.13.0), as RotorHazard's own event page
+ * decides it: the heat has flown (locked), its plan is confirmed (status 2), or it assigns no
+ * frequencies by itself. RotorHazard's heat generator switches that on for every heat it makes;
+ * such a heat gets its seats only when the race director calls it, and until then a slot's node is
+ * the plan's order, not a seat. js/rm-m-displayHeats.js decides the same.
+ *
+ * @param array $heat A heat of heat_data.
+ * @return bool
+ */
+function rm_heat_seats_fixed($heat) {
+    return !empty($heat['locked'])
+        || (isset($heat['status']) && 2 === (int)$heat['status'])
+        || empty($heat['auto_frequency']);
+}
+
+/**
+ * A seat's video channel as RotorHazard names it: band and channel ("R1"), else the frequency where
+ * no band names it; '' for a node switched off (frequency 0), or one the data does not have.
+ *
+ * @param array $rhData The upload.
+ * @param int   $seat   The slot's node_index.
+ * @return string
+ */
+function rm_channel_label($rhData, $seat) {
+    $f = $rhData['frequency_data']['fdata'][$seat] ?? null;
+    if (!is_array($f)) {
+        return '';
     }
-    return $mapping;
+    $frequency = isset($f['frequency']) ? (int)$f['frequency'] : null;
+    if (0 === $frequency) {
+        return '';
+    }
+    $band    = isset($f['band']) ? (string)$f['band'] : '';
+    $channel = isset($f['channel']) ? (string)$f['channel'] : '';
+    if ('' !== $band && '' !== $channel) {
+        return $band . $channel;
+    }
+    return $frequency > 0 ? (string)$frequency : '';
 }

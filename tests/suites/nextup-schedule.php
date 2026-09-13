@@ -11,7 +11,10 @@
  *     pilot of the heat that happens to carry the same number;
  *   - a slot filled from a heat's result (method 1) takes the entry at seed_rank - 1 of the heat's
  *     leaderboard, which is how RotorHazard seeds (heat_automation.py), not the entry whose
- *     position equals seed_rank: a pilot who never started has no position.
+ *     position equals seed_rank: a pilot who never started has no position;
+ *   - a pilot's channel is that of the slot's node, not of its place in the list, and it is named
+ *     only once the heat's seats are fixed - flown, confirmed, or without automatic frequencies
+ *     (1.13.0).
  */
 
 require_once __DIR__ . '/../bootstrap.php';
@@ -220,5 +223,46 @@ $switched_off = $cta_event( array( 'ranking' => array(), 'meta' => array() ) );
 $switched_off['class_data']['classes'][0]['ranksettings'] = array( 'chase_the_ace' => false );
 $got = rm_test_upcoming( $switched_off );
 rm_test_check( 'Chase the Ace switched off: the final is done after its round', array() === $got, 'got ' . implode( ',', $got ) );
+
+rm_test_section( 'The seat and its channel' );
+// Heat 60 on the timer: pilot 1 on node 1, pilot 2 on node 3, the free slots with no node and first,
+// as RotorHazard sorts them while it gives out the seats. The profile: R1, R2, F2, F4.
+$seated_event = function ( $heat_keys ) use ( $elimination ) {
+    $heat = array_merge(
+        rm_test_heat( 60, 3, 0, array(
+            array( 'node_index' => null ),
+            array( 'node_index' => null ),
+            array( 'pilot_id' => 1, 'node_index' => 1 ),
+            array( 'pilot_id' => 2, 'node_index' => 3 ),
+        ) ),
+        $heat_keys
+    );
+    return rm_test_event( 60, array( $heat ), array( $elimination ) );
+};
+$channels = function ( $event ) {
+    $out = array();
+    foreach ( (array) rm_getUpcomingRacePilots( $event ) as $row ) {
+        $out[] = $row['pilot_id'] . '@' . $row['slot_id'] . '=' . $row['channel'];
+    }
+    return implode( ',', $out );
+};
+$got = $channels( $seated_event( array( 'auto_frequency' => false, 'status' => 0, 'locked' => false ) ) );
+rm_test_check( 'fixed seats: the node\'s channel, not that of the place in the list', '1@1=R2,2@3=F4' === $got, "got $got" );
+$got = $channels( $seated_event( array( 'auto_frequency' => true, 'status' => 0, 'locked' => false ) ) );
+rm_test_check( 'a generated heat not called yet: no seat, no channel', '1@0=,2@0=' === $got, "got $got" );
+$got = $channels( $seated_event( array( 'auto_frequency' => true, 'status' => 2, 'locked' => false ) ) );
+rm_test_check( 'its plan confirmed: the channels', '1@1=R2,2@3=F4' === $got, "got $got" );
+$got = $channels( $seated_event( array( 'auto_frequency' => true, 'status' => 0, 'locked' => true ) ) );
+rm_test_check( 'flown: the channels it was flown on', '1@1=R2,2@3=F4' === $got, "got $got" );
+$event = $seated_event( array( 'auto_frequency' => false ) );
+$event['frequency_data']['fdata'][1] = array( 'band' => 'R', 'channel' => 2, 'frequency' => 5695 );
+$event['frequency_data']['fdata'][3] = array( 'band' => null, 'channel' => null, 'frequency' => 5705 );
+$got = $channels( $event );
+rm_test_check( 'a frequency no band names: the frequency', '1@1=R2,2@3=5705' === $got, "got $got" );
+// Frequency 0 is a node switched off, whatever it says besides (RotorHazard shows "—" for it).
+$event['frequency_data']['fdata'][1] = array( 'band' => 'R', 'channel' => 2, 'frequency' => 0 );
+$event['frequency_data']['fdata'][3] = array( 'band' => null, 'channel' => null, 'frequency' => 0 );
+$got = $channels( $event );
+rm_test_check( 'a node switched off: no channel', '1@1=,2@3=' === $got, "got $got" );
 
 rm_test_finish();

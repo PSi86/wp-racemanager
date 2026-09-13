@@ -6,6 +6,11 @@
 // forms none (training, qualifying, a ladder), as its heats in a row. Below them, the heats no
 // class claims, in a row, as RotorHazard lists them last under "Unclassified". And the next-up row.
 //
+// A heat shows a line per pilot, and per slot its seeding will fill, in the order of the seats. Each
+// line carries the seat's video channel ("R1") once RotorHazard has fixed the seats (1.13.0). A seat
+// nobody takes gets no line: until 1.13.0 every slot had one, and the empty lines stood for the
+// free channels - on a timer with more nodes than pilots per heat, most of a heat.
+//
 // This file also runs on the timer: the RotorHazard connector's /bracketview takes it over byte
 // for byte, next to its own dataLoader, which reads RotorHazard's socket. A change has to work
 // there as well.
@@ -239,7 +244,7 @@ class DisplayHeats {
     }
 
     /* -------------------------------------------------------------------------------------- *
-     * What a heat shows: its title and a line per slot
+     * What a heat shows: its title and a line per pilot, with the pilot's channel
      * -------------------------------------------------------------------------------------- */
 
     heatNode(data, heat, cls) {
@@ -269,8 +274,47 @@ class DisplayHeats {
             title += "\n" + flownRounds + " of " + cls.rounds;
         }
 
-        const pilots = (heat.slots || []).map(slot => this.slotEntry(data, slot, leaderboard, time, !!result));
-        return { id: heat.id, title, pilots, active: heat.id === currentHeat, classes: [] };
+        // The slots come in the order of the seats. One that nobody takes and that nothing seeds -
+        // a free seat, or a seed that brought nobody - gets no line.
+        const seated = this.seatsFixed(data, heat);
+        const pilots = [];
+        for (const slot of heat.slots || []) {
+            const entry = this.slotEntry(data, slot, leaderboard, time, !!result);
+            if (!entry.id && !entry.name) continue;
+            if (seated) entry.channel = this.channelOf(data, slot);
+            pilots.push(entry);
+        }
+        return { id: heat.id, title, pilots, seated, active: heat.id === currentHeat, classes: [] };
+    }
+
+    // Whether the seats are those the pilots will fly on, as RotorHazard's own event page decides
+    // it: the heat has flown (locked), its plan is confirmed (status 2), or it assigns no frequencies
+    // by itself. RotorHazard's heat generator switches that on for every heat it makes, and such a
+    // heat gets its seats only when the race director calls it - until then a slot's node is the
+    // plan's order, not a seat. And only where the data says which channel each seat has.
+    seatsFixed(data, heat) {
+        const fdata = data.frequency_data && data.frequency_data.fdata;
+        if (!fdata || typeof fdata !== 'object') {
+            return false;
+        }
+        return !!heat.locked || heat.status === 2 || heat.auto_frequency !== true;
+    }
+
+    // A seat's video channel as RotorHazard names it - band and channel, "R1" - or its frequency
+    // where no band names it; "–" for a node switched off (frequency 0), as RotorHazard shows it.
+    channelOf(data, slot) {
+        const f = Number.isInteger(slot.node_index) ? data.frequency_data.fdata[slot.node_index] : null;
+        const frequency = f && f.frequency != null ? Number(f.frequency) : null;
+        if (!f || frequency === 0) {
+            return { label: '–', frequency: null };
+        }
+        if (f.band && f.channel) {
+            return { label: `${f.band}${f.channel}`, frequency };
+        }
+        if (frequency > 0) {
+            return { label: String(frequency), frequency };
+        }
+        return { label: '–', frequency: null };
     }
 
     slotEntry(data, slot, leaderboard, time, flown) {
@@ -465,14 +509,15 @@ class DisplayHeats {
             nodeDiv.style.gridRow = `${node.gridRow}`;
             nodeDiv.classList.add("node", ...node.classes);
             if (node.active) nodeDiv.classList.add("activeHeat");
+            if (node.seated) nodeDiv.classList.add("seated"); // its lines carry the channel
 
             const nodeTitleDiv = document.createElement("div");
             nodeTitleDiv.textContent = node.title;
             nodeTitleDiv.className = "title";
             nodeDiv.appendChild(nodeTitleDiv);
 
+            let foundSelectedPilot = false;
             if (node.pilots && node.pilots.length > 0) {
-                let foundSelectedPilot = false;
                 const pilotsContainerDiv = document.createElement("div");
                 pilotsContainerDiv.className = "pilots-container";
                 if (node.note) {
@@ -490,6 +535,17 @@ class DisplayHeats {
                     pilotDataDiv.classList.add("pilot-entry", ...pilot.classes);
                     if (pilot.id === filterPilotId && filterPilotId !== 0) {
                         foundSelectedPilot = true;
+                    }
+                    if (node.seated) {
+                        // Its own element, not inside the name: the hover finds the pilot by the
+                        // line's class, one level up from what the pointer is on.
+                        const channelDiv = document.createElement("div");
+                        channelDiv.className = "pilot-channel";
+                        channelDiv.textContent = pilot.channel.label;
+                        if (pilot.channel.frequency) {
+                            channelDiv.title = `${pilot.channel.frequency} MHz`;
+                        }
+                        pilotDataDiv.appendChild(channelDiv);
                     }
                     const nameDiv = document.createElement("div");
                     nameDiv.className = "pilot-name";
@@ -510,11 +566,11 @@ class DisplayHeats {
                     pilotDataDiv.appendChild(resultDiv);
                     pilotsContainerDiv.appendChild(pilotDataDiv);
                 }
-
-                if (!foundSelectedPilot && filterPilotId !== 0) {
-                    nodeDiv.classList.add("dimmed");
-                }
                 nodeDiv.appendChild(pilotsContainerDiv);
+            }
+            // A heat without lines - nobody in it yet - is dimmed like any other without the pilot.
+            if (!foundSelectedPilot && filterPilotId !== 0) {
+                nodeDiv.classList.add("dimmed");
             }
 
             grid.appendChild(nodeDiv);

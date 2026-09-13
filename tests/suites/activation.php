@@ -122,6 +122,8 @@ rm_test_check( 'core parses the real table name', 'wp_rm_subscriptions' === $par
 rm_test_check( 'the charset collate is appended', str_contains( $sql, 'utf8mb4_unicode_ci' ) );
 rm_test_check( 'PRIMARY KEY keeps its two spaces, as dbDelta expects', str_contains( $sql, 'PRIMARY KEY  (id)' ) );
 rm_test_check( 'a pilot key for each subscription (1.7.0)', str_contains( $sql, "pilot_key varchar(36) DEFAULT '' NOT NULL," ) );
+// NULL for a subscription from before: the push handler compares those as 1.12 did.
+rm_test_check( 'the channel it was told, NULL by default (1.13.0)', str_contains( $sql, 'channel varchar(12) DEFAULT NULL,' ) );
 
 rm_test_section( 'The table brought up to date after an update (1.7.0)' );
 
@@ -139,11 +141,20 @@ rm_test_check( '  but the column is not there: nothing recorded, tried again', !
 
 $GLOBALS['wpdb']->columns = array( 'pilot_key' );
 rm_maybe_upgrade_subscriptions_table();
-rm_test_check( 'once the column is there, schema 2 is recorded', 2 === ( $GLOBALS['rm_options']['rm_subscriptions_schema'] ?? null ) );
+rm_test_check( '  with pilot_key but no channel (1.12): not recorded either', ! isset( $GLOBALS['rm_options']['rm_subscriptions_schema'] ) );
+
+$GLOBALS['wpdb']->columns = array( 'pilot_key', 'channel' );
+rm_maybe_upgrade_subscriptions_table();
+rm_test_check( 'once the newest column is there, schema 3 is recorded', 3 === ( $GLOBALS['rm_options']['rm_subscriptions_schema'] ?? null ) );
 
 $GLOBALS['rm_dbdelta_sql'] = array();
 rm_maybe_upgrade_subscriptions_table();
 rm_test_check( '  and no later request runs dbDelta() again', array() === $GLOBALS['rm_dbdelta_sql'] );
+
+// A site on 1.12 has recorded schema 2: the update to 1.13.0 runs dbDelta() once more.
+$GLOBALS['rm_options']['rm_subscriptions_schema'] = 2;
+rm_maybe_upgrade_subscriptions_table();
+rm_test_check( 'a site on schema 2: dbDelta() runs again, and schema 3 is recorded', 1 === count( $GLOBALS['rm_dbdelta_sql'] ) && 3 === $GLOBALS['rm_options']['rm_subscriptions_schema'] );
 
 rm_upsert_subscription( 2578, 7, 'TP7', 'https://push.example.test/1', 'p256dh', 'auth', 'a7a7a7a7-bbbb-5ccc-8ddd-eeeeeeeeee07' );
 rm_test_check( 'a subscription is stored with its pilot key',
