@@ -160,7 +160,7 @@ function rm_getUpcomingRacePilots($rhData) {
     // Collect pilots, dedupe by (heat_id, pilot_id) (prevents double notifications if same heat appears twice)
     $upcomingPilots = array();
     $seen = array();
-    $usedSeats = rm_used_seats($rhData);
+    $flown = rm_flown_before($rhData);
 
     foreach ($heatIdsToCheck as $heatId) {
         if (!isset($heatsById[$heatId])) continue;
@@ -223,7 +223,7 @@ function rm_getUpcomingRacePilots($rhData) {
 
         // Seats not fixed yet: the channel each pilot will likely get. It depends on every pilot of
         // the heat, so none while a seed has not decided who is in it.
-        $likely = ($seatsFixed || !$pilotsKnown) ? array() : rm_likely_channels($rhData, array_column($heatPilots, 'pilot_id'), $usedSeats);
+        $likely = ($seatsFixed || !$pilotsKnown) ? array() : rm_likely_channels($rhData, array_column($heatPilots, 'pilot_id'), $flown);
         foreach ($heatPilots as $entry) {
             $entry['likely'] = $likely[$entry['pilot_id']] ?? '';
             $upcomingPilots[] = $entry;
@@ -234,11 +234,58 @@ function rm_getUpcomingRacePilots($rhData) {
 }
 
 /**
+ * What each pilot flew on before, as RotorHazard's automatic frequency assignment looks at it
+ * (1.16.0). RotorHazard goes by each pilot's used_frequencies: its own list of the frequencies they
+ * flew, oldest first and each once, the last one last, one more with every saved race
+ * (RHData.set_pilot_used_frequency). The connector sends it with every pilot from its version for
+ * WP RaceManager 1.16.0 on, and then that list is what counts. From an older connector, the seats of
+ * the rounds flown stand in for it (rm_used_seats(), 1.15.0) - the same only while those races were
+ * flown on the frequency profile in use: not after the profile changed, nor after a RotorHazard
+ * update migrated the database, which empties the lists and keeps the races.
+ *
+ * @param array $rhData The upload.
+ * @return array 'by' => 'frequency' or 'seat'; 'pilots' => pilot_id => frequencies or node indexes.
+ */
+function rm_flown_before($rhData) {
+    $frequencies = rm_pilot_frequencies($rhData);
+    if (null !== $frequencies) {
+        return array('by' => 'frequency', 'pilots' => $frequencies);
+    }
+    return array('by' => 'seat', 'pilots' => rm_used_seats($rhData));
+}
+
+/**
+ * Each pilot's used_frequencies as the upload carries them (1.16.0): the frequencies of the list,
+ * in its order. A pilot who has flown nothing yet has an empty list, as in RotorHazard.
+ *
+ * @param array $rhData The upload.
+ * @return array|null pilot_id => int[]; null for an upload that carries the list for nobody, as one
+ *                    from a connector before it does not.
+ */
+function rm_pilot_frequencies($rhData) {
+    $frequencies = null;
+    foreach ((array)($rhData['pilot_data']['pilots'] ?? array()) as $pilot) {
+        if (!is_array($pilot) || empty($pilot['pilot_id']) || !array_key_exists('used_frequencies', $pilot)) {
+            continue;
+        }
+        $list = array();
+        foreach ((array)$pilot['used_frequencies'] as $used) {
+            if (is_array($used) && isset($used['f']) && is_numeric($used['f'])) {
+                $list[] = (int)$used['f'];
+            }
+        }
+        if (null === $frequencies) {
+            $frequencies = array();
+        }
+        $frequencies[(int)$pilot['pilot_id']] = $list;
+    }
+    return $frequencies;
+}
+
+/**
  * The seats each pilot has flown on, oldest first and each once, the last one last (1.15.0): from
- * the rounds of every heat, by start time. RotorHazard keeps a pilot's frequencies that way, one
- * more with every saved race (RHData.set_pilot_used_frequency), and gives out seats by them. Kept
- * by seat, since a round names the node, not the frequency: the same as long as the event keeps its
- * frequency profile.
+ * the rounds of every heat, by start time - RotorHazard's used_frequencies by seat, where the upload
+ * does not carry them (rm_flown_before()). A round names the node, not the frequency.
  *
  * @param array $rhData The upload.
  * @return array pilot_id => node_index[].
@@ -272,62 +319,74 @@ function rm_used_seats($rhData) {
 /**
  * The seats RotorHazard will give a heat's pilots, as far as that is decided (1.15.0): its automatic
  * frequency assignment (heat_automation.py, run_auto_frequency) with the calibration mode's default,
- * find_best_slot_node_adaptive, followed until it would draw lots. It fills one seat at a time, in
- * node order, looking at who flew there before: a seat only one pilot flew on, as their last seat;
- * then a seat only one pilot flew on at all; then a seat that was the last of only one of them. The
- * pilot seated leaves the other seats' lists. Where none of these is left, it draws lots, and so the
- * seats it would fill from there on are not told.
+ * find_best_slot_node_adaptive, followed until it would draw lots. Each seat with a frequency gets
+ * a match for every entry of a pilot's list that has its frequency, the last entry a priority one.
+ * It then fills one seat at a time, in node order: a seat with a single match, a priority one; then
+ * a seat with a single match; then a seat with a single priority match. The pilot seated leaves the
+ * other seats' matches. Where none of these is left, it draws lots, and so the seats it would fill
+ * from there on are not told. What the pilots flew comes from rm_flown_before(): RotorHazard's own
+ * lists when the upload carries them (1.16.0), matched by frequency as it does, else the rounds'
+ * seats, matched by seat.
  *
- * Measured on race 32 of the local site (Galaxy Cup 2025, 40 heats with automatic frequencies, first
- * rounds only) from the rounds flown before each: 82 of the 142 pilots got a seat this way, 81 of
- * them the one they flew; three heats earlier, when the first push goes out, 71 of 74. Only a
- * pilot's last seat, where nobody else of the heat had the same, told 53, 49 of them right. A timer
- * set to manual calibration gives out seats by find_best_slot_node_basic, which puts the last seats
- * first: there a seat told from the second step on can be wrong.
+ * Measured by seat on race 32 of the local site (Galaxy Cup 2025, 40 heats with automatic
+ * frequencies, first rounds only) from the rounds flown before each: 82 of the 142 pilots got a
+ * seat this way, 81 of them the one they flew; three heats earlier, when the first push goes out,
+ * 71 of 74. Only a pilot's last seat, where nobody else of the heat had the same, told 53, 49 of
+ * them right. A timer set to manual calibration gives out seats by find_best_slot_node_basic, which
+ * puts the last seats first: there a seat told from the second step on can be wrong.
  *
- * @param array $rhData    The upload.
- * @param int[] $pilotIds  Every pilot of the heat.
- * @param array $usedSeats rm_used_seats().
+ * @param array $rhData The upload.
+ * @param int[] $pilotIds Every pilot of the heat.
+ * @param array $flown  rm_flown_before().
  * @return array pilot_id => node_index, for the pilots whose seat is decided.
  */
-function rm_likely_seats($rhData, $pilotIds, $usedSeats) {
-    // The seats with a frequency, each with the pilots who flew there: true for their last seat.
+function rm_likely_seats($rhData, $pilotIds, $flown) {
+    $byFrequency = 'frequency' === ($flown['by'] ?? '');
+    // Each seat with a frequency and its matches: [pilot_id, whether the last of the pilot's list].
     $open = array();
     foreach ((array)($rhData['frequency_data']['fdata'] ?? array()) as $seat => $frequency) {
         if (!is_array($frequency) || (isset($frequency['frequency']) && 0 === (int)$frequency['frequency'])) {
             continue; // switched off: RotorHazard's FREQUENCY_ID_NONE, a seat it gives nobody
         }
-        $open[(int)$seat] = array();
+        if ($byFrequency) {
+            $key = isset($frequency['frequency']) && is_numeric($frequency['frequency']) ? (int)$frequency['frequency'] : null;
+        } else {
+            $key = (int)$seat;
+        }
+        $matches = array();
         foreach ($pilotIds as $pilotId) {
-            $used = $usedSeats[$pilotId] ?? array();
-            if (in_array((int)$seat, $used, true)) {
-                $open[(int)$seat][$pilotId] = end($used) === (int)$seat;
+            $list = array_values((array)($flown['pilots'][$pilotId] ?? array()));
+            foreach ($list as $index => $value) {
+                if (null !== $key && $value === $key) {
+                    $matches[] = array($pilotId, count($list) - 1 === $index);
+                }
             }
         }
+        $open[(int)$seat] = $matches;
     }
 
     $likely = array();
     while ($open) {
         $pick = null;
-        foreach ($open as $seat => $flown) {
-            if (1 === count($flown) && reset($flown)) {
-                $pick = array($seat, key($flown));
+        foreach ($open as $seat => $matches) {
+            if (1 === count($matches) && $matches[0][1]) {
+                $pick = array($seat, $matches[0][0]);
                 break;
             }
         }
         if (null === $pick) {
-            foreach ($open as $seat => $flown) {
-                if (1 === count($flown)) {
-                    $pick = array($seat, key($flown));
+            foreach ($open as $seat => $matches) {
+                if (1 === count($matches)) {
+                    $pick = array($seat, $matches[0][0]);
                     break;
                 }
             }
         }
         if (null === $pick) {
-            foreach ($open as $seat => $flown) {
-                $last = array_keys(array_filter($flown));
+            foreach ($open as $seat => $matches) {
+                $last = array_values(array_filter($matches, fn($match) => $match[1]));
                 if (1 === count($last)) {
-                    $pick = array($seat, $last[0]);
+                    $pick = array($seat, $last[0][0]);
                     break;
                 }
             }
@@ -338,8 +397,8 @@ function rm_likely_seats($rhData, $pilotIds, $usedSeats) {
         list($seat, $pilotId) = $pick;
         $likely[$pilotId] = $seat;
         unset($open[$seat]);
-        foreach ($open as $other => $flown) {
-            unset($open[$other][$pilotId]);
+        foreach ($open as $other => $matches) {
+            $open[$other] = array_values(array_filter($matches, fn($match) => $match[0] !== $pilotId));
         }
     }
     return $likely;
@@ -349,14 +408,14 @@ function rm_likely_seats($rhData, $pilotIds, $usedSeats) {
  * The channel each pilot of a heat whose seats are not fixed yet will likely get (1.15.0): that of
  * the seat rm_likely_seats() tells.
  *
- * @param array $rhData    The upload.
- * @param int[] $pilotIds  Every pilot of the heat.
- * @param array $usedSeats rm_used_seats().
+ * @param array $rhData   The upload.
+ * @param int[] $pilotIds Every pilot of the heat.
+ * @param array $flown    rm_flown_before().
  * @return array pilot_id => channel, for the pilots it can tell.
  */
-function rm_likely_channels($rhData, $pilotIds, $usedSeats) {
+function rm_likely_channels($rhData, $pilotIds, $flown) {
     $likely = array();
-    foreach (rm_likely_seats($rhData, $pilotIds, $usedSeats) as $pilotId => $seat) {
+    foreach (rm_likely_seats($rhData, $pilotIds, $flown) as $pilotId => $seat) {
         $label = rm_channel_label($rhData, $seat);
         if ('' !== $label) {
             $likely[$pilotId] = $label;
