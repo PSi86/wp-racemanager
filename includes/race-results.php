@@ -72,11 +72,32 @@ function rm_class_chases_the_ace($class) {
  * @return array|null Null while the ranking has no place 1, and without a ranking.
  */
 function rm_class_ranking_first($rhData, $classId) {
+    $top = rm_class_ranking_top($rhData, $classId, 1);
+    return $top ? array('pilot_id' => $top[0]['pilot_id'], 'callsign' => $top[0]['callsign']) : null;
+}
+
+/**
+ * The places 1 to $upTo of a class's ranking from the timer, by place - two pilots can share one -
+ * each as place, pilot_id and callsign (1.14.0).
+ *
+ * @param array $rhData  The upload.
+ * @param int   $classId The class.
+ * @param int   $upTo    The last place wanted.
+ * @return array[] Empty while the ranking has no place 1, and without a ranking.
+ */
+function rm_class_ranking_top($rhData, $classId, $upTo) {
     $ranking = $rhData['result_data']['classes'][(string)$classId]['ranking']['ranking'] ?? null;
-    foreach ((array)$ranking as $entry) {
-        if (is_array($entry) && isset($entry['position']) && (int)$entry['position'] === 1 && !empty($entry['pilot_id'])) {
-            return array('pilot_id' => (int)$entry['pilot_id'], 'callsign' => (string)($entry['callsign'] ?? ''));
+    $top = array();
+    foreach ((array)$ranking as $index => $entry) {
+        $place = (is_array($entry) && isset($entry['position']) && is_numeric($entry['position'])) ? (int)$entry['position'] : 0;
+        if ($place >= 1 && $place <= $upTo && !empty($entry['pilot_id'])) {
+            $top[] = array('place' => $place, 'pilot_id' => (int)$entry['pilot_id'], 'callsign' => (string)($entry['callsign'] ?? ''), 'index' => $index);
         }
     }
-    return null;
+    if (!array_filter($top, fn($e) => 1 === $e['place'])) {
+        return array();
+    }
+    // By place, and in the ranking's own order within one.
+    usort($top, fn($a, $b) => ($a['place'] <=> $b['place']) ?: ($a['index'] <=> $b['index']));
+    return array_map(fn($e) => array('place' => $e['place'], 'pilot_id' => $e['pilot_id'], 'callsign' => $e['callsign']), $top);
 }

@@ -4,7 +4,14 @@
     "title": "Race Winner",
     "category": "widgets",
     "icon": "awards",
-    "description": "Who won the race, from its results: photo, flag and callsign, one line per bracket class. Nothing while there is no winner.",
+    "description": "Who won the race, from its results: the winner, the podium, or on the race's own page the podium and the whole standing - one per bracket class. Nothing while there is no winner.",
+    "attributes": {
+        "show": {
+            "type": "string",
+            "enum": [ "winner", "podium", "standing" ],
+            "default": "winner"
+        }
+    },
     "usesContext": [ "postId", "postType" ],
     "supports": {
         "html": false,

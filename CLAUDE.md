@@ -102,7 +102,12 @@ Consequences worth keeping in mind when changing this:
 - **A race's winner (1.12.0) is computed, never entered**: `rm_write_files()` works it out on every
   write into `_race_winner` (`includes/race-winner.php`), per bracket class — the "Brackets" ranking's
   place 1, else the first of the final, the final being the heat nobody seeds from that takes someone's
-  first place. The `race-winner` block renders it. The race announcement is a pattern of core blocks
+  first place. The `race-winner` block renders it. Since 1.14.0 the places 1 to 3 come with it
+  (`podium`, from the same source), and the block's setting `show` picks winner, podium, or podium and
+  the whole standing - the standing from `rm-m-displayStandings.js` on the race's own page only, with
+  `css/rm-standings.css`, never `rm_viewer.css`, which restyles a page's lists and inputs; on a card
+  the podium. `test:bracket-standings` holds the standing's places 1 to 3 to the podium's rule. The
+  race announcement is a pattern of core blocks
   (`includes/race-announcement.php`); its markup is what WordPress 7.1's editor serializes, and
   `test:e2e` checks the editor still takes it as valid.
 - **A pilot's channel is the seat's, and only once the seats are fixed (1.13.0).** RotorHazard makes
@@ -139,13 +144,13 @@ when any of that is missing.
 
 | Suite | Covers |
 |---|---|
-| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-gallery`'s media modal still opens, that the race announcement pattern is valid and a new race starts with it, and that the console stays clean |
+| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-winner` offers its three settings and saves the one chosen as its attribute alone, that `race-gallery`'s media modal still opens, that the race announcement pattern is valid and a new race starts with it, and that the console stays clean |
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
 | `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class and one for the heats without a class, a line per pilot with the seat's channel once the seats are fixed, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it, flags and photos by pilot key (no flag without `flagBaseUrl`); nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
 | `npm run test:bracket-model` | the bracket worked out of the seeding: every regulation bracket RotorHazard ships as what it is, round names, no bracket for ladders, a layout without overlaps, hand-edited and circular brackets reported not thrown, seeds by index, Chase the Ace. Node only |
-| `npm run test:bracket-standings` | a bracket's standing: places 1..N also when not full, the rulebook ranges, ranges while a round runs, FAI and MultiGP order, Chase the Ace, and on the local site's real events the places of the ranking before 1.10.0. Node only |
+| `npm run test:bracket-standings` | a bracket's standing: places 1..N also when not full, the rulebook ranges, ranges while a round runs, FAI and MultiGP order, Chase the Ace, places 1 to 3 as the race's podium keeps them (every plan, and the real events), and on the local site's real events the places of the ranking before 1.10.0. Node only |
 | `npm run test:loader-subscribe` | a subscriber that throws on the cached data `subscribe()` hands over at once does not escape `subscribe()`. Browser only, no WordPress |
 | `npm run test:stats-ranking` | the stats view's class ranking panel: a ranking from the timer as a table, a method that ranked nobody as a sentence. Browser only, no WordPress |
 | `npm run test:pilot-profiles` | nationality and photo sent through the real registration form: the country stored, the photo square, 256 px, upright and without metadata with GD and with Imagick, carried in a race's files, gone with the registration. Makes and removes its race, form and page through WP-CLI |

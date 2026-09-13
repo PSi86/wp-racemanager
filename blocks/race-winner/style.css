@@ -1,8 +1,31 @@
-/* The race-winner block: one line per winner - the cup, photo or initials, flag, callsign. */
+/* The race-winner block: one line per winner - the cup, photo or initials, flag, callsign - or per
+   place of a podium (1.14.0), on the race's own page with the standing under it (css/rm-standings.css). */
 .rm-race-winner {
     display: flex;
     flex-direction: column;
     gap: 0.35em;
+}
+
+/* A bracket class's podium: its name, when a race has several, over its three places. */
+.rm-race-podium {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+}
+
+.rm-race-podium + .rm-race-podium {
+    margin-top: 0.6em;
+}
+
+.rm-race-podium-class {
+    font-weight: bold;
+    opacity: 0.75;
+}
+
+/* The winner stands out: the places behind in plain weight. */
+.rm-race-winner-place-2 .rm-race-winner-callsign,
+.rm-race-winner-place-3 .rm-race-winner-callsign {
+    font-weight: normal;
 }
 
 .rm-race-winner-line {

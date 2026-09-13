@@ -278,6 +278,13 @@ function rm_bracket_shortcode( $atts ) {
         array(),
         WP_RACEMANAGER_VERSION
     );
+    // The standing, flags and photos, shared with the race-winner block on a race's page (1.14.0).
+    wp_enqueue_style(
+        'rm-standings-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-standings.css',
+        array(),
+        WP_RACEMANAGER_VERSION
+    );
     // The filter's own styles, shared with the stats view, which cannot load rm_viewer.css --
     // see the note there.
     wp_enqueue_style(
@@ -423,8 +430,15 @@ function rm_nextup_shortcode( $atts ) {
     }
     
     wp_enqueue_style(
-        'rm-sc-viewer-css', 
+        'rm-sc-viewer-css',
         plugin_dir_url( __DIR__ ) . 'css/rm_viewer.css',
+        array(),
+        WP_RACEMANAGER_VERSION
+    );
+    // The final ranking under next up, flags and photos (1.14.0: out of rm_viewer.css).
+    wp_enqueue_style(
+        'rm-standings-css',
+        plugin_dir_url( __DIR__ ) . 'css/rm-standings.css',
         array(),
         WP_RACEMANAGER_VERSION
     );

@@ -153,6 +153,31 @@ try {
 		check( `${ name } renders inside the iframe`, rendered );
 	}
 
+	// ------------------------------------------ race-winner's setting (1.14.0)
+	// Winner, podium or standing: the editor offers the three, stands for the one chosen, and saves it
+	// as the block's attribute - nothing else, the block being dynamic.
+	{
+		const winner = await page.evaluate( () => {
+			const sel = window.wp.data.select( 'core/block-editor' );
+			const block = sel.getBlocks().find( ( b ) => b.name === 'wp-racemanager/race-winner' );
+			window.wp.data.dispatch( 'core/block-editor' ).selectBlock( block.clientId );
+			return block.clientId;
+		} );
+		const options = await page.locator( '.block-editor-block-inspector input[type="radio"]' ).evaluateAll( ( els ) => els.map( ( el ) => el.value ) ).catch( () => [] );
+		check( 'race-winner offers winner, podium and standing', options.join() === 'winner,podium,standing', options.join() );
+		await page.locator( '.block-editor-block-inspector input[type="radio"][value="podium"]' ).check().catch( () => {} );
+		let shown = '';
+		try {
+			await canvasFrame.locator( `#block-${ winner }`, { hasText: 'Podium of the race' } ).waitFor( { timeout: 10000 } );
+			shown = 'podium';
+		} catch ( e ) {
+			shown = await canvasFrame.locator( `#block-${ winner }` ).innerText().catch( () => '' );
+		}
+		const saved = await page.evaluate( ( id ) => window.wp.blocks.serialize( [ window.wp.data.select( 'core/block-editor' ).getBlock( id ) ] ), winner );
+		check( '  chosen, the podium: shown so, and saved as the attribute alone',
+			'podium' === shown && '<!-- wp:wp-racemanager/race-winner {"show":"podium"} /-->' === saved.trim(), `${ shown } / ${ saved.trim() }` );
+	}
+
 	// ------------------------------------------------ race-gallery in particular
 	// It is the only block that drives the Backbone media library, which lives in
 	// the parent document while the block renders in the iframe.

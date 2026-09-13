@@ -307,11 +307,20 @@ Loop's post template, the card — and the one for a single race, and insert *Ra
 winner is to show, below the title for example. It takes its race from the card or the page it sits
 on.
 
+**Since 1.14.0 the block has a setting, *Show*** (the block's sidebar): *Winner*, as in 1.12;
+*Podium (places 1–3)*, a medal a place; or *Podium and whole standing* - under the podium the standing
+the bracket page has, place, pilot and the round each went out in, loaded from the race's data. The
+standing only shows on the race's own page; on the race list's cards the same setting shows the
+podium alone, so one choice serves both templates. Suggested: *Podium* on the card, *Podium and whole
+standing* on the single race. A block placed with 1.12 or 1.13 keeps showing the winner until it is
+set otherwise.
+
 Nobody enters the winner: every write of a race's files works it out from the timer's results and
-keeps it in the race (`_race_winner`). The races stored before get theirs a few at a time on the next
-admin page loads (five per request, from their data files); after that the option
-`rm_race_winner_schema` is 1 and nothing more is read. When a winner changes, the page cache is
-emptied, as for a race's state.
+keeps it in the race (`_race_winner`), since 1.14.0 with its podium. The races stored before get
+theirs a few at a time on the next admin page loads (five per request, from their data files) - with
+1.14.0 again, for the podium; until a race is reached it shows its winner. After that the option
+`rm_race_winner_schema` is 2 and nothing more is read. When a winner or a podium changes, the page
+cache is emptied, as for a race's state.
 
 **New races start with the announcement.** A race made in the admin, and one the timer creates,
 starts with the pattern *Race announcement* in its Details block: a schedule as a table and lists of
@@ -496,6 +505,15 @@ been removed from your scheduled heat". Every version since subscriptions stored
 1.7.0 on production among them. The same pilot of the same race keeps it: new keys of the browser,
 or the pilot re-created on the timer and found by the key. It changes `includes/db-handler.php`
 alone; nothing in the database changes but the rows of subscriptions being moved.
+
+1.14.0 gives the race-winner block its setting *Show* - winner, podium, or podium and whole standing
+(section 6c) - and keeps each race's podium beside its winner, worked out again for the races stored
+before, five per admin page load. The standing on a race's page is the bracket page's own module
+(`rm-m-displayStandings.js`) with the race's data, the only live module a race's page loads. Its rules
+moved out of `css/rm_viewer.css` into `css/rm-standings.css`, with the flags' and photos', which the
+bracket and next-up views now load beside it: `rm_viewer.css` styles the page's lists and inputs as
+well and has no place on a race's page. Both are enqueued with the version. Nothing changes where the
+block is not set otherwise.
 
 ---
 
