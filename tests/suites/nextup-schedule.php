@@ -19,7 +19,9 @@
  *     automatic frequency assignment decides it without drawing lots: from the seats the heat's
  *     pilots flew on before, by start time, in the order its default (adaptive calibration) fills
  *     the seats - and not at all while a seed may still bring somebody; one whose source has its
- *     result without that rank brings nobody (1.15.0).
+ *     result without that rank brings nobody (1.15.0);
+ *   - where the upload carries RotorHazard's own used_frequencies, those count, matched by
+ *     frequency as RotorHazard matches them, and the rounds' seats do not (1.16.0).
  */
 
 require_once __DIR__ . '/../bootstrap.php';
@@ -353,5 +355,34 @@ $event = $likely_event( $apart );
 $event['frequency_data']['fdata'][3] = array( 'band' => 'F', 'channel' => 4, 'frequency' => 0 );
 $got = $likely( $event );
 rm_test_check( 'the seat a pilot came from switched off: none for them', '1=/F2,2=/R1,3=/' === $got, "got $got" );
+
+rm_test_section( "RotorHazard's own frequencies, where the upload carries them (1.16.0)" );
+// The profile with its frequencies, and each pilot's used_frequencies as the connector sends them:
+// every pilot carries the list, empty for one who has not flown. The rounds still say $apart:
+// pilot 1 on F2, pilot 2 on R1, pilot 3 on F4.
+$with_frequencies = function ( $event, $lists ) {
+    $event['frequency_data']['fdata'] = array(
+        array( 'band' => 'R', 'channel' => 1, 'frequency' => 5658 ),
+        array( 'band' => 'R', 'channel' => 2, 'frequency' => 5695 ),
+        array( 'band' => 'F', 'channel' => 2, 'frequency' => 5760 ),
+        array( 'band' => 'F', 'channel' => 4, 'frequency' => 5800 ),
+    );
+    foreach ( $event['pilot_data']['pilots'] as $i => $pilot ) {
+        $event['pilot_data']['pilots'][ $i ]['used_frequencies'] = array_map(
+            fn( $f ) => array( 'b' => null, 'c' => null, 'f' => $f ),
+            $lists[ $pilot['pilot_id'] ] ?? array()
+        );
+    }
+    return $event;
+};
+$got = $likely( $with_frequencies( $likely_event( $apart ), array( 1 => array( 5695 ), 2 => array( 5658 ), 3 => array( 5800 ) ) ) );
+rm_test_check( 'the frequency RotorHazard has for the pilot, not the seat of the rounds', '1=/R2,2=/R1,3=/F4' === $got, "got $got" );
+$got = $likely( $with_frequencies( $likely_event( $apart ), array( 1 => array( 5769 ), 2 => array( 5658 ), 3 => array( 5800 ) ) ) );
+rm_test_check( 'a frequency the profile does not have: none for that pilot', '1=/,2=/R1,3=/F4' === $got, "got $got" );
+$got = $likely( $with_frequencies( $likely_event( $apart ), array( 1 => array( 5695 ), 2 => array( 5658 ) ) ) );
+rm_test_check( 'an empty list, whatever the rounds say: none for that pilot', '1=/R2,2=/R1,3=/' === $got, "got $got" );
+// Pilot 1 flew R2, then R1; pilot 2 R1. R1 has two priority matches, R2 pilot 1 alone: R2 is theirs.
+$got = $likely( $with_frequencies( $likely_event( $apart ), array( 1 => array( 5695, 5658 ), 2 => array( 5658 ) ) ) );
+rm_test_check( 'a frequency only one of them flew is theirs first, matched by frequency', '1=/R2,2=/R1,3=/' === $got, "got $got" );
 
 rm_test_finish();

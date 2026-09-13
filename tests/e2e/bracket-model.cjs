@@ -22,7 +22,8 @@
  *   - the seat a pilot will likely get is the one RotorHazard's automatic frequency assignment
  *     (its default, adaptive calibration) gives without drawing lots, from the seats flown on
  *     before, by start time - as rm_likely_seats() in PHP, whose suite (nextup-schedule) has the
- *     same cases (1.15.0).
+ *     same cases (1.15.0); by RotorHazard's own used_frequencies, matched by frequency, where the
+ *     data carries them (1.16.0).
  *
  * Exit codes follow the other suites: 0 passed, 1 failed, 2 skipped.
  */
@@ -279,6 +280,24 @@ function layoutProblems( model, bracket ) {
 		off[ 3 ].frequency = 0;
 		got = seats( seatData( apart, off ), [ 1, 2, 3 ] );
 		check( 'the seat a pilot came from switched off: none for them', got === '1@2,2@0', got );
+
+		// RotorHazard's own lists, as the connector puts them on every pilot (1.16.0); the rounds
+		// still say pilot 1 on F2 (seat 2), 2 on R1 (0), 3 on F4 (3).
+		const withFrequencies = ( lists ) => ( {
+			...seatData( apart ),
+			pilot_data: { pilots: [ 1, 2, 3 ].map( ( id ) => ( {
+				pilot_id: id,
+				used_frequencies: ( lists[ id ] || [] ).map( ( f ) => ( { b: null, c: null, f } ) ),
+			} ) ) },
+		} );
+		got = seats( withFrequencies( { 1: [ 5695 ], 2: [ 5658 ], 3: [ 5800 ] } ), [ 1, 2, 3 ] );
+		check( 'the frequency RotorHazard has for the pilot, not the seat of the rounds', got === '1@1,2@0,3@3', got );
+		got = seats( withFrequencies( { 1: [ 5769 ], 2: [ 5658 ], 3: [ 5800 ] } ), [ 1, 2, 3 ] );
+		check( 'a frequency the profile does not have: none for that pilot', got === '2@0,3@3', got );
+		got = seats( withFrequencies( { 1: [ 5695 ], 2: [ 5658 ] } ), [ 1, 2, 3 ] );
+		check( 'an empty list, whatever the rounds say: none for that pilot', got === '1@1,2@0', got );
+		got = seats( withFrequencies( { 1: [ 5695, 5658 ], 2: [ 5658 ] } ), [ 1, 2, 3 ] );
+		check( 'a frequency only one of them flew is theirs first, matched by frequency', got === '1@1,2@0', got );
 	}
 
 	section( 'The events on the local site' );

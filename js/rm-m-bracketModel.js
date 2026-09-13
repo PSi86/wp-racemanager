@@ -648,11 +648,52 @@ export function pilotProfile( data, pilotId ) {
  * ------------------------------------------------------------------------------------------ */
 
 /**
+ * What each pilot flew on before, as RotorHazard's automatic frequency assignment looks at it
+ * (1.16.0). RotorHazard goes by each pilot's used_frequencies: its own list of the frequencies they
+ * flew, oldest first and each once, the last one last, one more with every saved race
+ * (RHData.set_pilot_used_frequency). The connector puts it on every pilot of the upload and of the
+ * timer's socket from its version for WP RaceManager 1.16.0 on, and then that list is what counts.
+ * From an older connector, the seats of the rounds flown stand in for it (usedSeats(), 1.15.0) -
+ * the same only while those races were flown on the frequency profile in use.
+ * includes/race-data-functions.php, rm_flown_before(), does the same for the pushes.
+ *
+ * @returns {{by: 'frequency'|'seat', pilots: Map<number, number[]>}} frequencies or node indexes.
+ */
+export function flownBefore( data ) {
+    const frequencies = pilotFrequencies( data );
+    return frequencies ? { by: 'frequency', pilots: frequencies } : { by: 'seat', pilots: usedSeats( data ) };
+}
+
+/**
+ * Each pilot's used_frequencies as the data carries them (1.16.0): the frequencies of the list, in
+ * its order; an empty list for a pilot who has flown nothing yet, as in RotorHazard.
+ *
+ * @returns {Map<number, number[]>|null} null where no pilot carries the list - an older connector.
+ */
+export function pilotFrequencies( data ) {
+    let frequencies = null;
+    for ( const pilot of listOf( data && data.pilot_data && data.pilot_data.pilots ) ) {
+        if ( ! pilot || typeof pilot !== 'object' || ! pilot.pilot_id || ! ( 'used_frequencies' in pilot ) ) {
+            continue;
+        }
+        const list = [];
+        for ( const used of listOf( pilot.used_frequencies ) ) {
+            const f = used && typeof used === 'object' && used.f !== null && used.f !== '' ? Number( used.f ) : NaN;
+            if ( Number.isFinite( f ) ) {
+                list.push( f );
+            }
+        }
+        frequencies = frequencies || new Map();
+        frequencies.set( pilot.pilot_id, list );
+    }
+    return frequencies;
+}
+
+/**
  * The seats each pilot has flown on, oldest first and each once, the last one last (1.15.0): from
- * the rounds of every heat, by start time. RotorHazard keeps a pilot's frequencies that way, one
- * more with every saved race (RHData.set_pilot_used_frequency), and gives out seats by them. Kept
- * by seat, since a round names the node, not the frequency: the same as long as the event keeps its
- * frequency profile. includes/race-data-functions.php, rm_used_seats(), does the same for the pushes.
+ * the rounds of every heat, by start time - RotorHazard's used_frequencies by seat, where the data
+ * does not carry them (flownBefore()). A round names the node, not the frequency.
+ * includes/race-data-functions.php, rm_used_seats(), does the same for the pushes.
  *
  * @returns {Map<number, number[]>} pilot -> node indexes.
  */
@@ -685,45 +726,55 @@ export function usedSeats( data ) {
 /**
  * The seats RotorHazard will give a heat's pilots, as far as that is decided (1.15.0): its automatic
  * frequency assignment (heat_automation.py, run_auto_frequency) with the calibration mode's default,
- * find_best_slot_node_adaptive, followed until it would draw lots. It fills one seat at a time, in
- * node order, looking at who flew there before: a seat only one pilot flew on, as their last seat;
- * then a seat only one pilot flew on at all; then a seat that was the last of only one of them. The
- * pilot seated leaves the other seats' lists. Where none of these is left, it draws lots.
+ * find_best_slot_node_adaptive, followed until it would draw lots. Each seat with a frequency gets
+ * a match for every entry of a pilot's list that has its frequency, the last entry a priority one.
+ * It then fills one seat at a time, in node order: a seat with a single match, a priority one; then
+ * a seat with a single match; then a seat with a single priority match. The pilot seated leaves the
+ * other seats' matches. Where none of these is left, it draws lots. What the pilots flew comes from
+ * flownBefore(): RotorHazard's own lists where the data carries them (1.16.0), matched by frequency
+ * as it does, else the rounds' seats, matched by seat.
  *
  * Only for a heat whose seats are not fixed yet, and only with every pilot of the heat: one more
  * changes who flew where. rm_likely_seats() in includes/race-data-functions.php is the same for the
- * pushes; on race 32 of the local site it named 82 of 142 seats, 81 of them right.
+ * pushes; by seat, on race 32 of the local site, it named 82 of 142 seats, 81 of them right.
  *
  * @param {Object}   data      The race data.
  * @param {number[]} pilotIds  Every pilot of the heat.
- * @param {Map}      [used]    usedSeats(data), when the caller has it already.
+ * @param {Object}   [flown]   flownBefore(data), when the caller has it already.
  * @returns {Map<number, number>} pilot -> node index, for the pilots whose seat is decided.
  */
-export function likelySeats( data, pilotIds, used = usedSeats( data ) ) {
+export function likelySeats( data, pilotIds, flown = flownBefore( data ) ) {
     const fdata = data && data.frequency_data && data.frequency_data.fdata;
-    // The seats with a frequency, each with the pilots who flew there: true for their last seat.
+    const byFrequency = flown.by === 'frequency';
+    // Each seat with a frequency and its matches: {pilotId, last} - last for the last of the list.
     const open = [];
     listOf( fdata ).forEach( ( frequency, seat ) => {
         if ( ! frequency || typeof frequency !== 'object' || ( frequency.frequency != null && Number( frequency.frequency ) === 0 ) ) {
             return; // switched off: RotorHazard's FREQUENCY_ID_NONE, a seat it gives nobody
         }
-        const flown = new Map();
-        for ( const pilotId of pilotIds ) {
-            const seats = used.get( pilotId ) || [];
-            if ( seats.includes( seat ) ) {
-                flown.set( pilotId, seats[ seats.length - 1 ] === seat );
-            }
+        let key = seat;
+        if ( byFrequency ) {
+            key = frequency.frequency != null && Number.isFinite( Number( frequency.frequency ) ) ? Number( frequency.frequency ) : null;
         }
-        open.push( { seat, flown } );
+        const matches = [];
+        for ( const pilotId of pilotIds ) {
+            const list = flown.pilots.get( pilotId ) || [];
+            list.forEach( ( value, index ) => {
+                if ( key !== null && value === key ) {
+                    matches.push( { pilotId, last: index === list.length - 1 } );
+                }
+            } );
+        }
+        open.push( { seat, matches } );
     } );
 
-    const onlyOne = ( entry ) => ( entry.flown.size === 1 ? [ ...entry.flown.keys() ][ 0 ] : null );
+    const single = ( entry ) => ( entry.matches.length === 1 ? entry.matches[ 0 ] : null );
     const steps = [
-        ( entry ) => ( entry.flown.size === 1 && [ ...entry.flown.values() ][ 0 ] ? onlyOne( entry ) : null ),
-        onlyOne,
+        ( entry ) => ( single( entry ) && single( entry ).last ? single( entry ).pilotId : null ),
+        ( entry ) => ( single( entry ) ? single( entry ).pilotId : null ),
         ( entry ) => {
-            const last = [ ...entry.flown ].filter( ( [ , isLast ] ) => isLast );
-            return last.length === 1 ? last[ 0 ][ 0 ] : null;
+            const last = entry.matches.filter( ( match ) => match.last );
+            return last.length === 1 ? last[ 0 ].pilotId : null;
         },
     ];
     const likely = new Map();
@@ -742,7 +793,7 @@ export function likelySeats( data, pilotIds, used = usedSeats( data ) ) {
         likely.set( pick.pilotId, open[ pick.index ].seat );
         open.splice( pick.index, 1 );
         for ( const entry of open ) {
-            entry.flown.delete( pick.pilotId );
+            entry.matches = entry.matches.filter( ( match ) => match.pilotId !== pick.pilotId );
         }
     }
     return likely;

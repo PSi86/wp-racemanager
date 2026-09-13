@@ -131,10 +131,12 @@ Consequences worth keeping in mind when changing this:
   rule and are measured the same: on race 32, 81 of the 82 seats they name. None while a seed may
   still bring a pilot. The push says "Channel likely R3" and keeps "R3?" in `channel`; a channel
   fixed as told is stored without a push, another is told as a change. The page shows "R3?".
-  RotorHazard itself goes by each pilot's `used_frequencies`, which the upload lacks: the rounds' seats
-  stand in for them only while the races were flown on the profile in use - not after a profile
-  change or a migrating RotorHazard update (it empties them, the races stay). Bench, 2024 test
-  database: 56 of 62.
+  RotorHazard itself goes by each pilot's `used_frequencies`; since 1.16.0 the connector sends them
+  with every pilot, in the upload and on the timer's socket, and then they count, matched by
+  frequency (`rm_flown_before()`/`flownBefore()`). From an older connector the rounds' seats stand
+  in - the same only while the races were flown on the profile in use, not after a profile change
+  or a migrating RotorHazard update (it empties the lists, the races stay). Bench, 2024 test
+  database, by seat: 56 of 62.
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is

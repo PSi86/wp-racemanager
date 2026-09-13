@@ -482,6 +482,14 @@ function planRace( key, options ) {
 		} );
 		check( 'the callsigns stand in line; the likely channel held back, the frequency on pointing at it',
 			look.one === look.six && look.style === 'italic' && look.title === 'Likely 5658 MHz - fixed when the heat is called', JSON.stringify( look ) );
+		// The connector from 1.16.0 on puts RotorHazard's own lists on the pilots: they count, not the
+		// rounds' seats (P1 flew node 0, R1, in the rounds; RotorHazard has R3 for them).
+		const lists = { 1: [ 5732 ], 2: [ 5732, 5658 ], 4: [ 5695 ] };
+		const own = { ...data, pilot_data: { pilots: data.pilot_data.pilots.map( ( p ) => ( { ...p, used_frequencies: ( lists[ p.pilot_id ] || [] ).map( ( f ) => ( { b: 'R', c: 0, f } ) ) } ) ) } };
+		await deliver( tab, own );
+		got = await lines( 'Heat 3' );
+		check( "RotorHazard's own frequencies where the data has them", JSON.stringify( got ) === JSON.stringify( [ 'R3?(likely) P1', 'R1?(likely) P2', 'R2?(likely) P4' ] ), JSON.stringify( got ) );
+		await deliver( tab, data );
 		// The race director calls Heat 3: RotorHazard fixes the seats as foretold.
 		data.heat_data.heats[ 2 ] = heat( 3, { auto_frequency: true, status: 2, locked: false }, { 0: { pilot_id: 1, method: 0 }, 1: { pilot_id: 4, method: 0 }, 2: { pilot_id: 2, method: 0 } } );
 		await deliver( tab, data );
