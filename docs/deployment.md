@@ -543,6 +543,21 @@ rounds, which RotorHazard holds on 5769 MHz, a frequency today's profile does no
 - **Timer:** the connector's `/bracketview` shows the likely channels with its next take of the shared
   files, which needs the style for `.pilot-channel.likely` and `.node.forecast` in its page.
 
+1.16.0 goes by RotorHazard's own frequencies for the likely channel. RotorHazard seats a pilot by
+the frequencies they flew, which it keeps on the pilot (`used_frequencies`); the connector sends that
+list with every pilot from its version for 1.16.0 on, in the upload and on the timer's socket. Where
+it is there, the pushes and the views match by frequency as RotorHazard does, and the rounds' seats
+no longer count. Measured on the 4.4.0 bench with the test database of 2024, whose rounds RotorHazard
+keeps on another profile: two FAI 16 brackets flown heat by heat, each heat's likely channels taken
+just before it was called - off the connector's `/bracketview` and from WordPress's own reading of
+the upload - 85 right of 85, the page and WordPress alike every time; with 1.15.0, 56 of 62.
+
+- **Database:** nothing new.
+- **Order:** either may go first. 1.16.0 with an older connector goes by the rounds' seats as 1.15.0
+  did; the new connector's upload with an older WordPress carries one more key, which it does not read.
+- **Browser:** `rm-m-bracketModel.js` changes; a browser holding the 1.15 copy goes by the rounds'
+  seats until it fetches it again.
+
 ---
 
 ## 8 · Rollback
