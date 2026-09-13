@@ -16,26 +16,38 @@ function rm_get_registered_callsigns( $race_id ) {
 
     $registrations_table = $wpdb->prefix . 'rm_registrations'; // cfdb7 table name holds all form replies
 
-    // Query the cfdb7 table for entries matching the race_id
+    // Query the cfdb7 table for entries matching the race_id, in the order they came
     $query = $wpdb->prepare(
-        "SELECT form_value, form_date FROM $registrations_table WHERE race_id = %d",
+        "SELECT form_value, form_date FROM $registrations_table WHERE race_id = %d ORDER BY id",
         $race_id
     );
     $results = $wpdb->get_results( $query );
-    
+
     $nicknames = null;
     $callsign_field = get_option('rm_callsign_field', 'pilot_callsign');
 
     // Process each submission and extract the 'pilot_nickname_1' field.
     if ( $results ) {
         $nicknames = array();
+        // One line per pilot, as RotorHazard imports them: the registrations of one address are one
+        // pilot, at the place of the first, under the callsign sent last. The form refuses a second
+        // one since 1.19.1; a race registered twice before keeps both rows in the admin list.
+        $places = array();
         foreach ( $results as $row ) {
             // Unserialize the data (it’s stored as a serialized array)
             $data = maybe_unserialize( $row->form_value );
-            // TODO: make name of the field configurable in settings
-            if ( isset( $data[$callsign_field] ) ) {
-                $nicknames[] = $data[$callsign_field];
+            if ( ! is_array( $data ) || ! isset( $data[$callsign_field] ) ) {
+                continue;
             }
+            $address = rm_pilot_address( $data['pilot_mail_1'] ?? '' );
+            if ( '' !== $address && isset( $places[ $address ] ) ) {
+                $nicknames[ $places[ $address ] ] = $data[$callsign_field];
+                continue;
+            }
+            if ( '' !== $address ) {
+                $places[ $address ] = count( $nicknames );
+            }
+            $nicknames[] = $data[$callsign_field];
         }
         return $nicknames;
     }

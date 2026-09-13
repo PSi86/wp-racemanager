@@ -138,17 +138,25 @@ function rm_pilot_namespace_source() {
 }
 
 /**
- * The pilot key for an email address.
+ * An email address as the pilot key reads it: trimmed and lower-cased. "Pilot@Example.com " and
+ * "pilot@example.com" are one pilot. Nothing beyond that -- a typo in the address is a different
+ * address, and so a different pilot.
  *
- * The address is trimmed and lower-cased first: "Pilot@Example.com " and "pilot@example.com" are
- * one pilot. Nothing beyond that -- a typo in the address is a different address, and so a
- * different pilot.
+ * @param mixed $email The address the pilot registered with.
+ * @return string The address, or '' when there is none.
+ */
+function rm_pilot_address( $email ) {
+    return is_scalar( $email ) ? strtolower( trim( (string) $email ) ) : '';
+}
+
+/**
+ * The pilot key for an email address, read as rm_pilot_address() reads it.
  *
  * @param string $email The address the pilot registered with.
  * @return string A version-5 UUID, or '' when there is no address or no usable namespace.
  */
 function rm_pilot_key( $email ) {
-    $email = strtolower( trim( (string) $email ) );
+    $email = rm_pilot_address( $email );
     if ( '' === $email ) {
         return '';
     }

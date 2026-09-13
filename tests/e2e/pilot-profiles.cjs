@@ -21,7 +21,9 @@
  *   - deleting the registration takes profile and photo away;
  *   - the confirmation mail names the race - its title, not its ID - with its dates, where it takes
  *     place and a map, its page, its calendar entry and its next-up view, and leaves no tag unfilled;
- *     the calendar entry is there to open (1.19.0; read from DDEV's Mailpit).
+ *     the calendar entry is there to open (1.19.0; read from DDEV's Mailpit);
+ *   - the same address sent again for the race, in capitals and without a photo, is refused at the
+ *     address field, saying why, and mails nothing: one registration per pilot and race (1.19.1).
  *
  * Exit codes follow the other suites: 0 passed, 1 failed, 2 skipped.
  */
@@ -163,11 +165,37 @@ const blue = ( [ r, g, b ] ) => b > 180 && r < 80 && g < 80;
 			200 === ics.status() && /^text\/calendar/.test( ics.headers()[ 'content-type' ] || '' ) && body.startsWith( 'BEGIN:VCALENDAR\r\n' )
 				&& body.includes( `SUMMARY:${ m.title }\r\n` ) && body.includes( 'LOCATION:E2E Halle\\nTeststraße 1\\, 1010 Wien\r\n' ) && /DTSTART:\d{8}T\d{6}Z\r\n/.test( body ),
 			`${ ics.status() } ${ ics.headers()[ 'content-type' ] } ${ body.slice( 0, 400 ) }` );
+		section( 'The same address again, in capitals and without a photo (1.19.1)' );
+		await tab.goto( `${ state.url }?race_id=${ state.race }`, { waitUntil: 'networkidle' } );
+		await tab.fill( 'input[name="pilot_name_1"]', 'E2E Pilot' );
+		await tab.fill( 'input[name="pilot_nickname_1"]', 'E2E-Again' );
+		await tab.fill( 'input[name="pilot_phone_1"]', '+43 660 0000000' );
+		await tab.fill( 'input[name="pilot_mail_1"]', MAIL.toUpperCase() );
+		await tab.check( 'input[name="acceptance-pay"]' );
+		await tab.check( 'input[name="acceptance-media"]' );
+		// The mails to the address so far, by ID: the second submission follows the first mail within a
+		// second, too close for a time to tell them apart.
+		const mailsTo = async () => ( ( await ( await mailpit.get( `/api/v1/search?query=${ encodeURIComponent( `to:${ MAIL }` ) }&limit=50` ) ).json().catch( () => ( {} ) ) ).messages || [] ).map( ( hit ) => hit.ID );
+		const mailedBefore = new Set( await mailsTo() );
+		await tab.click( 'form.wpcf7-form input[type="submit"]' );
+		await tab.waitForFunction( () => {
+			const form = document.querySelector( 'form.wpcf7-form' );
+			return form && /\b(sent|failed|invalid|spam|aborted)\b/.test( form.className );
+		}, null, { timeout: 30000 } );
+		const again = await tab.$eval( 'form.wpcf7-form', ( f ) => ( {
+			status: ( f.className.match( /\b(sent|failed|invalid|spam|aborted)\b/ ) || [ '' ] )[ 0 ],
+			tip: ( f.querySelector( '[data-name="pilot_mail_1"] .wpcf7-not-valid-tip' ) || {} ).textContent || '',
+		} ) );
+		check( 'refused at the address, saying why', 'invalid' === again.status && again.tip.includes( 'already registered for this race' ), JSON.stringify( again ) );
+		// A mail would have come within the time the first one took; wait that long and a little more.
+		await tab.waitForTimeout( 3000 );
+		const mailed = ( await mailsTo() ).filter( ( id ) => ! mailedBefore.has( id ) ).length;
+		check( 'and no second confirmation mail', mailedBefore.size > 0 && 0 === mailed, `${ mailed } more, ${ mailedBefore.size } before` );
 		await mailpit.dispose();
 
 		section( 'What the plugin made of it' );
 		const got = await site( 'inspect', MAIL );
-		check( 'the registration is stored, with the country\'s code', 1 === got.registrations && 'AT' === got.stored.country, JSON.stringify( got.stored ) );
+		check( 'the registration is stored, once, with the country\'s code', 1 === got.registrations && 'AT' === got.stored.country, JSON.stringify( { registrations: got.registrations, ...got.stored } ) );
 		check( 'the profile has the country and a photo', got.profile && 'AT' === got.profile.country && /^[0-9a-f]{8}$/.test( got.profile.photo || '' ), JSON.stringify( got.profile ) );
 		const p = got.photo || {};
 		check( 'the photo: a square JPEG of 256 pixels', 256 === p.width && 256 === p.height && 'image/jpeg' === p.mime, JSON.stringify( { w: p.width, h: p.height, mime: p.mime } ) );

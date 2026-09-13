@@ -626,6 +626,27 @@ optional, typed into its meta box; the calendar entry needs both dates and a pub
 race-date block and the mail share their formatting (`rm_format_event_dates()`); the block reads as
 before. No database change beyond the new meta `_race_location`.
 
+1.19.1 lets a pilot register once per race. The registration form took the same address as often as
+it was sent, and mailed each: on production the "2026-09-11 Testrace" had one pilot registered twice,
+once with a photo and once without, and its page listed the pilot twice - while RotorHazard, which
+takes one address as one pilot (its pilot key, [`pilot-identity.md`](pilot-identity.md)), imported
+one. Now the form refuses a second registration of an address for the race at the address field -
+whatever its case and blanks, as the key reads addresses - and mails nothing. The message is the
+form's own, *The email address is registered for the race already* in its *Messages* tab, in English
+until it is changed there; for the site's German form, say:
+
+```
+Mit dieser E-Mail-Adresse ist schon eine Anmeldung für dieses Rennen eingegangen. Jeder Pilot meldet sich mit einer eigenen Adresse an; für Änderungen antworte bitte auf die Bestätigungsmail.
+```
+
+The registrations page refuses one added by hand alike. The race page's list of registered pilots
+(`[rm_registered]`) counts pilots, as the timer imports them: a race registered twice before shows the
+pilot once, at the first registration's place under the callsign sent last; the admin list keeps both
+rows, one to delete there. Two people need two addresses - a parent registering two children, say -
+as they did on the timer already, which made one pilot of them under the callsign sent last.
+`includes/admin-registrations.php`, `includes/db-handler.php` and `includes/pilot-key.php` change; no
+database change.
+
 ---
 
 ## 8 · Rollback
