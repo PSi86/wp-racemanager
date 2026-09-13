@@ -515,6 +515,34 @@ bracket and next-up views now load beside it: `rm_viewer.css` styles the page's 
 well and has no place on a race's page. Both are enqueued with the version. Nothing changes where the
 block is not set otherwise.
 
+1.15.0 tells a pilot the channel they will likely fly on before it is fixed. 1.13 named a channel
+only once a heat's seats were: a heat from RotorHazard's generator gets them when the race director
+calls it, and since the timer uploads when a race is scheduled, the channel reached the pilot just
+before the race - the first push, "Next race is Heat 9.", still went out up to three heats ahead, but
+without it. Now that push says "Next race is Heat 9. Channel likely R3", the heats show "R3?" (held
+back, and without "?" once fixed), and when the heat is called nothing more is said if R3 it is;
+another channel goes out as "Channel changed to R1 for race Heat 9". A likely channel that changes
+before is told ("Channel for race Heat 9 likely R1"). The channel is the one RotorHazard's own
+assignment gives without drawing lots, from the seats the pilots flew on before - on the 40 heats of
+race 32 with automatic frequencies 82 of 142 seats, 81 of them right; none for a pilot it leaves to
+chance, and none in a heat while a seed may still bring someone. A timer set to manual calibration
+assigns by another of RotorHazard's rules (`find_best_slot_node_basic`), which this does not follow:
+there a likely channel can be wrong. And it goes by the seats of the rounds flown, while RotorHazard
+goes by each pilot's frequencies (`used_frequencies`, not in the upload): the same as long as the
+saved races were flown on the frequency profile in use. Races of an earlier event on another profile
+in the same database, or a database a RotorHazard update migrated - which empties the frequencies and
+keeps the races - make it wrong for some pilots. On the 4.4.0 bench, with the test database of 2024
+and two FAI 16 brackets flown on it, 56 of 62 were right; the misses looked into came from the 2024
+rounds, which RotorHazard holds on 5769 MHz, a frequency today's profile does not have.
+
+- **Database:** nothing new. The column `channel` of the subscriptions keeps a likely channel as
+  "R3?". Going back to 1.14 reads that as a channel told, so a pilot told a likely one gets it once
+  more as a change.
+- **Browser:** `rm-m-displayHeats.js`, `rm-m-bracketModel.js` and `css/rm_viewer.css` change. A browser
+  holding the 1.14 model with the new view shows no likely channel until it fetches the model again.
+- **Timer:** the connector's `/bracketview` shows the likely channels with its next take of the shared
+  files, which needs the style for `.pilot-channel.likely` and `.node.forecast` in its page.
+
 ---
 
 ## 8 · Rollback

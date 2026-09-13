@@ -4,7 +4,8 @@
  * includes/pwa-subscription-handler.php, from 1.13.0 on.
  *
  * A channel is named only once the heat's seats are fixed; until then rm_getUpcomingRacePilots()
- * hands over '' (nextup-schedule covers when that is). What has to hold:
+ * hands over '' and, where it can tell, the channel the pilot will likely get (nextup-schedule covers
+ * when that is). What has to hold:
  *
  *   - a schedule without a channel says so by leaving it out, and the channel follows once the
  *     seats are fixed, told as such - not as a change;
@@ -14,7 +15,10 @@
  *     channel yet says nothing about one;
  *   - a subscription stored before 1.13.0 (channel NULL) is compared by heat and slot, as 1.12 did,
  *     so updating the plugin does not repeat the pushes of a race under way;
- *   - until the update has added the column, nothing is written to it.
+ *   - until the update has added the column, nothing is written to it;
+ *   - the channel the pilot will likely get goes out with the schedule, marked as likely, and again
+ *     when it changes; when the heat is called, one that came true is not told again, another is told
+ *     as a change; one that can no longer be told stands as said (1.15.0).
  */
 
 namespace RaceManager {
@@ -108,8 +112,11 @@ function rm_pc_subscriber( $heat_id, $slot_id, $channel ) {
     return $row;
 }
 
-/** Pilot 7's entry of rm_getUpcomingRacePilots(); $channel '' while the seats are not fixed. */
-function rm_pc_upcoming( $heat_id, $slot_id, $channel ) {
+/**
+ * Pilot 7's entry of rm_getUpcomingRacePilots(); $channel '' while the seats are not fixed, $likely
+ * the channel RotorHazard will likely give then, '' where it cannot be told.
+ */
+function rm_pc_upcoming( $heat_id, $slot_id, $channel, $likely = '' ) {
     return array(
         'heat_id'          => $heat_id,
         'heat_displayname' => 'Heat ' . $heat_id,
@@ -117,6 +124,7 @@ function rm_pc_upcoming( $heat_id, $slot_id, $channel ) {
         'callsign'         => 'TP7',
         'slot_id'          => $slot_id,
         'channel'          => $channel,
+        'likely'           => $likely,
     );
 }
 
@@ -173,6 +181,37 @@ list( $pushed ) = rm_pc_run( rm_pc_subscriber( 9, 2, 'F2' ), rm_pc_upcoming( 10,
 rm_test_check( 'the same channel there', array( 'TP7: Reassigned to Heat 10. Channel remains F2' ) === $pushed, var_export( $pushed, true ) );
 list( $pushed ) = rm_pc_run( rm_pc_subscriber( 9, 2, 'F2' ), rm_pc_upcoming( 10, 1, 'R2' ) );
 rm_test_check( 'another channel there', array( 'TP7: Reassigned to Heat 10. Channel is R2' ) === $pushed, var_export( $pushed, true ) );
+
+rm_test_section( 'The likely channel, until the heat is called' );
+
+list( $pushed, $stored ) = rm_pc_run( rm_pc_subscriber( 0, 0, null ), rm_pc_upcoming( 9, 0, '', 'R3' ) );
+rm_test_check( 'scheduled: the heat and the likely channel, marked', array( 'TP7: Next race is Heat 9. Channel likely R3' ) === $pushed, var_export( $pushed, true ) );
+rm_test_check( '  and R3? stored', 'R3?' === $stored, var_export( $stored, true ) );
+list( $pushed ) = rm_pc_run( rm_pc_subscriber( 9, 0, 'R3?' ), rm_pc_upcoming( 9, 0, '', 'R3' ) );
+rm_test_check( 'the next upload, the same: nothing', array() === $pushed, var_export( $pushed, true ) );
+
+list( $pushed, $stored ) = rm_pc_run( rm_pc_subscriber( 9, 0, 'R3?' ), rm_pc_upcoming( 9, 2, 'R3' ) );
+rm_test_check( 'called on the channel told: nothing', array() === $pushed, var_export( $pushed, true ) );
+rm_test_check( '  but R3 stored, as fixed', 'R3' === $stored, var_export( $stored, true ) );
+list( $pushed, $stored ) = rm_pc_run( rm_pc_subscriber( 9, 0, 'R3?' ), rm_pc_upcoming( 9, 1, 'R2' ) );
+rm_test_check( 'called on another: the change', array( 'TP7: Channel changed to R2 for race Heat 9' ) === $pushed, var_export( $pushed, true ) );
+rm_test_check( '  and R2 stored', 'R2' === $stored, var_export( $stored, true ) );
+
+list( $pushed, $stored ) = rm_pc_run( rm_pc_subscriber( 9, 0, 'R3?' ), rm_pc_upcoming( 9, 0, '', 'F2' ) );
+rm_test_check( 'another one likely now: told', array( 'TP7: Channel for race Heat 9 likely F2' ) === $pushed, var_export( $pushed, true ) );
+rm_test_check( '  and F2? stored', 'F2?' === $stored, var_export( $stored, true ) );
+list( $pushed ) = rm_pc_run( rm_pc_subscriber( 9, 0, '' ), rm_pc_upcoming( 9, 0, '', 'F2' ) );
+rm_test_check( 'likely only from a later upload on: told', array( 'TP7: Channel for race Heat 9 likely F2' ) === $pushed, var_export( $pushed, true ) );
+list( $pushed, $stored, $updates ) = rm_pc_run( rm_pc_subscriber( 9, 0, 'R3?' ), rm_pc_upcoming( 9, 0, '', '' ) );
+rm_test_check( 'no longer to be told: nothing, and R3? stands', array() === $pushed && array() === $updates, var_export( array( $pushed, $updates ), true ) );
+
+list( $pushed, $stored ) = rm_pc_run( rm_pc_subscriber( 9, 2, 'F2' ), rm_pc_upcoming( 9, 0, '', 'R3' ) );
+rm_test_check( 'the plan reset: said so, with the likely channel', array( 'TP7: Channel for race Heat 9 is being reassigned, likely R3' ) === $pushed, var_export( $pushed, true ) );
+rm_test_check( '  and R3? stored', 'R3?' === $stored, var_export( $stored, true ) );
+list( $pushed ) = rm_pc_run( rm_pc_subscriber( 9, 2, 'F2' ), rm_pc_upcoming( 10, 0, '', 'R3' ) );
+rm_test_check( 'another heat: the likely channel there', array( 'TP7: Reassigned to Heat 10. Channel likely R3' ) === $pushed, var_export( $pushed, true ) );
+list( $pushed ) = rm_pc_run( rm_pc_subscriber( 0, 0, null ), rm_pc_upcoming( 9, 2, 'F2', 'R3' ) );
+rm_test_check( 'a fixed channel goes before a likely one', array( 'TP7: Next race is Heat 9. Channel is F2' ) === $pushed, var_export( $pushed, true ) );
 
 rm_test_section( 'A subscription stored before 1.13.0 (channel NULL)' );
 

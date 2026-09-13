@@ -38,6 +38,12 @@ class PWA_Subscription_Handler {
      */
     const CHANNEL_NOT_KNOWN = '?';
 
+    /**
+     * How the column channel marks a channel told as likely (1.15.0): "R3?". A channel's name never
+     * ends in it, and the mark alone is CHANNEL_NOT_KNOWN.
+     */
+    const LIKELY = '?';
+
     public function __construct() {
         //add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
         //$this->register_ajax_handlers();
@@ -187,9 +193,10 @@ class PWA_Subscription_Handler {
      * Send notifications to push subscribers when a pilot’s upcoming race schedule changes.
      *
      * This function takes the current race_id and the upcoming pilots list (each element contains:
-     * heat_id, heat_displayname, pilot_id, callsign, slot_id, and channel). It retrieves all subscriptions for
-     * the given race_id from the rm_subscriptions table, compares the stored heat_id and slot_id for
-     * each pilot with the new data, and sends a push notification with a precise message if needed.
+     * heat_id, heat_displayname, pilot_id, callsign, slot_id, channel and likely). It retrieves all
+     * subscriptions for the given race_id from the rm_subscriptions table, compares the stored heat
+     * and channel told for each pilot with the new data, and sends a push notification with a precise
+     * message if needed.
      *
      * The notification messages are:
      *   - For a new schedule: "[callsign]: Next race is [heat]. Channel is [channel]"
@@ -197,13 +204,21 @@ class PWA_Subscription_Handler {
      *   - For a change of heat: "[callsign]: Reassigned to [heat]. Channel is (remains) [channel]"
      *   - For removal: "[callsign]: You have been removed from your scheduled heat [heat]."
      *
-     * A channel is named only once the heat's seats are fixed (1.13.0): until then an entry's channel
-     * is '', the schedule goes out without one ("Next race is [heat]."), and the channel follows as
-     * "Channel for race [heat] is [channel]" when RotorHazard has given out the seats. Before 1.13.0
-     * a heat from RotorHazard's generator was announced with the channel of its slot's place in the
-     * plan, and corrected when the race director called it. The channel told is kept in the column
-     * channel and compared as text, so a new frequency on the same seat is told as well; NULL there
-     * is a subscription stored before 1.13.0, compared by heat and slot as it was then.
+     * A channel is named as fixed only once the heat's seats are (1.13.0); until then an entry's
+     * channel is ''. Before 1.13.0 a heat from RotorHazard's generator was announced with the channel
+     * of its slot's place in the plan, and corrected when the race director called it; 1.13 left it
+     * out ("Next race is [heat].") and told it when the heat was called - just before the race,
+     * since the timer uploads when a race is scheduled.
+     *
+     * So from 1.15.0 the channel RotorHazard will likely give the pilot (the entry's likely) goes out
+     * with the schedule, marked as such ("Channel likely [channel]"), and again when it changes
+     * ("Channel for race [heat] likely [channel]"). When the heat is called, a channel that came true
+     * is not told again; another one is told as a change. A likely channel that can no longer be
+     * told - the pilots of the heat left it open again - stands as said.
+     *
+     * The channel told is kept in the column channel - the likely one with LIKELY after it - and
+     * compared as text, so a new frequency on the same seat is told as well; NULL there is a
+     * subscription stored before 1.13.0, compared by heat and slot as it was then.
      *
      * After sending a notification, the subscriber’s record is updated accordingly.
      *
@@ -284,8 +299,11 @@ class PWA_Subscription_Handler {
                 $newHeat   = (int)$newEntry['heat_id'];
                 $newSlot   = (int)$newEntry['slot_id'];
                 $channel   = (string)$newEntry['channel']; // '' while the seats are not fixed
+                $likely    = '' === $channel ? (string)($newEntry['likely'] ?? '') : '';
                 $callsign  = $newEntry['callsign'];
                 $heatDisplay = $newEntry['heat_displayname'];
+                // What there is to tell, as the column keeps it: the channel, the likely one, or none.
+                $now = '' !== $channel ? $channel : ('' !== $likely ? $likely . self::LIKELY : '');
 
                 // The channel this subscriber was told last. A subscription stored before 1.13.0 -
                 // or while the column is missing - has none: that version told every schedule with
@@ -293,58 +311,80 @@ class PWA_Subscription_Handler {
                 // another place one we do not know.
                 $told = $subscriber['channel'] ?? null;
                 if (null === $told) {
-                    $told = $storedSlot === $newSlot ? $channel : self::CHANNEL_NOT_KNOWN;
+                    $told = $storedSlot === $newSlot ? $now : self::CHANNEL_NOT_KNOWN;
                 }
-                $told = (string)$told;
+                $told       = (string)$told;
+                $toldLikely = strlen($told) > strlen(self::LIKELY) && self::LIKELY === substr($told, -strlen(self::LIKELY));
+                $toldFixed  = '' !== $told && self::CHANNEL_NOT_KNOWN !== $told && !$toldLikely;
 
                 if ($storedHeat === 0) {
                     // New schedule.
-                    $message = "{$pilotCallsign}: Next race is {$heatDisplay}." . ('' === $channel ? '' : " Channel is {$channel}");
+                    $message = "{$pilotCallsign}: Next race is {$heatDisplay}.";
+                    if ('' !== $channel) {
+                        $message .= " Channel is {$channel}";
+                    } elseif ('' !== $likely) {
+                        $message .= " Channel likely {$likely}";
+                    }
                 } elseif ($storedHeat === $newHeat) {
-                    if ($told === $channel) {
-                        // No change; no notification needed.
+                    if ($told === $now || ('' === $now && $toldLikely)) {
+                        // No change, or a likely channel that can no longer be told: what was said stands.
                         continue;
                     }
-                    if ('' === $channel) {
+                    if ('' !== $channel) {
+                        if ($told === $channel . self::LIKELY) {
+                            // The seats are fixed as told: kept, not told again.
+                            $message = null;
+                        } elseif ('' === $told) {
+                            // The seats are fixed now.
+                            $message = "{$pilotCallsign}: Channel for race {$heatDisplay} is {$channel}";
+                        } else {
+                            $message = "{$pilotCallsign}: Channel changed to {$channel} for race {$heatDisplay}";
+                        }
+                    } elseif ($toldFixed) {
                         // The seats are given out again: the race director reset the heat's plan.
-                        $message = "{$pilotCallsign}: Channel for race {$heatDisplay} is being reassigned";
-                    } elseif ('' === $told) {
-                        // The seats are fixed now.
-                        $message = "{$pilotCallsign}: Channel for race {$heatDisplay} is {$channel}";
+                        $message = "{$pilotCallsign}: Channel for race {$heatDisplay} is being reassigned"
+                            . ('' === $likely ? '' : ", likely {$likely}");
+                    } elseif ('' !== $likely) {
+                        $message = "{$pilotCallsign}: Channel for race {$heatDisplay} likely {$likely}";
                     } else {
-                        $message = "{$pilotCallsign}: Channel changed to {$channel} for race {$heatDisplay}";
+                        // Told by a subscription from before 1.13.0, and not known which.
+                        $message = "{$pilotCallsign}: Channel for race {$heatDisplay} is being reassigned";
                     }
                 } else {
                     // Heat changed.
                     $message = "{$pilotCallsign}: Reassigned to {$heatDisplay}.";
                     if ('' !== $channel) {
                         $message .= $told === $channel ? " Channel remains {$channel}" : " Channel is {$channel}";
+                    } elseif ('' !== $likely) {
+                        $message .= " Channel likely {$likely}";
                     }
                 }
-                
-                $subscription = Subscription::create([
-                    'endpoint' => $subscriber['endpoint'],
-                    'publicKey' => $subscriber['p256dh_key'],
-                    'authToken' => $subscriber['auth_key'],
-                ]);
 
-                $title = 'Race Update';
+                if (null !== $message) {
+                    $subscription = Subscription::create([
+                        'endpoint' => $subscriber['endpoint'],
+                        'publicKey' => $subscriber['p256dh_key'],
+                        'authToken' => $subscriber['auth_key'],
+                    ]);
 
-                $payload = json_encode([
-                    'title' => $title,
-                    'body'  => $message,
-                ]);
-                $webPush->queueNotification($subscription, $payload);
-                
-                $this->sendPushNotificationForSubscriber($subscriber, $message); // Mock function with log output
-                
-                $notifiedPilotIds[] = $pilotId;
+                    $title = 'Race Update';
+
+                    $payload = json_encode([
+                        'title' => $title,
+                        'body'  => $message,
+                    ]);
+                    $webPush->queueNotification($subscription, $payload);
+
+                    $this->sendPushNotificationForSubscriber($subscriber, $message); // Mock function with log output
+
+                    $notifiedPilotIds[] = $pilotId;
+                }
 
                 // Update the subscriber record with the new heat and slot, and the channel told.
                 $set    = array( 'heat_id' => $newHeat, 'slot_id' => $newSlot, 'heat_displayname' => $heatDisplay );
                 $format = array( '%d', '%d', '%s' );
                 if ( $keepsChannel ) {
-                    $set['channel'] = $channel;
+                    $set['channel'] = $now;
                     $format[]       = '%s';
                 }
                 $wpdb->update( $table_name, $set, array( 'id' => $subscriber['id'] ), $format, array( '%d' ) );

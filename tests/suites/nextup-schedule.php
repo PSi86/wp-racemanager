@@ -14,7 +14,12 @@
  *     position equals seed_rank: a pilot who never started has no position;
  *   - a pilot's channel is that of the slot's node, not of its place in the list, and it is named
  *     only once the heat's seats are fixed - flown, confirmed, or without automatic frequencies
- *     (1.13.0).
+ *     (1.13.0);
+ *   - until then, the channel RotorHazard will likely give the pilot is named as such, where its
+ *     automatic frequency assignment decides it without drawing lots: from the seats the heat's
+ *     pilots flew on before, by start time, in the order its default (adaptive calibration) fills
+ *     the seats - and not at all while a seed may still bring somebody; one whose source has its
+ *     result without that rank brings nobody (1.15.0).
  */
 
 require_once __DIR__ . '/../bootstrap.php';
@@ -264,5 +269,89 @@ $event['frequency_data']['fdata'][1] = array( 'band' => 'R', 'channel' => 2, 'fr
 $event['frequency_data']['fdata'][3] = array( 'band' => null, 'channel' => null, 'frequency' => 0 );
 $got = $channels( $event );
 rm_test_check( 'a node switched off: no channel', '1@1=,2@3=' === $got, "got $got" );
+
+rm_test_section( 'The likely channel, before the seats are fixed' );
+// Heat 71, generated and not called yet: pilots 1, 2 and 3 in the plan's order. What they flew
+// before comes from the rounds of other heats; the profile is R1, R2, F2, F4.
+$round = function ( $time, $seats ) {
+    $nodes = array();
+    foreach ( $seats as $pilot_id => $node_index ) {
+        $nodes[] = array( 'pilot_id' => $pilot_id, 'callsign' => 'P' . $pilot_id, 'node_index' => $node_index );
+    }
+    return array( 'start_time_formatted' => '2025-06-01 ' . $time, 'nodes' => $nodes );
+};
+$likely_event = function ( $rounds, $heat_keys = array(), $slots = null ) use ( $elimination ) {
+    $slots = $slots ?? array( array( 'pilot_id' => 1 ), array( 'pilot_id' => 2 ), array( 'pilot_id' => 3 ) );
+    $heat  = array_merge( rm_test_heat( 71, 3, 0, $slots ), array( 'auto_frequency' => true, 'status' => 0, 'locked' => false ), $heat_keys );
+    $heats = array();
+    foreach ( $rounds as $heat_id => $heat_rounds ) {
+        $heats[ (string) $heat_id ] = array( 'heat_id' => $heat_id, 'rounds' => $heat_rounds );
+    }
+    return rm_test_event( 71, array( $heat ), array( $elimination ), array( 'heats' => $heats ) );
+};
+$likely = function ( $event ) {
+    $out = array();
+    foreach ( (array) rm_getUpcomingRacePilots( $event ) as $row ) {
+        $out[] = $row['pilot_id'] . '=' . $row['channel'] . '/' . ( $row['likely'] ?? 'none' );
+    }
+    return implode( ',', $out );
+};
+
+$apart = array( 60 => array( $round( '10:00:00.000', array( 1 => 2, 2 => 0, 3 => 3 ) ) ) );
+$got   = $likely( $likely_event( $apart ) );
+rm_test_check( 'each on a seat of their own before: that seat, as likely', '1=/F2,2=/R1,3=/F4' === $got, "got $got" );
+$got = $likely( $likely_event( $apart, array( 'status' => 2 ) ) );
+rm_test_check( 'the plan confirmed: the channel, nothing likely', '1=R1/,2=R2/,3=F2/' === $got, "got $got" );
+
+// Pilots 1 and 2 come from the same seat: RotorHazard draws lots between them.
+$got = $likely( $likely_event( array( 60 => array( $round( '10:00:00.000', array( 1 => 1, 3 => 3 ) ), $round( '10:05:00.000', array( 2 => 1 ) ) ) ) ) );
+rm_test_check( 'two from the same seat: none for them, the third still told', '1=/,2=/,3=/F4' === $got, "got $got" );
+
+// Pilot 1 flew on seats 1 and 0, pilot 2 on 0 and 2, pilot 3 on 2. Seat 1 has only pilot 1, so it
+// is theirs first, though nobody else came from seat 0 last; then seat 0 has only pilot 2, and seat 2
+// only pilot 3.
+$rounds = array(
+    60 => array( $round( '11:00:00.000', array( 2 => 2 ) ) ),
+    61 => array( $round( '10:00:00.000', array( 1 => 1, 2 => 0 ) ), $round( '10:30:00.000', array( 1 => 0, 3 => 2 ) ) ),
+);
+$got = $likely( $likely_event( $rounds ) );
+rm_test_check( 'a seat only one of them flew on is theirs first, as RotorHazard gives them out', '1=/R2,2=/R1,3=/F2' === $got, "got $got" );
+// Asked only where it exists, so that against a version without it the checks after these still run.
+$used_seats = function ( $event ) {
+    return function_exists( 'rm_used_seats' ) ? rm_used_seats( $event ) : null;
+};
+$used = $used_seats( $likely_event( $rounds ) );
+rm_test_check( 'the seats flown on go by start time, not by where the rounds are listed', array( 1 => array( 1, 0 ), 2 => array( 0, 2 ), 3 => array( 2 ) ) === $used, var_export( $used, true ) );
+$used = $used_seats( $likely_event( array( 60 => array( $round( '09:00:00.000', array( 1 => 0 ) ), $round( '09:10:00.000', array( 1 => 1 ) ), $round( '09:20:00.000', array( 1 => 0 ) ) ) ) ) );
+rm_test_check( 'a seat flown on again counts once, as the last', array( 1 => array( 1, 0 ) ) === $used, var_export( $used, true ) );
+
+$got = $likely( $likely_event( $apart, array(), array( array( 'pilot_id' => 1 ), array( 'pilot_id' => 5 ) ) ) );
+rm_test_check( 'a pilot who has not flown yet: none for them', '1=/F2,5=/' === $got, "got $got" );
+$seeded = array( array( 'pilot_id' => 1 ), array( 'pilot_id' => 2 ), array( 'method' => 1, 'seed_id' => 60, 'seed_rank' => 3 ) );
+$got    = $likely( $likely_event( $apart, array(), $seeded ) );
+rm_test_check( 'a seed from a heat not flown yet: none for anyone of the heat', '1=/,2=/' === $got, "got $got" );
+// Heat 60 has flown with two pilots: its third rank brings nobody, as FAI 32 round 1 seeds do in an
+// event of 24.
+$event = $likely_event( $apart, array(), $seeded );
+$event['result_data']['heats']['60']['leaderboard'] = array(
+    'by_race_time' => array( rm_test_entry( 1, 1 ), rm_test_entry( 2, 2 ) ),
+    'meta'         => array( 'primary_leaderboard' => 'by_race_time' ),
+);
+$got = $likely( $event );
+rm_test_check( 'a seed that brings nobody: no pilot, the others told', '1=/F2,2=/R1' === $got, "got $got" );
+$seeded[2] = array( 'method' => 2, 'seed_id' => 2, 'seed_rank' => 3 );
+$event     = $likely_event( $apart, array(), $seeded );
+$got       = $likely( $event );
+rm_test_check( 'a seed from a class without a result: none for anyone', '1=/,2=/' === $got, "got $got" );
+$event['result_data']['classes'] = array( '2' => array( 'id' => 2, 'ranking' => false, 'leaderboard' => array(
+    'by_race_time' => array( rm_test_entry( 1, 1 ), rm_test_entry( 2, 2 ) ),
+    'meta'         => array( 'primary_leaderboard' => 'by_race_time' ),
+) ) );
+$got = $likely( $event );
+rm_test_check( 'a class seed beyond its result: no pilot, the others told', '1=/F2,2=/R1' === $got, "got $got" );
+$event = $likely_event( $apart );
+$event['frequency_data']['fdata'][3] = array( 'band' => 'F', 'channel' => 4, 'frequency' => 0 );
+$got = $likely( $event );
+rm_test_check( 'the seat a pilot came from switched off: none for them', '1=/F2,2=/R1,3=/' === $got, "got $got" );
 
 rm_test_finish();

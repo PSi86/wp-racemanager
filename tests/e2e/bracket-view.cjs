@@ -19,6 +19,10 @@
  *   - a heat shows a line per pilot and per slot its seeding will fill, none for a free seat, each
  *     with its seat's video channel once the seats are fixed - by hand, confirmed or flown - and
  *     none before (1.13.0);
+ *   - before, the channel a pilot will likely get, marked ("R1?"), where RotorHazard's way of giving
+ *     out the seats decides it from the seats flown on before; an empty place for a pilot it does
+ *     not decide, and nothing while a seed may still bring somebody - but a seed from a result
+ *     without its rank brings nobody (1.15.0);
  *   - a Chase the Ace final shows the rule, the rounds flown and each pilot's wins, the winner
  *     marked;
  *   - the pilot filter keeps the pilot's heats and the heats they feed;
@@ -386,6 +390,103 @@ function planRace( key, options ) {
 		await deliver( tab, data );
 		check( 'no frequency data: no channel, the same lines',
 			( await tab.$$( '.pilot-channel' ) ).length === 0 && JSON.stringify( await lines( 'Heat 1' ) ) === JSON.stringify( [ 'P1', 'P2', 'P8 has a long callsign', 'P3' ] ), JSON.stringify( await lines( 'Heat 1' ) ) );
+		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
+		await tab.close();
+	}
+
+	section( 'The likely channel, before the seats are fixed (1.15.0)' );
+	{
+		const tab = await openPage( STYLED_PAGE );
+		const fdata = [ 5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917 ].map( ( frequency, i ) => ( { band: 'R', channel: i + 1, frequency } ) );
+		const heat = ( id, keys, seats ) => ( {
+			id,
+			displayname: `Heat ${ id }`,
+			class_id: null,
+			...keys,
+			slots: Array.from( { length: 8 }, ( _, node ) => ( {
+				id: id * 10 + node, node_index: node, pilot_id: null, method: -1, seed_rank: null, seed_id: null, ...( seats[ node ] || {} ),
+			} ) ),
+		} );
+		const assigned = ( ...ids ) => Object.fromEntries( ids.map( ( id, node ) => [ node, { pilot_id: id, method: 0 } ] ) );
+		const planned = { auto_frequency: true, status: 0, locked: false };
+		const flownKeys = { auto_frequency: true, status: 2, locked: true };
+		// A heat flown at `time`, `seats` pilot -> node: its round names the node each pilot was on.
+		const flown = ( id, time, seats ) => {
+			const entries = Object.keys( seats ).map( ( p, i ) => entry( Number( p ), i + 1 ) );
+			const leaderboard = { [ PRIMARY ]: entries, meta: { primary_leaderboard: PRIMARY } };
+			const nodes = Object.entries( seats ).map( ( [ p, node ] ) => ( { pilot_id: Number( p ), callsign: `P${ p }`, node_index: node } ) );
+			return { heat_id: id, displayname: `Heat ${ id }`, rounds: [ { id: 1, start_time_formatted: `2025-06-01 ${ time }`, nodes, leaderboard } ], leaderboard };
+		};
+		const flownSeats = { 1: { 1: 0, 2: 2, 3: 5 }, 2: { 4: 1, 5: 3 }, 7: { 7: 6 }, 8: { 8: 6 } };
+		const data = {
+			current_heat: { current_heat: 3 },
+			pilot_data: { pilots: Array.from( { length: 8 }, ( _, i ) => ( { pilot_id: i + 1, callsign: `P${ i + 1 }` } ) ) },
+			class_data: { classes: [] },
+			frequency_data: { fdata },
+			heat_data: { heats: [
+				heat( 1, flownKeys, { 0: { pilot_id: 1, method: 0 }, 2: { pilot_id: 2, method: 0 }, 5: { pilot_id: 3, method: 0 } } ),
+				heat( 2, flownKeys, { 1: { pilot_id: 4, method: 0 }, 3: { pilot_id: 5, method: 0 } } ),
+				// Not called yet, each pilot from a seat of their own.
+				heat( 3, planned, assigned( 1, 2, 4 ) ),
+				// P6 has not flown: nothing for them, but the place, so that the callsigns stand in line.
+				heat( 4, planned, assigned( 1, 6 ) ),
+				// A seed from a heat not flown yet: nothing for anyone.
+				heat( 5, planned, { 0: { pilot_id: 2, method: 0 }, 1: { method: 1, seed_id: 6, seed_rank: 1 } } ),
+				// A seed from a flown heat that had no third: it brings nobody, the others are told.
+				heat( 10, planned, { 0: { pilot_id: 4, method: 0 }, 1: { pilot_id: 5, method: 0 }, 2: { method: 1, seed_id: 2, seed_rank: 3 } } ),
+				heat( 6, planned, assigned( 3, 5 ) ),
+				heat( 7, flownKeys, { 6: { pilot_id: 7, method: 0 } } ),
+				heat( 8, flownKeys, { 6: { pilot_id: 8, method: 0 } } ),
+				// P7 and P8 come from the same seat: RotorHazard draws lots.
+				heat( 9, planned, assigned( 7, 8 ) ),
+			] },
+			result_data: { heats: {
+				1: flown( 1, '10:00:00.000', flownSeats[ 1 ] ),
+				2: flown( 2, '10:10:00.000', flownSeats[ 2 ] ),
+				7: flown( 7, '10:20:00.000', flownSeats[ 7 ] ),
+				8: flown( 8, '10:30:00.000', flownSeats[ 8 ] ),
+			}, classes: {} },
+		};
+		const thrown = await deliver( tab, data );
+		const lines = ( title ) => tab.evaluate( ( t ) => {
+			const node = [ ...document.querySelectorAll( '.node' ) ].find( ( n ) => n.querySelector( '.title' ).textContent === t );
+			return node ? [ ...node.querySelectorAll( '.pilot-entry' ) ].map( ( e ) => {
+				const ch = e.querySelector( '.pilot-channel' );
+				return ( ch ? `${ ch.textContent }${ ch.classList.contains( 'likely' ) ? '(likely)' : '' } ` : '' ) + e.querySelector( '.pilot-name' ).textContent;
+			} ) : null;
+		}, title );
+		const nodeClass = ( title ) => tab.evaluate( ( t ) => {
+			const node = [ ...document.querySelectorAll( '.node' ) ].find( ( n ) => n.querySelector( '.title' ).textContent === t );
+			return node ? [ 'seated', 'forecast' ].filter( ( c ) => node.classList.contains( c ) ).join() : null;
+		}, title );
+		check( 'no throw, no error', thrown === null && ! tab.__errors.length, thrown || tab.__errors.join( ' | ' ) );
+		let got = await lines( 'Heat 3' );
+		check( 'each from a seat of their own: that channel, marked as likely',
+			JSON.stringify( got ) === JSON.stringify( [ 'R1?(likely) P1', 'R3?(likely) P2', 'R2?(likely) P4' ] ) && ( await nodeClass( 'Heat 3' ) ) === 'forecast', `${ JSON.stringify( got ) } ${ await nodeClass( 'Heat 3' ) }` );
+		got = await lines( 'Heat 4' );
+		check( 'a pilot who has not flown: an empty place', JSON.stringify( got ) === JSON.stringify( [ 'R1?(likely) P1', ' P6' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 5' );
+		check( 'a seed from a heat not flown yet: no channel for anyone',
+			JSON.stringify( got ) === JSON.stringify( [ 'P2', 'Heat 6 #1' ] ) && ( await nodeClass( 'Heat 5' ) ) === '', `${ JSON.stringify( got ) } ${ await nodeClass( 'Heat 5' ) }` );
+		got = await lines( 'Heat 10' );
+		check( 'a seed that brings nobody: the others told', JSON.stringify( got ) === JSON.stringify( [ 'R2?(likely) P4', 'R4?(likely) P5', ' Heat 2 #3' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 9' );
+		check( 'two from the same seat: no channel', JSON.stringify( got ) === JSON.stringify( [ 'P7', 'P8' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 1' );
+		check( 'a flown heat: its channels, not likely ones', JSON.stringify( got ) === JSON.stringify( [ 'R1 P1', 'R3 P2', 'R6 P3' ] ) && ( await nodeClass( 'Heat 1' ) ) === 'seated', JSON.stringify( got ) );
+		const look = await tab.evaluate( () => {
+			const node = [ ...document.querySelectorAll( '.node' ) ].find( ( n ) => n.querySelector( '.title' ).textContent === 'Heat 4' );
+			const [ one, six ] = [ ...node.querySelectorAll( '.pilot-name' ) ].map( ( el ) => Math.round( el.getBoundingClientRect().left ) );
+			const likely = node.querySelector( '.pilot-channel.likely' );
+			return { one, six, style: likely ? getComputedStyle( likely ).fontStyle : null, title: likely ? likely.title : null };
+		} );
+		check( 'the callsigns stand in line; the likely channel held back, the frequency on pointing at it',
+			look.one === look.six && look.style === 'italic' && look.title === 'Likely 5658 MHz - fixed when the heat is called', JSON.stringify( look ) );
+		// The race director calls Heat 3: RotorHazard fixes the seats as foretold.
+		data.heat_data.heats[ 2 ] = heat( 3, { auto_frequency: true, status: 2, locked: false }, { 0: { pilot_id: 1, method: 0 }, 1: { pilot_id: 4, method: 0 }, 2: { pilot_id: 2, method: 0 } } );
+		await deliver( tab, data );
+		got = await lines( 'Heat 3' );
+		check( 'called: the channels, no longer marked', JSON.stringify( got ) === JSON.stringify( [ 'R1 P1', 'R2 P4', 'R3 P2' ] ) && ( await nodeClass( 'Heat 3' ) ) === 'seated', JSON.stringify( got ) );
 		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
 		await tab.close();
 	}

@@ -59,9 +59,11 @@ function rm_get_race_data_url() {
  * Elimination (and other classes) stay sequential (no wrap).
  *
  * Each entry:
- *   - heat_id, heat_displayname, pilot_id, callsign, slot_id, channel
+ *   - heat_id, heat_displayname, pilot_id, callsign, slot_id, channel, likely
  *   - slot_id is the pilot's seat (the slot's node) and channel its name ("R1") once the heat's seats
- *     are fixed (rm_heat_seats_fixed()); before that 0 and '' (1.13.0).
+ *     are fixed (rm_heat_seats_fixed()); before that 0 and '' (1.13.0);
+ *   - likely, while they are not, the channel RotorHazard will likely give the pilot
+ *     (rm_likely_channels()), '' where it cannot tell (1.15.0).
  */
 function rm_getUpcomingRacePilots($rhData) {
     if (!$rhData
@@ -158,6 +160,7 @@ function rm_getUpcomingRacePilots($rhData) {
     // Collect pilots, dedupe by (heat_id, pilot_id) (prevents double notifications if same heat appears twice)
     $upcomingPilots = array();
     $seen = array();
+    $usedSeats = rm_used_seats($rhData);
 
     foreach ($heatIdsToCheck as $heatId) {
         if (!isset($heatsById[$heatId])) continue;
@@ -166,6 +169,8 @@ function rm_getUpcomingRacePilots($rhData) {
         $heatDisplayname = isset($heat['displayname']) ? (string)$heat['displayname'] : ('Heat ' . $heatId);
         if (!isset($heat['slots']) || !is_array($heat['slots'])) continue;
         $seatsFixed = rm_heat_seats_fixed($heat);
+        $heatPilots = array();
+        $pilotsKnown = true; // false once a seed names nobody yet
 
         foreach ($heat['slots'] as $slot) {
             $pilotId = isset($slot['pilot_id']) ? (int)$slot['pilot_id'] : 0;
@@ -187,6 +192,10 @@ function rm_getUpcomingRacePilots($rhData) {
                 if ($seededPilot !== null) {
                     $pilotId = (int)$seededPilot['pilot_id'];
                     $callsign = (string)($seededPilot['callsign'] ?? '');
+                } elseif (($method === RM_SLOT_HEAT_RESULT || $method === RM_SLOT_CLASS_RESULT)
+                    && !rm_seed_source_has_result($method, $seedId, $rhData, $heatsById)) {
+                    // Somebody may still come; from a result without that rank, nobody will.
+                    $pilotsKnown = false;
                 }
             }
 
@@ -202,7 +211,7 @@ function rm_getUpcomingRacePilots($rhData) {
             // no node and come first - and a heat's seats counted as fixed from the start.
             $seat = ($seatsFixed && isset($slot['node_index']) && is_numeric($slot['node_index'])) ? (int)$slot['node_index'] : null;
 
-            $upcomingPilots[] = array(
+            $heatPilots[] = array(
                 'heat_id'          => $heatId,
                 'heat_displayname' => $heatDisplayname,
                 'pilot_id'         => $pilotId,
@@ -211,9 +220,149 @@ function rm_getUpcomingRacePilots($rhData) {
                 'channel'          => null === $seat ? '' : rm_channel_label($rhData, $seat),
             );
         }
+
+        // Seats not fixed yet: the channel each pilot will likely get. It depends on every pilot of
+        // the heat, so none while a seed has not decided who is in it.
+        $likely = ($seatsFixed || !$pilotsKnown) ? array() : rm_likely_channels($rhData, array_column($heatPilots, 'pilot_id'), $usedSeats);
+        foreach ($heatPilots as $entry) {
+            $entry['likely'] = $likely[$entry['pilot_id']] ?? '';
+            $upcomingPilots[] = $entry;
+        }
     }
 
     return $upcomingPilots;
+}
+
+/**
+ * The seats each pilot has flown on, oldest first and each once, the last one last (1.15.0): from
+ * the rounds of every heat, by start time. RotorHazard keeps a pilot's frequencies that way, one
+ * more with every saved race (RHData.set_pilot_used_frequency), and gives out seats by them. Kept
+ * by seat, since a round names the node, not the frequency: the same as long as the event keeps its
+ * frequency profile.
+ *
+ * @param array $rhData The upload.
+ * @return array pilot_id => node_index[].
+ */
+function rm_used_seats($rhData) {
+    $rounds = array();
+    foreach ((array)($rhData['result_data']['heats'] ?? array()) as $heat) {
+        foreach ((array)(is_array($heat) ? ($heat['rounds'] ?? array()) : array()) as $round) {
+            if (is_array($round)) {
+                $rounds[] = array((string)($round['start_time_formatted'] ?? ''), (array)($round['nodes'] ?? array()));
+            }
+        }
+    }
+    usort($rounds, fn($a, $b) => strcmp($a[0], $b[0])); // "2025-01-19 10:44:29.065" sorts as it reads
+    $used = array();
+    foreach ($rounds as $round) {
+        foreach ($round[1] as $node) {
+            if (!is_array($node) || empty($node['pilot_id']) || !isset($node['node_index']) || !is_numeric($node['node_index'])) {
+                continue;
+            }
+            $pilotId = (int)$node['pilot_id'];
+            $seat    = (int)$node['node_index'];
+            $seats   = array_values(array_diff($used[$pilotId] ?? array(), array($seat)));
+            $seats[] = $seat;
+            $used[$pilotId] = $seats;
+        }
+    }
+    return $used;
+}
+
+/**
+ * The seats RotorHazard will give a heat's pilots, as far as that is decided (1.15.0): its automatic
+ * frequency assignment (heat_automation.py, run_auto_frequency) with the calibration mode's default,
+ * find_best_slot_node_adaptive, followed until it would draw lots. It fills one seat at a time, in
+ * node order, looking at who flew there before: a seat only one pilot flew on, as their last seat;
+ * then a seat only one pilot flew on at all; then a seat that was the last of only one of them. The
+ * pilot seated leaves the other seats' lists. Where none of these is left, it draws lots, and so the
+ * seats it would fill from there on are not told.
+ *
+ * Measured on race 32 of the local site (Galaxy Cup 2025, 40 heats with automatic frequencies, first
+ * rounds only) from the rounds flown before each: 82 of the 142 pilots got a seat this way, 81 of
+ * them the one they flew; three heats earlier, when the first push goes out, 71 of 74. Only a
+ * pilot's last seat, where nobody else of the heat had the same, told 53, 49 of them right. A timer
+ * set to manual calibration gives out seats by find_best_slot_node_basic, which puts the last seats
+ * first: there a seat told from the second step on can be wrong.
+ *
+ * @param array $rhData    The upload.
+ * @param int[] $pilotIds  Every pilot of the heat.
+ * @param array $usedSeats rm_used_seats().
+ * @return array pilot_id => node_index, for the pilots whose seat is decided.
+ */
+function rm_likely_seats($rhData, $pilotIds, $usedSeats) {
+    // The seats with a frequency, each with the pilots who flew there: true for their last seat.
+    $open = array();
+    foreach ((array)($rhData['frequency_data']['fdata'] ?? array()) as $seat => $frequency) {
+        if (!is_array($frequency) || (isset($frequency['frequency']) && 0 === (int)$frequency['frequency'])) {
+            continue; // switched off: RotorHazard's FREQUENCY_ID_NONE, a seat it gives nobody
+        }
+        $open[(int)$seat] = array();
+        foreach ($pilotIds as $pilotId) {
+            $used = $usedSeats[$pilotId] ?? array();
+            if (in_array((int)$seat, $used, true)) {
+                $open[(int)$seat][$pilotId] = end($used) === (int)$seat;
+            }
+        }
+    }
+
+    $likely = array();
+    while ($open) {
+        $pick = null;
+        foreach ($open as $seat => $flown) {
+            if (1 === count($flown) && reset($flown)) {
+                $pick = array($seat, key($flown));
+                break;
+            }
+        }
+        if (null === $pick) {
+            foreach ($open as $seat => $flown) {
+                if (1 === count($flown)) {
+                    $pick = array($seat, key($flown));
+                    break;
+                }
+            }
+        }
+        if (null === $pick) {
+            foreach ($open as $seat => $flown) {
+                $last = array_keys(array_filter($flown));
+                if (1 === count($last)) {
+                    $pick = array($seat, $last[0]);
+                    break;
+                }
+            }
+        }
+        if (null === $pick) {
+            break; // lots from here on
+        }
+        list($seat, $pilotId) = $pick;
+        $likely[$pilotId] = $seat;
+        unset($open[$seat]);
+        foreach ($open as $other => $flown) {
+            unset($open[$other][$pilotId]);
+        }
+    }
+    return $likely;
+}
+
+/**
+ * The channel each pilot of a heat whose seats are not fixed yet will likely get (1.15.0): that of
+ * the seat rm_likely_seats() tells.
+ *
+ * @param array $rhData    The upload.
+ * @param int[] $pilotIds  Every pilot of the heat.
+ * @param array $usedSeats rm_used_seats().
+ * @return array pilot_id => channel, for the pilots it can tell.
+ */
+function rm_likely_channels($rhData, $pilotIds, $usedSeats) {
+    $likely = array();
+    foreach (rm_likely_seats($rhData, $pilotIds, $usedSeats) as $pilotId => $seat) {
+        $label = rm_channel_label($rhData, $seat);
+        if ('' !== $label) {
+            $likely[$pilotId] = $label;
+        }
+    }
+    return $likely;
 }
 
 /**
@@ -251,6 +400,43 @@ function rm_getSeededPilot($seedHeatId, $seedRank, $rhData, $heatsById = null) {
 function rm_getClassSeededPilot($seedClassId, $seedRank, $rhData) {
     if ($seedClassId <= 0 || $seedRank <= 0) return null;
 
+    $positions = rm_class_seed_positions($seedClassId, $rhData);
+    return is_array($positions) ? rm_seededEntry($positions, $seedRank) : null;
+}
+
+/**
+ * Whether the heat or class a slot seeds from has its result (1.15.0). Then a rank the result does
+ * not have brings nobody - RotorHazard leaves such a slot empty -, while before it somebody may
+ * still come.
+ *
+ * @param int        $method    The slot's method: RM_SLOT_HEAT_RESULT or RM_SLOT_CLASS_RESULT.
+ * @param int        $seedId    The heat or class it seeds from.
+ * @param array      $rhData    The upload.
+ * @param array|null $heatsById heat_id => heat, as rm_getSeededPilot() takes it.
+ * @return bool
+ */
+function rm_seed_source_has_result($method, $seedId, $rhData, $heatsById = null) {
+    if ($method === RM_SLOT_HEAT_RESULT) {
+        if (is_array($heatsById) && isset($heatsById[$seedId]) && (int)($heatsById[$seedId]['next_round'] ?? 0) <= 0) {
+            return false;
+        }
+        return rm_heat_primary_entries($rhData, $seedId) !== null;
+    }
+    if ($method === RM_SLOT_CLASS_RESULT) {
+        return rm_class_seed_positions($seedId, $rhData) !== null;
+    }
+    return false;
+}
+
+/**
+ * What a class seeds from, as RotorHazard does it: the class's ranking when a ranking method produced
+ * one, else the class leaderboard the class's format makes primary.
+ *
+ * @param int   $seedClassId The class.
+ * @param array $rhData      The upload.
+ * @return array|null        Its entries in order, or null while the class has no result.
+ */
+function rm_class_seed_positions($seedClassId, $rhData) {
     $classes = $rhData['result_data']['classes'] ?? null;
     if (!is_array($classes)) return null;
 
@@ -274,7 +460,7 @@ function rm_getClassSeededPilot($seedClassId, $seedRank, $rhData) {
         $positions = $primary !== null ? ($leaderboard[$primary] ?? null) : null;
     }
 
-    return is_array($positions) ? rm_seededEntry($positions, $seedRank) : null;
+    return is_array($positions) ? $positions : null;
 }
 
 /**
