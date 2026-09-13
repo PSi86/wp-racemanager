@@ -505,6 +505,11 @@ class DisplayHeats {
         const grid = document.createElement("div");
         grid.id = `${key}-grid`;
         grid.className = "grid-container";
+        // Heats in a row - a class that forms no bracket, the heats without a class, next up - have
+        // no column that means anything: css/rm_viewer.css lets them run on to the next line where
+        // the screen ends, as next up always did. Only a bracket's columns need sideways scrolling
+        // (1.17.0).
+        if (view.kind === 'row') grid.classList.add("row-grid");
 
         const filterPilotId = this.selectedPilotId;
 
