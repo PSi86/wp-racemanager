@@ -16,6 +16,9 @@
  *   - a class whose heats form a bracket is drawn as that bracket: winners and losers bracket
  *     with their titles, a column per round under its name, a line per link; a single
  *     elimination in one section with its small final; the others as a row;
+ *   - a heat shows a line per pilot and per slot its seeding will fill, none for a free seat, each
+ *     with its seat's video channel once the seats are fixed - by hand, confirmed or flown - and
+ *     none before (1.13.0);
  *   - a Chase the Ace final shows the rule, the rounds flown and each pilot's wins, the winner
  *     marked;
  *   - the pilot filter keeps the pilot's heats and the heats they feed;
@@ -94,6 +97,8 @@ ${ containers }
 </script>
 </body></html>`;
 const SECTIONS_PAGE = page( '<div id="raceclass-sections"></div><div id="standings-display"></div>' );
+// With the bracket page's stylesheet, for what it lays out.
+const STYLED_PAGE = page( '<link rel="stylesheet" href="/css/rm_viewer.css"><div id="raceclass-sections"></div>' );
 const FIXED_PAGE = page( `
 <div id="elimination-display" class="raceclass-container"></div>
 <div id="qualifying-display" class="raceclass-container"></div>
@@ -197,6 +202,8 @@ function planRace( key, options ) {
 			if ( url.endsWith( '/js/rm-m-pilotSelector.js' ) ) return js( PILOT_SELECTOR_STUB );
 			const file = url.match( /\/js\/([\w.-]+\.js)$/ );
 			if ( file ) return js( read( `js/${ file[ 1 ] }` ) );
+			const css = url.match( /\/css\/([\w.-]+\.css)$/ );
+			if ( css ) return route.fulfill( { contentType: 'text/css', body: read( `css/${ css[ 1 ] }` ) } );
 			const flag = url.match( /\/assets\/flag-icons-7\.5\.0\/flags\/4x3\/([a-z]{2})\.svg$/ );
 			if ( flag ) return route.fulfill( { contentType: 'image/svg+xml', body: read( `assets/flag-icons-7.5.0/flags/4x3/${ flag[ 1 ] }.svg` ) } );
 			if ( /\/photos\/ok\.png/.test( url ) ) return route.fulfill( { contentType: 'image/png', body: PHOTO_PNG } );
@@ -294,6 +301,91 @@ function planRace( key, options ) {
 		check( 'given a class, they move there and the section goes',
 			( await containers( tab ) ).join() === 'class-3-display,class-1-display' && ( await nodeCount( tab, 'class-1-display' ) ) === 5,
 			`${ ( await containers( tab ) ).join() } / ${ await nodeCount( tab, 'class-1-display' ) } nodes` );
+		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
+		await tab.close();
+	}
+
+	section( 'A line per pilot, with the channel once the seats are fixed (1.13.0)' );
+	{
+		const tab = await openPage( STYLED_PAGE );
+		// An eight-node timer on RaceBand, node 6 on a frequency no band names, node 4 switched off.
+		const fdata = [ 5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917 ].map( ( frequency, i ) => ( { band: 'R', channel: i + 1, frequency } ) );
+		fdata[ 6 ] = { band: null, channel: null, frequency: 5705 };
+		fdata[ 4 ] = { band: null, channel: null, frequency: 0 };
+		// Eight slots, one per node, as RotorHazard makes a heat on such a timer; `seats` by node.
+		const heat = ( id, keys, seats ) => ( {
+			id,
+			displayname: `Heat ${ id }`,
+			class_id: null,
+			...keys,
+			slots: Array.from( { length: 8 }, ( _, node ) => ( {
+				id: id * 10 + node, node_index: node, pilot_id: null, method: -1, seed_rank: null, seed_id: null, ...( seats[ node ] || {} ),
+			} ) ),
+		} );
+		const fixed = { auto_frequency: false, status: 0, locked: false };
+		const pilots = Array.from( { length: 8 }, ( _, i ) => ( { pilot_id: i + 1, callsign: `P${ i + 1 }` } ) );
+		// A long callsign makes the heat wider than the other lines need, which the layout has to use.
+		pilots[ 7 ].callsign = 'P8 has a long callsign';
+		const data = {
+			current_heat: { current_heat: 1 },
+			pilot_data: { pilots },
+			class_data: { classes: [] },
+			frequency_data: { fdata },
+			heat_data: { heats: [
+				// Seats fixed by hand: pilots on nodes 0, 2, 3 and 5, four seats free.
+				heat( 1, fixed, { 0: { pilot_id: 1, method: 0 }, 2: { pilot_id: 2, method: 0 }, 3: { pilot_id: 8, method: 0 }, 5: { pilot_id: 3, method: 0 } } ),
+				// From the generator, not called yet: seeds on the plan's first four slots.
+				heat( 2, { auto_frequency: true, status: 0, locked: false }, Object.fromEntries( [ 0, 1, 2, 3 ].map( ( n ) => [ n, { method: 1, seed_id: 1, seed_rank: n + 1 } ] ) ) ),
+				// Called and confirmed: RotorHazard gave pilot 5 node 1 and pilot 4 node 7.
+				heat( 3, { auto_frequency: true, status: 2, locked: false }, { 1: { pilot_id: 5, method: 1, seed_id: 1, seed_rank: 1 }, 7: { pilot_id: 4, method: 1, seed_id: 1, seed_rank: 2 } } ),
+				// Flown, one seed having brought nobody.
+				heat( 4, { auto_frequency: true, status: 0, locked: true }, { 0: { pilot_id: 1, method: 1, seed_id: 3, seed_rank: 1 }, 2: { method: 1, seed_id: 3, seed_rank: 3 }, 3: { pilot_id: 5, method: 1, seed_id: 3, seed_rank: 2 } } ),
+				// Fixed by hand on the unnamed frequency and on the node switched off.
+				heat( 5, fixed, { 4: { pilot_id: 7, method: 0 }, 6: { pilot_id: 6, method: 0 } } ),
+			] },
+			result_data: { heats: { 4: heatResult( 4, [ entry( 1, 1 ), entry( 5, 2 ) ] ) }, classes: {} },
+		};
+		const thrown = await deliver( tab, data );
+		const lines = ( title ) => tab.evaluate( ( t ) => {
+			const node = [ ...document.querySelectorAll( '.node' ) ].find( ( n ) => n.querySelector( '.title' ).textContent === t );
+			return node ? [ ...node.querySelectorAll( '.pilot-entry' ) ].map( ( e ) => {
+				const ch = e.querySelector( '.pilot-channel' );
+				return ( ch ? `${ ch.textContent }${ ch.title ? `(${ ch.title })` : '' } ` : '' ) + e.querySelector( '.pilot-name' ).textContent;
+			} ) : null;
+		}, title );
+		check( 'no throw, no error', thrown === null && ! tab.__errors.length, thrown || tab.__errors.join( ' | ' ) );
+		let got = await lines( 'Heat 1' );
+		check( 'seats fixed by hand: a line per pilot, each with its node\'s channel, none for a free seat',
+			JSON.stringify( got ) === JSON.stringify( [ 'R1(5658 MHz) P1', 'R3(5732 MHz) P2', 'R4(5769 MHz) P8 has a long callsign', 'R6(5843 MHz) P3' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 2' );
+		check( 'from the generator, not called yet: the seeds, no channel',
+			JSON.stringify( got ) === JSON.stringify( [ 'Heat 1 #1', 'Heat 1 #2', 'Heat 1 #3', 'Heat 1 #4' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 3' );
+		check( 'confirmed: the channels RotorHazard gave out', JSON.stringify( got ) === JSON.stringify( [ 'R2(5695 MHz) P5', 'R8(5917 MHz) P4' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 4' );
+		check( 'flown: its pilots on their channels, no line for the seed that brought nobody',
+			JSON.stringify( got ) === JSON.stringify( [ 'R1(5658 MHz) P1', 'R4(5769 MHz) P5' ] ), JSON.stringify( got ) );
+		got = await lines( 'Heat 5' );
+		check( 'a node switched off: "–"; a frequency no band names: the frequency',
+			JSON.stringify( got ) === JSON.stringify( [ '– P7', '5705(5705 MHz) P6' ] ), JSON.stringify( got ) );
+		// P1's line in Heat 1 has room to spare: the callsign stays by the channel all the same.
+		const layout = await tab.evaluate( () => {
+			const entry = document.querySelector( '.pilotid-1 .pilot-channel' ).parentElement;
+			const [ ch, name, result ] = [ ...entry.children ].map( ( el ) => el.getBoundingClientRect() );
+			const spare = entry.getBoundingClientRect().width - ch.width - name.width - result.width;
+			return { order: [ ...entry.children ].map( ( el ) => el.className ).join(), spare: Math.round( spare ), gap: Math.round( name.left - ch.right ), resultAtEnd: result.right >= name.right };
+		} );
+		layout.nameNextToChannel = layout.spare > 30 && layout.gap < 12;
+		check( 'the channel before the callsign, the result at the end', layout.order === 'pilot-channel,pilot-name,pilot-result' && layout.nameNextToChannel && layout.resultAtEnd, JSON.stringify( layout ) );
+		// The hover finds the pilot from the channel as well: it is a line's own element.
+		await tab.dispatchEvent( '.pilotid-1 .pilot-channel', 'mouseover' );
+		check( 'pointing at the channel marks the pilot everywhere', await tab.$$eval( '.pilotid-1', ( els ) => els.length === 2 && els.every( ( el ) => el.classList.contains( 'hovered' ) ) ) );
+		await tab.dispatchEvent( '.pilotid-1 .pilot-channel', 'mouseout' );
+		// Without frequency data - an upload that lacks it - no channel at all, and still no free seats.
+		delete data.frequency_data;
+		await deliver( tab, data );
+		check( 'no frequency data: no channel, the same lines',
+			( await tab.$$( '.pilot-channel' ) ).length === 0 && JSON.stringify( await lines( 'Heat 1' ) ) === JSON.stringify( [ 'P1', 'P2', 'P8 has a long callsign', 'P3' ] ), JSON.stringify( await lines( 'Heat 1' ) ) );
 		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
 		await tab.close();
 	}

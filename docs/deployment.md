@@ -468,6 +468,26 @@ titled "Unclassified Heats". Before, they were drawn nowhere, and an event witho
 page empty. It changes `rm-m-displayHeats.js` alone, which the bracket page enqueues with the
 version. An event whose heats all have a class looks as before.
 
+1.13.0 puts each pilot's video channel in the heats - "R1" before the callsign - once the heat's
+seats are fixed: set by hand, confirmed by the race director, or flown. A heat from RotorHazard's
+generator gets its seats only when it is called, and shows none before. A free seat gets no line any
+more; a heat on an eight-node timer with four pilots showed four empty ones. The "your next race"
+push names a channel on the same condition: a generated heat is announced without one ("Next race is
+Heat 9."), and the channel follows as "Channel for race Heat 9 is R3" when the seats are fixed -
+before, the channel of the slot's place in the plan went out and was corrected later.
+
+- **Database:** the subscriptions table gets the column `channel`, the channel a subscription was
+  told last (schema 3). As with 1.7.0's `pilot_key`, the first request after the update adds it
+  (`rm_maybe_upgrade_subscriptions_table()` on `plugins_loaded`), and `rm_subscriptions_schema`
+  says 3 once it is there; until then no channel is written, and the pushes compare as before. A
+  subscription stored before the update has NULL there and is compared by heat and slot as 1.12
+  did, so a race under way gets no push twice. Going back to 1.12 leaves the column unused.
+- **Browser:** `rm-m-displayHeats.js` and `css/rm_viewer.css` change. The bracket page enqueues both
+  with the version; the next-up view reaches the module unversioned, and a browser holding the
+  1.12 copy shows the lines there as before until it fetches it again.
+- **Timer:** the connector's `/bracketview` shows the channels with its next take of the shared
+  files, which needs the style for `.pilot-channel` in its page.
+
 ---
 
 ## 8 · Rollback

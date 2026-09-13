@@ -46,9 +46,10 @@ function rm_get_registered_callsigns( $race_id ) {
 }
 
 /**
- * The subscriptions table's schema: 2 has pilot_key (1.7.0).
+ * The subscriptions table's schema: 2 has pilot_key (1.7.0), 3 has channel, the channel a
+ * subscription was told last (1.13.0).
  */
-const RM_SUBSCRIPTIONS_SCHEMA = 2;
+const RM_SUBSCRIPTIONS_SCHEMA = 3;
 
 /**
  * Bring the subscriptions table up to date after an update.
@@ -68,10 +69,11 @@ function rm_maybe_upgrade_subscriptions_table() {
     require_once __DIR__ . '/pwa-subscription-handler.php';
     \RaceManager\PWA_Subscription_Handler::create_db_table();
 
-    // Recorded only once the column is there, so a failed ALTER is tried again.
+    // Recorded only once the newest column is there, so a failed ALTER is tried again. Until then
+    // the push handler writes no channel (includes/pwa-subscription-handler.php).
     global $wpdb;
     $table = $wpdb->prefix . 'rm_subscriptions';
-    if ( $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM $table LIKE %s", 'pilot_key' ) ) ) {
+    if ( $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM $table LIKE %s", 'channel' ) ) ) {
         update_option( 'rm_subscriptions_schema', RM_SUBSCRIPTIONS_SCHEMA );
     }
 }
