@@ -107,7 +107,9 @@ Consequences worth keeping in mind when changing this:
   (`podium`, from the same source), and the block's setting `show` picks winner, podium, or podium and
   the whole standing - the standing from `rm-m-displayStandings.js` on the race's own page only, with
   `css/rm-standings.css`, never `rm_viewer.css`, which restyles a page's lists and inputs; on a card
-  the podium. `test:bracket-standings` holds the standing's places 1 to 3 to the podium's rule. The
+  the podium. Since 1.18.0 its setting `link` can lead to the race's bracket view
+  (`rm_live_url( $race, 'bracket' )`): a line "Results" under the block, or the winner or podium
+  itself; the standing stays outside the link. `test:bracket-standings` holds the standing's places 1 to 3 to the podium's rule. The
   race announcement is a pattern of core blocks
   (`includes/race-announcement.php`); its markup is what WordPress 7.1's editor serializes, and
   `test:e2e` checks the editor still takes it as valid.
@@ -161,7 +163,7 @@ when any of that is missing.
 
 | Suite | Covers |
 |---|---|
-| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-winner` offers its three settings and saves the one chosen as its attribute alone, that `race-gallery`'s media modal still opens, that the race announcement pattern is valid and a new race starts with it, and that the console stays clean |
+| `npm run test:e2e` | the block editor — that the blocks survive its iframe, that `race-winner` offers its three settings and its link to the results and saves what is chosen as its attributes alone, that `race-gallery`'s media modal still opens, that the race announcement pattern is valid and a new race starts with it, and that the console stays clean |
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |

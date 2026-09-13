@@ -577,6 +577,16 @@ the upload - 85 right of 85, the page and WordPress alike every time; with 1.15.
   is open. `js/rm-top-bar.js` and `css/rm-top-bar.css`, enqueued with the version on every page. A
   site whose header is not pinned - the local one - sees nothing change.
 
+1.18.0 lets the race-winner block link to the race's results: the setting *Link to the results*
+in the block's sidebar - *No link* (as before, and the default), *A line "Results" under it*, or *The
+whole block*, the winner or podium itself. The link goes to the race's bracket view in the live area
+(`/live/<race>/bracket/`): the whole bracket, every heat's results and the standing under it, which
+an archived race keeps as well. On the race's own page, with *Podium and whole standing*, the
+standing stays outside the link and the line comes under it. Set per block in the Site Editor - the
+race list's card and the single race template each have their own; nothing changes until a block
+is set. `blocks/race-winner/` (block.json, index.js, style.css) and
+`includes/block-render-race-winner.php` change; no database change.
+
 ---
 
 ## 8 · Rollback

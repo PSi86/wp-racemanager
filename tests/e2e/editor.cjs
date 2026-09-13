@@ -176,6 +176,22 @@ try {
 		const saved = await page.evaluate( ( id ) => window.wp.blocks.serialize( [ window.wp.data.select( 'core/block-editor' ).getBlock( id ) ] ), winner );
 		check( '  chosen, the podium: shown so, and saved as the attribute alone',
 			'podium' === shown && '<!-- wp:wp-racemanager/race-winner {"show":"podium"} /-->' === saved.trim(), `${ shown } / ${ saved.trim() }` );
+
+		// The link to the results (1.18.0): none, a line under the block, or the block itself.
+		const link = page.locator( '.block-editor-block-inspector' ).getByLabel( 'Link', { exact: true } );
+		const links = await link.locator( 'option' ).evaluateAll( ( els ) => els.map( ( el ) => el.value ) ).catch( () => [] );
+		check( 'race-winner offers no link, a line, the whole block', links.join() === 'none,line,block', links.join() );
+		await link.selectOption( 'line' ).catch( () => {} );
+		let line = '';
+		try {
+			await canvasFrame.locator( `#block-${ winner } .rm-race-winner-results` ).waitFor( { timeout: 10000 } );
+			line = await canvasFrame.locator( `#block-${ winner } .rm-race-winner-results` ).innerText();
+		} catch ( e ) {
+			line = await canvasFrame.locator( `#block-${ winner }` ).innerText().catch( () => '' );
+		}
+		const withLink = await page.evaluate( ( id ) => window.wp.blocks.serialize( [ window.wp.data.select( 'core/block-editor' ).getBlock( id ) ] ), winner );
+		check( '  chosen, the line: shown under it, and saved as the attribute',
+			/^Results/.test( line ) && '<!-- wp:wp-racemanager/race-winner {"show":"podium","link":"line"} /-->' === withLink.trim(), `${ line } / ${ withLink.trim() }` );
 	}
 
 	// ------------------------------------------------ race-gallery in particular
