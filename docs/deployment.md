@@ -66,10 +66,18 @@ npm install && npm run build
 git status --short blocks/      # commit the result - blocks/ is tracked
 ```
 
-> `composer.lock` is currently git-ignored. The build script uses the one in your working copy if
-> it is there, so a build from a checkout you have tested reproduces those exact versions — but a
-> build from a fresh clone resolves them anew. Committing `composer.lock` would remove that
-> difference; until then, build from a working copy whose dependencies you have actually run.
+`composer.lock` is tracked, and the script installs exactly the versions that the lock
+of the ref it builds names: a build from a fresh clone ships the same set as one from the working
+copy. The lock itself stays out of the ZIP. Where `composer` is missing - Git Bash on Windows - the
+script copies the working copy's `vendor/` instead, but only when it holds exactly the packages the
+ref's lock names; otherwise it stops and lists those that differ. The files go out as the repository
+holds them, with LF line endings, whichever machine builds - before, Git Bash's `core.autocrlf` left
+every text file of the artifact as CRLF. A build in Git Bash and one in the DDEV container then
+differ only in `vendor/`'s autoloader, which the container writes fresh. The container has composer:
+
+```bash
+MSYS_NO_PATHCONV=1 ddev exec -d /var/www/html/wp-racemanager bin/build-plugin-zip.sh main
+```
 
 ---
 
