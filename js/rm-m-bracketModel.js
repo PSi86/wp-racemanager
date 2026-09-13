@@ -119,9 +119,11 @@ export function classBoard( data, classId ) {
 /**
  * The pilot a slot will get, as RotorHazard seeds it (heat_automation.py): the entry at
  * seed_rank - 1 of the seed heat's board (method 1) or of the seed class's board (method 2).
- * Until that entry exists, a label naming source and rank ("Race 3 #2", "Qualifying #7").
+ * Until that entry exists, a label naming source and rank ("Race 3 #2", "Qualifying #7"). sourced
+ * (1.15.0): the source has its result, so a rank it lacks brings nobody - RotorHazard leaves such a
+ * slot empty - while before it somebody may still come.
  *
- * @returns {{pilotId: number|null, callsign: string, label: string}}
+ * @returns {{pilotId: number|null, callsign: string, label: string, sourced: boolean}}
  */
 export function resolveSeed( data, slot ) {
     const rank = slot && slot.seed_rank;
@@ -137,10 +139,11 @@ export function resolveSeed( data, slot ) {
         entries = classBoard( data, slot.seed_id );
     }
     const entry = entries && rank > 0 ? entries[ rank - 1 ] : null;
+    const sourced = entries !== null;
     if ( entry && entry.pilot_id ) {
-        return { pilotId: entry.pilot_id, callsign: entry.callsign || '', label: '' };
+        return { pilotId: entry.pilot_id, callsign: entry.callsign || '', label: '', sourced };
     }
-    return { pilotId: null, callsign: '', label: source && rank ? `${ source } #${ rank }` : '' };
+    return { pilotId: null, callsign: '', label: source && rank ? `${ source } #${ rank }` : '', sourced };
 }
 
 /* ------------------------------------------------------------------------------------------ *
@@ -638,4 +641,109 @@ export function pilotProfile( data, pilotId ) {
     // Only a web address: the page puts it into an image's src.
     const photo = typeof entry.photo === 'string' && /^(https?:\/\/|\/)/.test( entry.photo ) ? entry.photo : null;
     return country || photo ? { country, photo } : null;
+}
+
+/* ------------------------------------------------------------------------------------------ *
+ * Seats
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * The seats each pilot has flown on, oldest first and each once, the last one last (1.15.0): from
+ * the rounds of every heat, by start time. RotorHazard keeps a pilot's frequencies that way, one
+ * more with every saved race (RHData.set_pilot_used_frequency), and gives out seats by them. Kept
+ * by seat, since a round names the node, not the frequency: the same as long as the event keeps its
+ * frequency profile. includes/race-data-functions.php, rm_used_seats(), does the same for the pushes.
+ *
+ * @returns {Map<number, number[]>} pilot -> node indexes.
+ */
+export function usedSeats( data ) {
+    const rounds = [];
+    for ( const heat of listOf( data && data.result_data && data.result_data.heats ) ) {
+        for ( const round of listOf( heat && heat.rounds ) ) {
+            if ( round && typeof round === 'object' ) {
+                rounds.push( round );
+            }
+        }
+    }
+    // "2025-01-19 10:44:29.065" sorts as it reads.
+    const time = ( round ) => String( round.start_time_formatted ?? '' );
+    rounds.sort( ( a, b ) => ( time( a ) < time( b ) ? -1 : time( a ) > time( b ) ? 1 : 0 ) );
+    const used = new Map();
+    for ( const round of rounds ) {
+        for ( const node of listOf( round.nodes ) ) {
+            if ( ! node || ! node.pilot_id || ! Number.isInteger( node.node_index ) ) {
+                continue;
+            }
+            const seats = ( used.get( node.pilot_id ) || [] ).filter( ( seat ) => seat !== node.node_index );
+            seats.push( node.node_index );
+            used.set( node.pilot_id, seats );
+        }
+    }
+    return used;
+}
+
+/**
+ * The seats RotorHazard will give a heat's pilots, as far as that is decided (1.15.0): its automatic
+ * frequency assignment (heat_automation.py, run_auto_frequency) with the calibration mode's default,
+ * find_best_slot_node_adaptive, followed until it would draw lots. It fills one seat at a time, in
+ * node order, looking at who flew there before: a seat only one pilot flew on, as their last seat;
+ * then a seat only one pilot flew on at all; then a seat that was the last of only one of them. The
+ * pilot seated leaves the other seats' lists. Where none of these is left, it draws lots.
+ *
+ * Only for a heat whose seats are not fixed yet, and only with every pilot of the heat: one more
+ * changes who flew where. rm_likely_seats() in includes/race-data-functions.php is the same for the
+ * pushes; on race 32 of the local site it named 82 of 142 seats, 81 of them right.
+ *
+ * @param {Object}   data      The race data.
+ * @param {number[]} pilotIds  Every pilot of the heat.
+ * @param {Map}      [used]    usedSeats(data), when the caller has it already.
+ * @returns {Map<number, number>} pilot -> node index, for the pilots whose seat is decided.
+ */
+export function likelySeats( data, pilotIds, used = usedSeats( data ) ) {
+    const fdata = data && data.frequency_data && data.frequency_data.fdata;
+    // The seats with a frequency, each with the pilots who flew there: true for their last seat.
+    const open = [];
+    listOf( fdata ).forEach( ( frequency, seat ) => {
+        if ( ! frequency || typeof frequency !== 'object' || ( frequency.frequency != null && Number( frequency.frequency ) === 0 ) ) {
+            return; // switched off: RotorHazard's FREQUENCY_ID_NONE, a seat it gives nobody
+        }
+        const flown = new Map();
+        for ( const pilotId of pilotIds ) {
+            const seats = used.get( pilotId ) || [];
+            if ( seats.includes( seat ) ) {
+                flown.set( pilotId, seats[ seats.length - 1 ] === seat );
+            }
+        }
+        open.push( { seat, flown } );
+    } );
+
+    const onlyOne = ( entry ) => ( entry.flown.size === 1 ? [ ...entry.flown.keys() ][ 0 ] : null );
+    const steps = [
+        ( entry ) => ( entry.flown.size === 1 && [ ...entry.flown.values() ][ 0 ] ? onlyOne( entry ) : null ),
+        onlyOne,
+        ( entry ) => {
+            const last = [ ...entry.flown ].filter( ( [ , isLast ] ) => isLast );
+            return last.length === 1 ? last[ 0 ][ 0 ] : null;
+        },
+    ];
+    const likely = new Map();
+    while ( open.length ) {
+        let pick = null;
+        for ( const step of steps ) {
+            const index = open.findIndex( ( entry ) => step( entry ) !== null );
+            if ( index >= 0 ) {
+                pick = { index, pilotId: step( open[ index ] ) };
+                break;
+            }
+        }
+        if ( ! pick ) {
+            break; // lots from here on
+        }
+        likely.set( pick.pilotId, open[ pick.index ].seat );
+        open.splice( pick.index, 1 );
+        for ( const entry of open ) {
+            entry.flown.delete( pick.pilotId );
+        }
+    }
+    return likely;
 }

@@ -7,9 +7,10 @@
 // class claims, in a row, as RotorHazard lists them last under "Unclassified". And the next-up row.
 //
 // A heat shows a line per pilot, and per slot its seeding will fill, in the order of the seats. Each
-// line carries the seat's video channel ("R1") once RotorHazard has fixed the seats (1.13.0). A seat
-// nobody takes gets no line: until 1.13.0 every slot had one, and the empty lines stood for the
-// free channels - on a timer with more nodes than pilots per heat, most of a heat.
+// line carries the seat's video channel ("R1") once RotorHazard has fixed the seats (1.13.0), and
+// before that the channel the pilot will likely get, marked ("R1?"), where it can be told (1.15.0).
+// A seat nobody takes gets no line: until 1.13.0 every slot had one, and the empty lines stood for
+// the free channels - on a timer with more nodes than pilots per heat, most of a heat.
 //
 // This file also runs on the timer: the RotorHazard connector's /bracketview takes it over byte
 // for byte, next to its own dataLoader, which reads RotorHazard's socket. A change has to work
@@ -278,13 +279,39 @@ class DisplayHeats {
         // a free seat, or a seed that brought nobody - gets no line.
         const seated = this.seatsFixed(data, heat);
         const pilots = [];
+        let pending = false; // a pilot still to come from a seed
         for (const slot of heat.slots || []) {
             const entry = this.slotEntry(data, slot, leaderboard, time, !!result);
+            pending = pending || entry.pending;
             if (!entry.id && !entry.name) continue;
             if (seated) entry.channel = this.channelOf(data, slot);
             pilots.push(entry);
         }
-        return { id: heat.id, title, pilots, seated, active: heat.id === currentHeat, classes: [] };
+        const likely = !seated && !pending && this.likelyChannels(data, pilots);
+        return { id: heat.id, title, pilots, seated, likely, active: heat.id === currentHeat, classes: [] };
+    }
+
+    // While the seats are not fixed: the channel each pilot will likely get (1.15.0), as
+    // RotorHazard's own way of giving out the seats decides it (bracketModel.likelySeats()), put on
+    // the pilot's entry marked as likely. Only where the data says which channel each seat has, and
+    // only with every pilot of the heat known - the caller asks only then: one still to come from a
+    // seed changes who flew where. Whether it told any.
+    likelyChannels(data, pilots) {
+        const fdata = data.frequency_data && data.frequency_data.fdata;
+        const ids = pilots.filter(p => p.id).map(p => p.id);
+        if (typeof bracketModel.likelySeats !== 'function' || !fdata || typeof fdata !== 'object' || !ids.length) {
+            return false;
+        }
+        const seats = bracketModel.likelySeats(data, ids);
+        let any = false;
+        for (const pilot of pilots) {
+            const channel = seats.has(pilot.id) ? this.channelOf(data, { node_index: seats.get(pilot.id) }) : null;
+            if (channel && channel.label !== '–') {
+                pilot.channel = { ...channel, likely: true };
+                any = true;
+            }
+        }
+        return any;
     }
 
     // Whether the seats are those the pilots will fly on, as RotorHazard's own event page decides
@@ -321,6 +348,7 @@ class DisplayHeats {
         let name = "";
         let result = "";
         let id = null;
+        let pending = false;
         const empty = slot.pilot_id === null || slot.pilot_id === 0 || slot.node_index === null;
 
         if (empty && !flown && slot.method !== -1) {
@@ -329,6 +357,10 @@ class DisplayHeats {
             const seed = bracketModel.resolveSeed(data, slot);
             id = seed.pilotId;
             name = seed.pilotId ? seed.callsign : seed.label;
+            // Somebody still to come: a seed whose source has no result yet (an older model does not
+            // say, and counts as that).
+            const seeded = slot.method === bracketModel.METHOD.HEAT_RESULT || slot.method === bracketModel.METHOD.CLASS_RESULT;
+            pending = seeded && !seed.pilotId && seed.sourced !== true;
         } else if (!empty) {
             id = slot.pilot_id;
             const pilot = ((data.pilot_data && data.pilot_data.pilots) || []).find(p => p.pilot_id === slot.pilot_id);
@@ -342,7 +374,7 @@ class DisplayHeats {
                 }
             }
         }
-        return { id, name, result, classes: [], country: this.countryOf(data, id) };
+        return { id, name, result, pending, classes: [], country: this.countryOf(data, id) };
     }
 
     // The pilot's country, for the flag: only where the page says where the flags are.
@@ -510,6 +542,7 @@ class DisplayHeats {
             nodeDiv.classList.add("node", ...node.classes);
             if (node.active) nodeDiv.classList.add("activeHeat");
             if (node.seated) nodeDiv.classList.add("seated"); // its lines carry the channel
+            if (node.likely) nodeDiv.classList.add("forecast"); // and here the likely one, where told
 
             const nodeTitleDiv = document.createElement("div");
             nodeTitleDiv.textContent = node.title;
@@ -536,14 +569,22 @@ class DisplayHeats {
                     if (pilot.id === filterPilotId && filterPilotId !== 0) {
                         foundSelectedPilot = true;
                     }
-                    if (node.seated) {
+                    if (node.seated || node.likely) {
                         // Its own element, not inside the name: the hover finds the pilot by the
-                        // line's class, one level up from what the pointer is on.
+                        // line's class, one level up from what the pointer is on. Empty for a pilot
+                        // whose likely channel cannot be told, so that the callsigns stand in line.
                         const channelDiv = document.createElement("div");
                         channelDiv.className = "pilot-channel";
-                        channelDiv.textContent = pilot.channel.label;
-                        if (pilot.channel.frequency) {
-                            channelDiv.title = `${pilot.channel.frequency} MHz`;
+                        const channel = pilot.channel;
+                        if (channel && channel.likely) {
+                            channelDiv.classList.add("likely");
+                            channelDiv.textContent = `${channel.label}?`;
+                            channelDiv.title = `Likely${channel.frequency ? ` ${channel.frequency} MHz` : ''} - fixed when the heat is called`;
+                        } else if (channel) {
+                            channelDiv.textContent = channel.label;
+                            if (channel.frequency) {
+                                channelDiv.title = `${channel.frequency} MHz`;
+                            }
                         }
                         pilotDataDiv.appendChild(channelDiv);
                     }

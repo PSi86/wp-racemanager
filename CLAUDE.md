@@ -121,6 +121,16 @@ Consequences worth keeping in mind when changing this:
   slot. A browser has one subscription, by endpoint; moved to another pilot or race it starts its
   schedule over (`rm_upsert_subscription()`, 1.13.1), or the push compares the new pilot's heats
   with what the pilot before was told.
+- **Before the seats are fixed, the channel a pilot will likely get (1.15.0)** - since the timer
+  uploads when a race is scheduled, a fixed channel reached the pilot only just before the race.
+  It is RotorHazard's own assignment followed as far as it goes without drawing lots
+  (`heat_automation.py`, `find_best_slot_node_adaptive`, the default calibration mode): the seats
+  each pilot flew on, from the rounds by start time, and seat by seat who alone flew there, as
+  their last seat, at all, or as the last of only one. `rm_used_seats()`/`rm_likely_seats()` for
+  the push and `usedSeats()`/`likelySeats()` in `rm-m-bracketModel.js` for the page are the same
+  rule and are measured the same: on race 32, 81 of the 82 seats they name. None while a seed may
+  still bring a pilot. The push says "Channel likely R3" and keeps "R3?" in `channel`; a channel
+  fixed as told is stored without a push, another is told as a change. The page shows "R3?".
 - Race JSON files go through `rm_get_race_data_dir()` / `rm_get_race_data_url()`, never a
   hand-built path — reader and writer must not disagree about where the files live.
 - Event dates go through `rm_normalize_event_datetime()` on every write. Canonical format is
@@ -148,8 +158,8 @@ when any of that is missing.
 | `npm run test:pilot-selector` | the pilot dropdown, rebuilt list and placeholder fallback, the timer's `dataLoader` handing it `{}` first, and the selection following the pilot key when the timer re-creates its pilots |
 | `npm run test:push-subscribe` | which pilot a push subscription is for: the button and what is sent follow the pilot key, by ID without keys. Browser only, no WordPress |
 | `npm run test:class-templates` | the bracket templates: every entry a seeding label, no test pilot, every ID once. Node only, no browser |
-| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class and one for the heats without a class, a line per pilot with the seat's channel once the seats are fixed, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it, flags and photos by pilot key (no flag without `flagBaseUrl`); nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
-| `npm run test:bracket-model` | the bracket worked out of the seeding: every regulation bracket RotorHazard ships as what it is, round names, no bracket for ladders, a layout without overlaps, hand-edited and circular brackets reported not thrown, seeds by index, Chase the Ace. Node only |
+| `npm run test:bracket-view` | the bracket view on RotorHazard's own heat plans and hand-built races: a section per class and one for the heats without a class, a line per pilot with the seat's channel once the seats are fixed and the likely one, marked, before, brackets with their titles, round headers and lines, a single elimination's small final, a Chase the Ace final with its wins, the pilot filter, the standing under it, flags and photos by pilot key (no flag without `flagBaseUrl`); nothing throwing on `{}`, without results or for a class it cannot draw; seeds resolved as RotorHazard seeds; the old fixed containers. Browser only, no WordPress |
+| `npm run test:bracket-model` | the bracket worked out of the seeding: every regulation bracket RotorHazard ships as what it is, round names, no bracket for ladders, a layout without overlaps, hand-edited and circular brackets reported not thrown, seeds by index, Chase the Ace, the seat a pilot will likely get (and, on the local site's race 32, how often it was the seat flown). Node only |
 | `npm run test:bracket-standings` | a bracket's standing: places 1..N also when not full, the rulebook ranges, ranges while a round runs, FAI and MultiGP order, Chase the Ace, places 1 to 3 as the race's podium keeps them (every plan, and the real events), and on the local site's real events the places of the ranking before 1.10.0. Node only |
 | `npm run test:loader-subscribe` | a subscriber that throws on the cached data `subscribe()` hands over at once does not escape `subscribe()`. Browser only, no WordPress |
 | `npm run test:stats-ranking` | the stats view's class ranking panel: a ranking from the timer as a table, a method that ranked nobody as a sentence. Browser only, no WordPress |

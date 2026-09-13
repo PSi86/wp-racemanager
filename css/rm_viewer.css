@@ -188,7 +188,8 @@
     /*border: rgb(255, 0, 0) 1px solid;*/
 }
 
-/* A pilot's video channel before the callsign, once the heat's seats are fixed (1.13.0). */
+/* A pilot's video channel before the callsign, once the heat's seats are fixed (1.13.0), or the
+   likely one before (1.15.0). */
 .pilot-channel {
     flex: none;
     min-width: 2.2em;
@@ -205,8 +206,16 @@
 }
 
 /* The channel's width on top of the callsign's room, not taken from it. */
-.node.seated .pilots-container {
+.node.seated .pilots-container,
+.node.forecast .pilots-container {
     max-width: calc(180px + 2.6em);
+}
+
+/* The channel the pilot will likely get, before the seats are fixed (1.15.0): "R1?", held back. */
+.pilot-channel.likely {
+    font-weight: normal;
+    font-style: italic;
+    opacity: 0.75;
 }
 
 .activeHeat {

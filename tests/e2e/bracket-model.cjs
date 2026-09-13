@@ -18,7 +18,11 @@
  *   - a hand-edited, circular, doubled or mismatched bracket is reported, never thrown;
  *   - seeds resolve by index, as RotorHazard seeds;
  *   - Chase the Ace: the timer's ranking decides, else two round wins; off unless the class
- *     ranks with "Brackets".
+ *     ranks with "Brackets";
+ *   - the seat a pilot will likely get is the one RotorHazard's automatic frequency assignment
+ *     (its default, adaptive calibration) gives without drawing lots, from the seats flown on
+ *     before, by start time - as rm_likely_seats() in PHP, whose suite (nextup-schedule) has the
+ *     same cases (1.15.0).
  *
  * Exit codes follow the other suites: 0 passed, 1 failed, 2 skipped.
  */
@@ -232,6 +236,51 @@ function layoutProblems( model, bracket ) {
 		check( 'switched off in the ranking settings', ! model.ctaState( switchedOff, build( switchedOff ) ).enabled );
 	}
 
+	section( 'The seat a pilot will likely get' );
+	{
+		// Four seats, R1 R2 F2 F4; the rounds of other heats say who flew where before.
+		const profile = () => [
+			{ band: 'R', channel: 1, frequency: 5658 },
+			{ band: 'R', channel: 2, frequency: 5695 },
+			{ band: 'F', channel: 2, frequency: 5760 },
+			{ band: 'F', channel: 4, frequency: 5800 },
+		];
+		const round = ( time, seats ) => ( {
+			start_time_formatted: `2025-06-01 ${ time }`,
+			nodes: Object.entries( seats ).map( ( [ pilot, seat ] ) => ( { pilot_id: Number( pilot ), node_index: seat } ) ),
+		} );
+		const seatData = ( rounds, fdata = profile() ) => ( {
+			frequency_data: { fdata },
+			result_data: { heats: Object.fromEntries( Object.entries( rounds ).map( ( [ id, list ] ) => [ id, { heat_id: Number( id ), rounds: list } ] ) ) },
+		} );
+		// Asked only where they exist, so that against a model without them every check still runs.
+		const has = typeof model.likelySeats === 'function' && typeof model.usedSeats === 'function';
+		const seats = ( data, pilots ) => ( has ? [ ...model.likelySeats( data, pilots ) ].map( ( [ p, s ] ) => `${ p }@${ s }` ).sort().join( ',' ) : 'none' );
+
+		const apart = { 60: [ round( '10:00:00.000', { 1: 2, 2: 0, 3: 3 } ) ] };
+		let got = seats( seatData( apart ), [ 1, 2, 3 ] );
+		check( 'each on a seat of their own before: that seat', got === '1@2,2@0,3@3', got );
+		got = seats( seatData( { 60: [ round( '10:00:00.000', { 1: 1, 3: 3 } ), round( '10:05:00.000', { 2: 1 } ) ] } ), [ 1, 2, 3 ] );
+		check( 'two from the same seat: lots for them, the third still told', got === '3@3', got );
+		const rounds = {
+			60: [ round( '11:00:00.000', { 2: 2 } ) ],
+			61: [ round( '10:00:00.000', { 1: 1, 2: 0 } ), round( '10:30:00.000', { 1: 0, 3: 2 } ) ],
+		};
+		got = seats( seatData( rounds ), [ 1, 2, 3 ] );
+		check( 'a seat only one of them flew on is theirs first, as RotorHazard gives them out', got === '1@1,2@0,3@2', got );
+		const usedOf = ( data ) => ( has ? JSON.stringify( [ ...model.usedSeats( data ) ] ) : 'none' );
+		const used = usedOf( seatData( rounds ) );
+		check( 'the seats flown on go by start time, not by where the rounds are listed', used === '[[1,[1,0]],[2,[0,2]],[3,[2]]]', used );
+		const again = usedOf( seatData( { 60: [ round( '09:00:00.000', { 1: 0 } ), round( '09:10:00.000', { 1: 1 } ), round( '09:20:00.000', { 1: 0 } ) ] } ) );
+		check( 'a seat flown on again counts once, as the last', again === '[[1,[1,0]]]', again );
+		got = seats( seatData( apart ), [ 1, 5 ] );
+		check( 'a pilot who has not flown yet: none for them', got === '1@2', got );
+		const off = profile();
+		off[ 3 ].frequency = 0;
+		got = seats( seatData( apart, off ), [ 1, 2, 3 ] );
+		check( 'the seat a pilot came from switched off: none for them', got === '1@2,2@0', got );
+	}
+
 	section( 'The events on the local site' );
 	const real = [ 32, 33, 34 ].map( ( id ) => path.join( REAL_RACES, `${ id }-data.json` ) ).filter( ( f ) => fs.existsSync( f ) );
 	if ( ! real.length ) {
@@ -245,6 +294,34 @@ function layoutProblems( model, bracket ) {
 			bracket.ok && bracket.type === 'double' && pattern( bracket ) === expected[ 'double-fai32' ].pattern && ! bracket.irregular.length,
 			`${ pattern( bracket ) } ${ bracket.irregular.join( '; ' ) }` );
 		check( `${ path.basename( file ) }: laid out without overlap`, ! layoutProblems( model, bracket ).length, layoutProblems( model, bracket ).join( '; ' ) );
+
+		// Each heat with automatic frequencies, before its first round, from the rounds flown before
+		// it: the seats told against the seats flown. Race 32 was flown so; 81 of 82 on 2026-09-13.
+		const heats = new Map( data.heat_data.heats.map( ( h ) => [ h.id, h ] ) );
+		const flownRounds = [];
+		for ( const [ id, heat ] of Object.entries( data.result_data.heats || {} ) ) {
+			for ( const r of heat.rounds || [] ) {
+				flownRounds.push( { heatId: Number( heat.heat_id ?? id ), r } );
+			}
+		}
+		flownRounds.sort( ( a, b ) => ( a.r.start_time_formatted < b.r.start_time_formatted ? -1 : 1 ) );
+		const first = new Set();
+		let told = 0;
+		let right = 0;
+		flownRounds.forEach( ( { heatId, r }, n ) => {
+			const flew = new Map( r.nodes.filter( ( x ) => x.pilot_id && Number.isInteger( x.node_index ) ).map( ( x ) => [ x.pilot_id, x.node_index ] ) );
+			if ( typeof model.likelySeats === 'function' && heats.get( heatId ) && heats.get( heatId ).auto_frequency && ! first.has( heatId ) ) {
+				const before = { ...data, result_data: { heats: { x: { rounds: flownRounds.slice( 0, n ).map( ( f ) => f.r ) } } } };
+				for ( const [ pilot, seat ] of model.likelySeats( before, [ ...flew.keys() ] ) ) {
+					told++;
+					right += flew.get( pilot ) === seat ? 1 : 0;
+				}
+			}
+			first.add( heatId );
+		} );
+		if ( told || flownRounds.some( ( { heatId } ) => heats.get( heatId ) && heats.get( heatId ).auto_frequency ) ) {
+			check( `${ path.basename( file ) }: likely seats right for ${ right } of ${ told }`, told > 0 && right >= told * 0.95 );
+		}
 	}
 
 	const failed = results.filter( ( r ) => ! r.ok ).length;
