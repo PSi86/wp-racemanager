@@ -24,6 +24,8 @@
  * The block's setting: the winner, the podium with a medal a place and the class over it when there
  * are several, or on the race's own page the podium and under it the standing - its module and
  * stylesheet, not the bracket's - and elsewhere the podium; a race not worked out again yet, its winner.
+ * Its link to the results (1.18.0), to the race's bracket view: a line under it or the whole winner or
+ * podium, the standing outside the link; none unless set, and none without a live area.
  */
 
 require_once __DIR__ . '/../bootstrap.php';
@@ -83,6 +85,15 @@ require_once RM_TEST_DIR . '/stubs/wordpress.php';
 require_once RM_PLUGIN_DIR . '/includes/race-status.php';
 require_once RM_PLUGIN_DIR . '/includes/race-data-functions.php';
 require_once RM_PLUGIN_DIR . '/includes/race-winner.php';
+// The live area's URL of a race and view (includes/live-routing.php); '' for a site without one.
+$GLOBALS['rm_live_base'] = 'https://example.test/live';
+function rm_live_url( $race, $view = '' ) {
+    if ( '' === $GLOBALS['rm_live_base'] ) {
+        return '';
+    }
+    $slug = is_numeric( $race ) ? ( $GLOBALS['rm_posts'][ (int) $race ]->post_name ?? '' ) : (string) $race;
+    return $GLOBALS['rm_live_base'] . '/' . $slug . '/' . $view . '/';
+}
 require_once RM_PLUGIN_DIR . '/includes/block-render-race-winner.php';
 
 const RM_TEST_QUALIFYING = 2;
@@ -325,6 +336,33 @@ $GLOBALS['rm_queried'] = 99;
 rm_test_check( 'another race\'s page: the podium', ! str_contains( rm_render_race_winner_block( array( 'show' => 'standing' ), '', $block ), 'rm-race-standing' ) );
 $GLOBALS['rm_queried'] = 0;
 rm_test_check( 'a setting that is none: the winner', 1 === substr_count( rm_render_race_winner_block( array( 'show' => 'everything' ), '', $block ), 'rm-race-winner-line' ) );
+
+rm_test_section( 'The link to the results (1.18.0)' );
+$results = 'https://example.test/live/autumn-cup/bracket/';
+$html    = rm_render_race_winner_block( array( 'show' => 'podium' ), '', $block );
+rm_test_check( 'unset: no link, as before', ! str_contains( $html, '<a ' ), $html );
+$html = rm_render_race_winner_block( array( 'show' => 'podium', 'link' => 'line' ), '', $block );
+rm_test_check( 'a line: "Results" to the race\'s bracket view, under the podium',
+    (bool) preg_match( '#🥉.*<a class="rm-race-winner-results" href="' . preg_quote( $results, '#' ) . '">Results<span aria-hidden="true"> →</span></a></div>$#su', $html )
+    && 1 === substr_count( $html, '<a ' ), $html );
+$html = rm_render_race_winner_block( array( 'show' => 'podium', 'link' => 'block' ), '', $block );
+rm_test_check( 'the whole block: the podium inside the link, said as the results',
+    (bool) preg_match( '#<a class="rm-race-winner-link" href="' . preg_quote( $results, '#' ) . '"><span class="rm-race-winner-sr">Results: </span><div class="rm-race-podium">.*🥉.*</div></a></div>$#su', $html )
+    && 1 === substr_count( $html, '<a ' ), $html );
+$html = rm_render_race_winner_block( array( 'link' => 'block' ), '', $block );
+rm_test_check( '  the winner alone the same', (bool) preg_match( '#<a class="rm-race-winner-link" [^>]*>.*🏆.*</a>#su', $html ), $html );
+$GLOBALS['rm_queried'] = 42;
+$html                  = rm_render_race_winner_block( array( 'show' => 'standing', 'link' => 'block' ), '', $block );
+rm_test_check( 'with the standing on the race\'s page: the podium the link, the standing outside it',
+    (bool) preg_match( '#</a><div id="rm-race-standing" class="rm-race-standing"></div></div>$#su', $html ), $html );
+$html = rm_render_race_winner_block( array( 'show' => 'standing', 'link' => 'line' ), '', $block );
+rm_test_check( '  a line: under the standing', (bool) preg_match( '#id="rm-race-standing".*<a class="rm-race-winner-results"#su', $html ), $html );
+$GLOBALS['rm_queried'] = 0;
+rm_test_check( 'a link that is none: no link', ! str_contains( rm_render_race_winner_block( array( 'link' => 'everywhere' ), '', $block ), '<a ' ) );
+$GLOBALS['rm_live_base'] = '';
+$html                    = rm_render_race_winner_block( array( 'show' => 'podium', 'link' => 'line' ), '', $block );
+rm_test_check( 'a site without a live area: the podium, no link', 3 === substr_count( $html, 'rm-race-winner-line' ) && ! str_contains( $html, '<a ' ), $html );
+$GLOBALS['rm_live_base'] = 'https://example.test/live';
 
 rm_test_section( 'The races from production, where the local site has them' );
 $real = glob( dirname( RM_PLUGIN_DIR ) . '/wp-app/wp-content/uploads/races/{32,33,34}-data.json', GLOB_BRACE ) ?: array();

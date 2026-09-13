@@ -73,3 +73,37 @@
 .rm-race-winner-class {
     opacity: 0.75;
 }
+
+/* The link to the race's results (1.18.0). A line under the block: */
+.rm-race-winner-results {
+    align-self: flex-start;
+    font-size: 0.9em;
+}
+
+/* or the winner or podium itself, laid out as without the link, the callsigns underlined on
+   pointing at it. */
+a.rm-race-winner-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    color: inherit;
+    text-decoration: none;
+}
+
+a.rm-race-winner-link:hover .rm-race-winner-callsign,
+a.rm-race-winner-link:focus-visible .rm-race-winner-callsign {
+    text-decoration: underline;
+}
+
+/* What the whole-block link says to a screen reader, and no one sees. */
+.rm-race-winner-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect( 0, 0, 0, 0 );
+    white-space: nowrap;
+    border: 0;
+}

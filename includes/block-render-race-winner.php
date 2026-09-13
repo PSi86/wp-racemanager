@@ -18,6 +18,11 @@
  * Photo and flag are the pilot's profile as it is now, so a pilot who took back the consent shows the
  * callsign only. Nothing while the race has no winner.
  *
+ * Since 1.18.0 the setting "link" can lead to the race's results - its bracket view in the live area,
+ * the whole bracket with every heat's results and the standing, which serves an archived race too:
+ * none (the default), a line "Results" under the block, or the winner or podium itself as the link.
+ * The standing stays outside the link. No live area, no link.
+ *
  * The race is the block's post: the post the Query Loop hands it on the race list's cards, else the
  * current post.
  */
@@ -35,10 +40,13 @@ const RM_RACE_WINNER_SHOWS = array( 'winner', 'podium', 'standing' );
 /** Where the standing is drawn on the race's page: js/rm-m-displayStandings.js's containerId. */
 const RM_RACE_WINNER_STANDING_ID = 'rm-race-standing';
 
+/** The block's settings for "link", the first the default (1.18.0). */
+const RM_RACE_WINNER_LINKS = array( 'none', 'line', 'block' );
+
 /**
  * Render callback for the Race Winner block.
  *
- * @param array         $attributes Block attributes: show.
+ * @param array         $attributes Block attributes: show, link.
  * @param string        $content    Block content.
  * @param WP_Block|null $block      The block, with its context.
  * @return string HTML, '' without a winner.
@@ -79,10 +87,25 @@ function rm_render_race_winner_block( $attributes, $content = '', $block = null 
             . '</div>';
     }
 
+    $link = in_array( $attributes['link'] ?? '', RM_RACE_WINNER_LINKS, true ) ? $attributes['link'] : RM_RACE_WINNER_LINKS[0];
+    $url  = 'none' === $link ? '' : rm_race_winner_results_url( $race_id );
+    if ( '' !== $url && 'block' === $link ) {
+        // The winner or the podium is the link; the words for those who hear it rather than see it.
+        $html = '<a class="rm-race-winner-link" href="' . esc_url( $url ) . '">'
+            . '<span class="rm-race-winner-sr">' . esc_html__( 'Results:', 'wp-racemanager' ) . ' </span>'
+            . $html
+            . '</a>';
+    }
+
     if ( 'standing' === $show ) {
         rm_race_winner_enqueue_standing();
         // Under the podium; js/rm-m-displayStandings.js fills it, and hides it when it has nothing.
         $html .= '<div id="' . esc_attr( RM_RACE_WINNER_STANDING_ID ) . '" class="rm-race-standing"></div>';
+    }
+
+    if ( '' !== $url && 'line' === $link ) {
+        $html .= '<a class="rm-race-winner-results" href="' . esc_url( $url ) . '">'
+            . esc_html__( 'Results', 'wp-racemanager' ) . '<span aria-hidden="true"> →</span></a>';
     }
 
     $label = 'winner' === $show
@@ -151,6 +174,17 @@ function rm_race_winner_line( $pilot, $profiles, $mark, $class = '', $place = 0 
  */
 function rm_race_winner_medal( $place ) {
     return array( 1 => '🥇', 2 => '🥈', 3 => '🥉' )[ $place ] ?? '';
+}
+
+/**
+ * Where the race's results are (1.18.0): its bracket view in the live area - the whole bracket, every
+ * heat's results and the standing under it, for a live race and an archived one alike.
+ *
+ * @param int $race_id
+ * @return string '' where the site has no live area.
+ */
+function rm_race_winner_results_url( $race_id ) {
+    return function_exists( 'rm_live_url' ) ? (string) rm_live_url( $race_id, 'bracket' ) : '';
 }
 
 /**
