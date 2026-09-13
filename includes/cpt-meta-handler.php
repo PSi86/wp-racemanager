@@ -251,11 +251,20 @@ function rm_render_meta_box( $post ) {
     //$json_attach_id = get_post_meta( $post->ID, '_race_json_attachment_id', true );
     $race_live = get_post_meta( $post->ID, '_race_live', true );
     $race_reg_closed = get_post_meta( $post->ID, '_race_reg_closed', true );
-    
+    $location = get_post_meta( $post->ID, RM_RACE_LOCATION_META, true );
+
     // Security nonce (recommended)
     wp_nonce_field( 'rm_meta_box', 'rm_meta_box_nonce' );
-    
+
     ?>
+    <p>
+        <label for="rm_location"><?php _e( 'Location (optional):', 'wp-racemanager' ); ?></label>
+        <textarea id="rm_location"
+                  name="rm_location"
+                  rows="2"
+                  style="width: 100%;"
+                  placeholder="<?php esc_attr_e( 'Venue, street, town', 'wp-racemanager' ); ?>"><?php echo esc_textarea( (string) $location ); ?></textarea>
+    </p>
     <p>
         <label for="rm_event_start"><?php _e( 'Event Start:', 'wp-racemanager' ); ?></label>
         <input type="datetime-local" 
@@ -338,6 +347,10 @@ function rm_save_meta_box_data( $post_id ) {
 
     if( isset( $_POST['rm_event_end'] ) ) {
         update_post_meta( $post_id, '_race_event_end', rm_normalize_event_datetime( sanitize_text_field( wp_unslash( $_POST['rm_event_end'] ) ) ) );
+    }
+
+    if ( isset( $_POST['rm_location'] ) ) {
+        rm_save_race_location( $post_id, wp_unslash( $_POST['rm_location'] ) );
     }
 
     // Potentially update last_upload if you want it editable or

@@ -6,9 +6,10 @@
  *
  *   ddev wp eval-file tests/e2e/pilot-profiles-site.php <op> [mail]
  *
- *   begin           a race open for registration, a form with the example form's content and mail,
- *                   a page showing it; prints their ids and the page's URL. What a run that did not
- *                   finish left behind is removed first.
+ *   begin           a race open for registration, with a location, a form with the example form's
+ *                   content and mail, a page showing it; prints their ids and the page's URL, and what
+ *                   the confirmation mail has to say about the race. What a run that did not finish
+ *                   left behind is removed first.
  *   photo           a JPEG as a phone stores it: 600 x 400 pixels, red on the left, blue on the
  *                   right, with EXIF orientation 6 ("turn it 90° clockwise to show it") and an
  *                   Artist tag that no published photo may carry. Prints it base64-encoded, and the
@@ -151,6 +152,8 @@ switch ( $op ) {
         }
         update_post_meta( $race, '_race_event_start', $day . ' 09:00:00' );
         update_post_meta( $race, '_race_event_end', $day . ' 18:00:00' );
+        // Where it takes place (1.19.0), which the confirmation mail names, with a map.
+        update_post_meta( $race, '_race_location', "E2E Halle\nTeststraße 1, 1010 Wien" );
         // Open for registration: the form's race list asks for this to be anything but 1, which a
         // race without it is not.
         update_post_meta( $race, '_race_reg_closed', 0 );
@@ -174,7 +177,18 @@ switch ( $op ) {
             WP_CLI::error( $page->get_error_message() );
         }
         update_option( RM_E2E_PROFILES_STATE, array( 'race' => $race, 'form' => $form_id, 'page' => $page ), false );
-        echo wp_json_encode( array( 'race' => $race, 'form' => $form_id, 'page' => $page, 'url' => get_permalink( $page ) ) ), "\n";
+        // What the confirmation mail has to say about the race (1.19.0), worked out here the way the
+        // race-date block has always put the dates: one day, the date and the two times.
+        $from      = strtotime( $day . ' 09:00:00' );
+        $to        = strtotime( $day . ' 18:00:00' );
+        $race_mail = array(
+            'title'    => 'E2E pilot profiles',
+            'dates'    => date_i18n( get_option( 'date_format' ), $from ) . ' @ ' . date_i18n( get_option( 'time_format' ), $from ) . ' - ' . date_i18n( get_option( 'time_format' ), $to ),
+            'url'      => get_permalink( $race ),
+            'nextup'   => rm_live_url( $race, 'next-up' ),
+            'calendar' => home_url( '/?rm_race_calendar=' . $race ),
+        );
+        echo wp_json_encode( array( 'race' => $race, 'form' => $form_id, 'page' => $page, 'url' => get_permalink( $page ), 'mail' => $race_mail ) ), "\n";
         break;
 
     case 'photo':

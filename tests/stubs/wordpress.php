@@ -35,6 +35,7 @@ if ( ! class_exists( 'WP_Post' ) ) {
         public $post_status = 'publish';
         public $post_parent = 0;
         public $post_title = '';
+        public $post_content = '';
         public $menu_order = 0;
 
         public function __construct( array $props = array() ) {

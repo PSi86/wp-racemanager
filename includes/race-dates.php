@@ -81,6 +81,49 @@ function rm_event_datetime_for_input( $value ) {
 }
 
 /**
+ * An event date as the site shows dates, in its date and time formats (Settings -> General): as
+ * the race-date block shows it, and the registration mail (1.19.0).
+ *
+ * date_i18n() on the wall clock read as if it were UTC gives that wall clock back, which is what
+ * the site stores (see rm_normalize_event_datetime()).
+ *
+ * @param mixed $value Stored meta value.
+ * @return string '' when the value cannot be understood.
+ */
+function rm_format_event_datetime( $value ) {
+    $canonical = rm_normalize_event_datetime( $value );
+    if ( '' === $canonical ) {
+        return '';
+    }
+    return date_i18n( get_option( 'date_format' ) . ' @ ' . get_option( 'time_format' ), strtotime( $canonical ) );
+}
+
+/**
+ * An event from start to end, as the race-date block has always shown it: on one day, the date and
+ * the two times; over several, start and end each with date and time (1.19.0: shared with the
+ * registration mail).
+ *
+ * @param mixed $start Stored start.
+ * @param mixed $end   Stored end.
+ * @return string '' when either cannot be understood.
+ */
+function rm_format_event_dates( $start, $end ) {
+    $start = rm_normalize_event_datetime( $start );
+    $end   = rm_normalize_event_datetime( $end );
+    if ( '' === $start || '' === $end ) {
+        return '';
+    }
+    $date_format = get_option( 'date_format' );
+    $time_format = get_option( 'time_format' );
+    $from        = strtotime( $start );
+    $to          = strtotime( $end );
+    if ( substr( $start, 0, 10 ) === substr( $end, 0, 10 ) ) {
+        return sprintf( '%s @ %s - %s', date_i18n( $date_format, $from ), date_i18n( $time_format, $from ), date_i18n( $time_format, $to ) );
+    }
+    return sprintf( '%s - %s', rm_format_event_datetime( $start ), rm_format_event_datetime( $end ) );
+}
+
+/**
  * Classify a stored value, for the analysis report.
  *
  * @param mixed $value Stored meta value.

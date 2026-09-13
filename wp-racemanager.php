@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP RaceManager
  * Description: Provides REST API endpoints for RotorHazard: download pilot registrations, upload race results. The "Races" menu item will be populated with the latest races. For more information, see the plugin settings.
- * Version: 1.18.0
+ * Version: 1.19.0
  * Author: Peter Simandl
  * Text Domain: wp-racemanager
  * Requires at least: 6.5
@@ -21,7 +21,7 @@ namespace RaceManager;  // Use your preferred namespace if you have one.
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-define( 'WP_RACEMANAGER_VERSION', '1.18.0' ); // keep in sync with the plugin header and package.json
+define( 'WP_RACEMANAGER_VERSION', '1.19.0' ); // keep in sync with the plugin header and package.json
 define( 'WP_RACEMANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_RACEMANAGER_URL', plugin_dir_url( __FILE__ ) );
 //define( 'WP_RACEMANAGER_ASSETS', WP_RACEMANAGER_URL . 'assets/build/' );
@@ -148,6 +148,7 @@ final class WP_RaceManager {
         require_once plugin_dir_path(__FILE__) . 'includes/race-files.php'; // writes a race's files, and removes its parts when the race is deleted
         require_once plugin_dir_path(__FILE__) . 'includes/race-status.php'; // live and archived, and what follows from each
         require_once plugin_dir_path(__FILE__) . 'includes/race-dates.php'; // one canonical format for the event dates
+        require_once plugin_dir_path(__FILE__) . 'includes/race-info.php'; // a race's location, calendar entry and the registration mail's tags
         require_once plugin_dir_path(__FILE__) . 'includes/live-routing.php'; // resolves the selected race from the URL path
         require_once plugin_dir_path(__FILE__) . 'includes/pwa-handler.php'; // PWA meta/manifest; also refreshes the generated files in admin
         include_once plugin_dir_path(__FILE__) . 'includes/db-handler.php';

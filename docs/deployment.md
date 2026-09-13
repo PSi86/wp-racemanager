@@ -587,6 +587,45 @@ race list's card and the single race template each have their own; nothing chang
 is set. `blocks/race-winner/` (block.json, index.js, style.css) and
 `includes/block-render-race-winner.php` change; no database change.
 
+1.19.0 lets the registration's confirmation mail say which race it was. It read "Rennen: 2578": the
+form's race field sends the race's ID, which is what the registration is stored under. The plugin
+now offers Contact Form 7 tags of its own for the race the form was sent for - they are listed in the
+form's *Mail* tab beside the form's fields, for a form with a race field:
+
+| Tag | Gives |
+|---|---|
+| `[_race_title]` | the race's title |
+| `[_race_dates]` | start to end, as the race-date block shows them |
+| `[_race_start]`, `[_race_end]` | start, end: date and time |
+| `[_race_location]` | where it takes place - the new field *Location* in the race's meta box |
+| `[_race_map_url]` | that place on Google Maps |
+| `[_race_url]` | the race's page: announcement, schedule |
+| `[_race_live_url]` | the race in the live area |
+| `[_race_nextup_url]` | its next-up view: the pilot's next heat, the channel, push notifications |
+| `[_race_calendar_url]` | the race as a calendar entry (`/?rm_race_calendar=<ID>`, an .ics file) |
+
+Each is empty where the race has nothing to say; with *Exclude lines with blank mail-tags from
+output* ticked in the *Mail* tab, such a line is left out. `[race_id]` still gives the ID. The site's
+own form keeps its mail until it is changed by hand (Contact Form 7 → the form → Mail); the plugin's
+example form, for a new site, has the race's lines:
+
+```
+Rennen: [_race_title]
+Datum: [_race_dates]
+Ort: [_race_location]
+Karte: [_race_map_url]
+
+Ausschreibung und Zeitplan: [_race_url]
+In den Kalender: [_race_calendar_url]
+Am Renntag: [_race_nextup_url]
+Dort deinen Namen wählen und die Benachrichtigungen einschalten - du erfährst deinen nächsten Heat und deinen Kanal.
+```
+
+and the subject `[_site_title]: Race Registration Confirmation - [_race_title]`. A race's location is
+optional, typed into its meta box; the calendar entry needs both dates and a published race. The
+race-date block and the mail share their formatting (`rm_format_event_dates()`); the block reads as
+before. No database change beyond the new meta `_race_location`.
+
 ---
 
 ## 8 · Rollback

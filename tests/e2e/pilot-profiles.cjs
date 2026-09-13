@@ -18,7 +18,10 @@
  *     the EXIF block nor the Artist it carried;
  *   - the photos' directory lists nothing;
  *   - a race's files carry country and photo, the photo's URL with its version;
- *   - deleting the registration takes profile and photo away.
+ *   - deleting the registration takes profile and photo away;
+ *   - the confirmation mail names the race - its title, not its ID - with its dates, where it takes
+ *     place and a map, its page, its calendar entry and its next-up view, and leaves no tag unfilled;
+ *     the calendar entry is there to open (1.19.0; read from DDEV's Mailpit).
  *
  * Exit codes follow the other suites: 0 passed, 1 failed, 2 skipped.
  */
@@ -31,6 +34,8 @@ const { execFile } = require( 'child_process' );
 const PROJECT = path.resolve( __dirname, '..', '..', '..' );
 const HELPER = '/var/www/html/wp-racemanager/tests/e2e/pilot-profiles-site.php';
 const MAIL = 'rm-e2e-profile@example.test';
+// DDEV's Mailpit, which every mail of the development site goes to.
+const MAILPIT = 'https://racemanager.ddev.site:8026';
 
 const results = [];
 function check( label, ok, detail ) {
@@ -49,8 +54,9 @@ function skip( reason ) {
 }
 
 let chromium;
+let request;
 try {
-	( { chromium } = require( 'playwright' ) );
+	( { chromium, request } = require( 'playwright' ) );
 } catch ( e ) {
 	skip( 'playwright is not installed -- run "npm ci" in the plugin directory' );
 }
@@ -116,6 +122,7 @@ const blue = ( [ r, g, b ] ) => b > 180 && r < 80 && g < 80;
 		await tab.setInputFiles( 'input[name="pilot_photo_1"]', { name: 'phone.jpg', mimeType: 'image/jpeg', buffer: Buffer.from( photo.jpeg, 'base64' ) } );
 		await tab.check( 'input[name="acceptance-pay"]' );
 		await tab.check( 'input[name="acceptance-media"]' );
+		const sentAfter = new Date( Date.now() - 2000 );
 		await tab.click( 'form.wpcf7-form input[type="submit"]' );
 		await tab.waitForFunction( () => {
 			const form = document.querySelector( 'form.wpcf7-form' );
@@ -123,6 +130,40 @@ const blue = ( [ r, g, b ] ) => b > 180 && r < 80 && g < 80;
 		}, null, { timeout: 30000 } );
 		const status = await tab.$eval( 'form.wpcf7-form', ( f ) => `${ f.className } | ${ ( f.querySelector( '.wpcf7-response-output' ) || {} ).textContent || '' }` );
 		check( 'it is sent', /\bsent\b/.test( status ), status );
+
+		section( 'The confirmation mail (1.19.0)' );
+		const mailpit = await request.newContext( { baseURL: MAILPIT, ignoreHTTPSErrors: true } );
+		let message = null;
+		for ( let i = 0; i < 20 && ! message; i++ ) {
+			const found = await ( await mailpit.get( `/api/v1/search?query=${ encodeURIComponent( `to:${ MAIL }` ) }&limit=1` ) ).json().catch( () => ( {} ) );
+			const hit = ( found.messages || [] )[ 0 ];
+			if ( hit && new Date( hit.Created ) >= sentAfter ) {
+				message = await ( await mailpit.get( `/api/v1/message/${ hit.ID }` ) ).json();
+			} else {
+				await tab.waitForTimeout( 500 );
+			}
+		}
+		const text = message ? String( message.Text ).replace( /\r\n/g, '\n' ) : '';
+		const m = state.mail;
+		check( 'it came', !! message, `no mail to ${ MAIL } in Mailpit` );
+		check( 'the race by its title, in the subject too, not by its ID',
+			text.includes( `Rennen: ${ m.title }\n` ) && String( message && message.Subject ).includes( m.title ) && ! text.includes( `Rennen: ${ state.race }` ),
+			`${ message && message.Subject } / ${ text.slice( 0, 400 ) }` );
+		check( 'its dates', text.includes( `Datum: ${ m.dates }\n` ), `wanted "Datum: ${ m.dates }" in ${ text.slice( 0, 400 ) }` );
+		check( 'where, and on a map',
+			text.includes( 'Ort: E2E Halle\nTeststraße 1, 1010 Wien\n' ) && text.includes( 'Karte: https://www.google.com/maps/search/?api=1&query=E2E%20Halle%20Teststra%C3%9Fe%201%2C%201010%20Wien\n' ),
+			text.slice( 0, 600 ) );
+		check( 'its page, its calendar entry, its next-up view',
+			text.includes( `Ausschreibung und Zeitplan: ${ m.url }\n` ) && text.includes( `In den Kalender: ${ m.calendar }\n` ) && text.includes( `Am Renntag: ${ m.nextup }\n` ),
+			text.slice( 0, 900 ) );
+		check( 'no tag left unfilled', ! /\[_?race/.test( text ), text );
+		const ics = await mailpit.get( m.calendar );
+		const body = await ics.text();
+		check( 'the calendar entry opens: the race, its place, in UTC',
+			200 === ics.status() && /^text\/calendar/.test( ics.headers()[ 'content-type' ] || '' ) && body.startsWith( 'BEGIN:VCALENDAR\r\n' )
+				&& body.includes( `SUMMARY:${ m.title }\r\n` ) && body.includes( 'LOCATION:E2E Halle\\nTeststraße 1\\, 1010 Wien\r\n' ) && /DTSTART:\d{8}T\d{6}Z\r\n/.test( body ),
+			`${ ics.status() } ${ ics.headers()[ 'content-type' ] } ${ body.slice( 0, 400 ) }` );
+		await mailpit.dispose();
 
 		section( 'What the plugin made of it' );
 		const got = await site( 'inspect', MAIL );
