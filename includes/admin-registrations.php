@@ -484,9 +484,21 @@ function rm_default_registration_email() {
  * @return array CF7 "mail" property.
  */
 function rm_cf7_registration_mail( $email ) {
+    // The race by its name and dates, where and where to look (1.19.0, includes/race-info.php):
+    // [race_id] alone gave the ID, which told the pilot nothing.
     $body = 'Hallo,
 
 Wir von [_site_title] freuen uns, dass du dich angemeldet hast und auf deine Teilnahme am Rennen.
+
+Rennen: [_race_title]
+Datum: [_race_dates]
+Ort: [_race_location]
+Karte: [_race_map_url]
+
+Ausschreibung und Zeitplan: [_race_url]
+In den Kalender: [_race_calendar_url]
+Am Renntag: [_race_nextup_url]
+Dort deinen Namen wählen und die Benachrichtigungen einschalten - du erfährst deinen nächsten Heat und deinen Kanal.
 
 Deine angegeben Daten / Your specified data :
 
@@ -495,7 +507,6 @@ Nickname: [pilot_nickname_1]
 Mobile: [pilot_phone_1]
 Email: [pilot_mail_1]
 Nationalität: [pilot_country_1]
-Rennen: [race_id]
 
 
 Mit freundlichen Grüssen / Best regards
@@ -510,9 +521,12 @@ Diese E-Mail ist eine Bestätigung für das Absenden deines Kontaktformulars auf
         'active'             => true,
         'sender'             => '[_site_title] <' . $email . '>',
         'recipient'          => '[pilot_mail_1]',
-        'subject'            => '[_site_title]: Race Registration Confirmation',
+        'subject'            => '[_site_title]: Race Registration Confirmation - [_race_title]',
         'body'               => $body,
         'additional_headers' => "Reply-To: $email\r\n" . "Bcc: $email",
+        // A line whose tags are all empty is left out: a race without a location, a pilot without a
+        // country.
+        'exclude_blank'      => true,
     );
 }
 
