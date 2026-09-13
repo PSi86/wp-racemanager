@@ -268,8 +268,9 @@ function planRace( key, options ) {
 			slots: pilotIds.map( ( pilotId, i ) => ( { id: id * 10 + i, node_index: i, pilot_id: pilotId, method: 0, seed_rank: null, seed_id: null } ) ),
 		} );
 		// A practice evening on the timer: heats and pilots, no class at all. 1.12.1 showed nothing.
+		// RotorHazard 4.4.0 sends such a heat's class as null (the club's timer does), 4.3 as 0.
 		const heatsOnly = race( { pilots: 4, current: 1, classes: [] } );
-		heatsOnly.heat_data.heats.push( heat( 1, 0, [ 1, 2 ] ), heat( 2, 0, [ 3, 4 ] ) );
+		heatsOnly.heat_data.heats.push( heat( 1, null, [ 1, 2 ] ), heat( 2, 0, [ 3, 4 ] ) );
 		const thrown = await deliver( tab, heatsOnly );
 		check( 'an event without classes: its heats in a section of their own',
 			thrown === null && ( await containers( tab ) ).join() === 'class-0-display' && ( await nodeCount( tab, 'class-0-display' ) ) === 2,
@@ -277,13 +278,13 @@ function planRace( key, options ) {
 		check( 'under RotorHazard\'s name for them', ( await texts( tab, '#class-0-display .class-title' ) ).join() === 'Unclassified Heats',
 			( await texts( tab, '#class-0-display .class-title' ) ).join() );
 		check( 'with their pilots', ( await pilotNames( tab, 'class-0-display' ) ).join() === 'P1,P2,P3,P4', ( await pilotNames( tab, 'class-0-display' ) ).join() );
-		// Beside classes: those of class 0 and those of a class the timer no longer has, last.
+		// Beside classes: those of class null or 0 and those of a class the timer no longer has, last.
 		const mixed = race( { pilots: 12, current: 5, classes: [ training, elimination( 2 ) ] } );
-		mixed.heat_data.heats.push( heat( 21, 0, [ 2 ] ), heat( 20, 9, [ 1 ] ) );
+		mixed.heat_data.heats.push( heat( 22, null, [ 3 ] ), heat( 21, 0, [ 2 ] ), heat( 20, 9, [ 1 ] ) );
 		await deliver( tab, mixed );
-		check( 'beside the classes: last, class 0 and a class that is gone alike, in the timer\'s order',
+		check( 'beside the classes: last, class null, 0 and a class that is gone alike, in the timer\'s order',
 			( await containers( tab ) ).join() === 'class-3-display,class-1-display,class-0-display' &&
-			( await texts( tab, '#class-0-display .node .title' ) ).join() === 'Heat 20,Heat 21',
+			( await texts( tab, '#class-0-display .node .title' ) ).join() === 'Heat 20,Heat 21,Heat 22',
 			`${ ( await containers( tab ) ).join() } / ${ ( await texts( tab, '#class-0-display .node .title' ) ).join() }` );
 		// Given a class on the timer, they move there, and the section goes.
 		mixed.heat_data.heats.filter( ( h ) => h.id >= 20 ).forEach( ( h ) => {
@@ -291,7 +292,7 @@ function planRace( key, options ) {
 		} );
 		await deliver( tab, mixed );
 		check( 'given a class, they move there and the section goes',
-			( await containers( tab ) ).join() === 'class-3-display,class-1-display' && ( await nodeCount( tab, 'class-1-display' ) ) === 4,
+			( await containers( tab ) ).join() === 'class-3-display,class-1-display' && ( await nodeCount( tab, 'class-1-display' ) ) === 5,
 			`${ ( await containers( tab ) ).join() } / ${ await nodeCount( tab, 'class-1-display' ) } nodes` );
 		check( 'no error', ! tab.__errors.length, tab.__errors.join( ' | ' ) );
 		await tab.close();

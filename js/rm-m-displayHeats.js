@@ -22,7 +22,8 @@ import { pilotSelectInstance } from './rm-m-pilotSelector.js';
 import * as bracketModel from './rm-m-bracketModel.js';
 
 const NEXT_UP_COUNT = 5;
-// The section of the heats without a class (1.12.2). Class id 0 is RotorHazard's "no class".
+// The section of the heats without a class (1.12.2), under id 0. RotorHazard gives such a heat the
+// class_id null since 4.4.0 and 0 before; either way no class of the event has it.
 const UNCLASSIFIED = { id: 0, name: 'Unclassified Heats', displayname: 'Unclassified Heats', rounds: 1 };
 
 class DisplayHeats {
@@ -154,8 +155,8 @@ class DisplayHeats {
         return classes.sort((a, b) => b.id - a.id);
     }
 
-    // The heats no class of the event claims - class 0, or a class that is gone - in the timer's
-    // order. An event without classes has only these: before 1.12.2 its page stayed empty.
+    // The heats no class of the event claims - class null or 0, or a class that is gone - in the
+    // timer's order. An event without classes has only these: before 1.12.2 its page stayed empty.
     unclassifiedHeats(data) {
         const classIds = new Set((data.class_data.classes || []).map(c => c.id));
         const heats = (data.heat_data.heats || []).filter(h => !classIds.has(h.class_id));
