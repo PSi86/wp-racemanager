@@ -80,7 +80,9 @@ in the connector's roadmap): no version of the connector read them.
 
 **Limits**, both inherent in keying by address: a typo in the address is a different address and so
 a different pilot; and a pilot who registers with another address is another pilot, until someone
-merges the two on the timer.
+merges the two on the timer. The other way round, two people under one address are one pilot: since
+1.19.1 the registration form refuses a second registration of an address for the same race
+(`rm_validate_one_registration_per_pilot()`), where it used to store it and the timer merged the two.
 
 **Measured** on the local site on 2026-09-11, through WordPress's REST routing as an administrator:
 three registrations for one race, two of them the same address typed differently under two

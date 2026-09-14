@@ -141,6 +141,117 @@ function rm_save_submission($cf7) {
 }
 
 /**
+ * Whether an email address is registered for a race already.
+ *
+ * One address is one pilot: the pilot key is worked out from it, and RotorHazard imports every
+ * registration of one key as one pilot. Compared as the key reads addresses (rm_pilot_address()).
+ *
+ * @param int    $race_id The race.
+ * @param mixed  $email   The address.
+ * @return bool False for no address: a registration without one is nobody's but its own.
+ */
+function rm_race_has_registration( $race_id, $email ) {
+    $address = rm_pilot_address( $email );
+    if ( '' === $address ) {
+        return false;
+    }
+    global $wpdb;
+    $registrations_table = $wpdb->prefix . 'rm_registrations';
+    $form_values         = $wpdb->get_col( $wpdb->prepare(
+        "SELECT form_value FROM $registrations_table WHERE race_id = %d",
+        $race_id
+    ) );
+    foreach ( (array) $form_values as $form_value ) {
+        $data = maybe_unserialize( $form_value );
+        if ( is_array( $data ) && rm_pilot_address( $data['pilot_mail_1'] ?? '' ) === $address ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** The form's message for an address registered for the race already, in its Messages tab. */
+const RM_ALREADY_REGISTERED_MESSAGE = 'rm_already_registered';
+
+/**
+ * Add the message to Contact Form 7's list: every form's Messages tab shows it, and a form that has
+ * not stored it yet gets this default.
+ *
+ * @param array $messages CF7's messages: key => [ description, default ].
+ * @return array
+ */
+function rm_registration_messages( $messages ) {
+    $messages[ RM_ALREADY_REGISTERED_MESSAGE ] = array(
+        'description' => __( 'The email address is registered for the race already', 'wp-racemanager' ),
+        'default'     => __( 'This email address is already registered for this race. Every pilot registers with an address of their own; to change a registration, reply to its confirmation mail.', 'wp-racemanager' ),
+    );
+    return $messages;
+}
+add_filter( 'wpcf7_messages', 'rm_registration_messages' );
+
+/**
+ * One registration per pilot and race: the registration form refuses a second one of an address.
+ *
+ * It took them all and mailed each (up to 1.19.0). The race page listed the pilot once per
+ * registration, while RotorHazard, which matches registrations by pilot key, imported one pilot - so
+ * two people registered under one address, a parent's for two children say, became one pilot on the
+ * timer, under the callsign sent last. Refused at the address field, after the fields' own rules
+ * (wpcf7_validate runs after them), for a form with a race field.
+ *
+ * @param WPCF7_Validation $result The fields' validation so far.
+ * @param WPCF7_FormTag[]  $tags   The form's fields.
+ * @return WPCF7_Validation
+ */
+function rm_validate_one_registration_per_pilot( $result, $tags ) {
+    $field = null;
+    foreach ( (array) $tags as $tag ) {
+        if ( isset( $tag->name ) && 'pilot_mail_1' === $tag->name ) {
+            $field = $tag;
+            break;
+        }
+    }
+    if ( ! $field || ! $result->is_valid( $field->name ) ) {
+        return $result;
+    }
+    $race_id = rm_race_mail_race_id(); // includes/race-info.php: 0 outside a submission or without a race
+    if ( ! $race_id ) {
+        return $result;
+    }
+    if ( rm_race_has_registration( $race_id, WPCF7_Submission::get_instance()->get_posted_data( 'pilot_mail_1' ) ) ) {
+        $result->invalidate( $field, wpcf7_get_message( RM_ALREADY_REGISTERED_MESSAGE ) );
+    }
+    return $result;
+}
+add_filter( 'wpcf7_validate', 'rm_validate_one_registration_per_pilot', 20, 2 );
+
+/**
+ * Add a registration by hand, as the registrations page does - refused, as the form refuses it, for
+ * an address registered for the race already.
+ *
+ * @param int   $race_id     The race.
+ * @param array $form_fields What the form would have sent: race_id, name, callsign, phone, address.
+ * @return string 'added', 'registered' for an address registered for the race already, or 'failed'.
+ */
+function rm_add_registration( $race_id, $form_fields ) {
+    $mail = isset( $form_fields['pilot_mail_1'] ) ? (string) $form_fields['pilot_mail_1'] : '';
+    if ( rm_race_has_registration( $race_id, $mail ) ) {
+        return 'registered';
+    }
+    global $wpdb;
+    $inserted = $wpdb->insert(
+        $wpdb->prefix . 'rm_registrations',
+        array(
+            'user_id'    => rm_get_user_id_by_email( $mail ),
+            'race_id'    => $race_id,
+            'form_value' => maybe_serialize( $form_fields ),
+            'form_date'  => current_time( 'mysql' ),
+        ),
+        array( '%d', '%d', '%s', '%s' )
+    );
+    return $inserted ? 'added' : 'failed';
+}
+
+/**
  * Delete registrations of a race, and the profile of every pilot who has none left.
  *
  * @param int   $race_id The race; ids of another race's registrations are left alone.
@@ -215,9 +326,7 @@ function rm_render_race_registrations() {
         $pilot_nickname_1  = isset($_POST['pilot_nickname_1'])  ? sanitize_text_field($_POST['pilot_nickname_1'])  : '';
         $pilot_phone_1     = isset($_POST['pilot_phone_1'])     ? sanitize_text_field($_POST['pilot_phone_1'])     : '';
         $pilot_mail_1      = isset($_POST['pilot_mail_1'])      ? sanitize_email($_POST['pilot_mail_1'])           : '';
-        $user_id           = rm_get_user_id_by_email($pilot_mail_1);
-        $form_date         = current_time('mysql');
-        
+
         // Build the array for form_value using only the whitelisted fields.
         $form_fields = array(
             'race_id'          => strval($race_id),
@@ -226,26 +335,14 @@ function rm_render_race_registrations() {
             'pilot_phone_1'    => $pilot_phone_1,
             'pilot_mail_1'     => $pilot_mail_1,
         );
-        
-        // Insert the new registration.
-        $inserted = $wpdb->insert(
-            $registrations_table,
-            array(
-                'user_id'    => $user_id,
-                'race_id'    => $race_id,
-                'form_value' => maybe_serialize($form_fields),
-                'form_date'  => $form_date,
-            ),
-            array(
-                '%d',
-                '%d',
-                '%s',
-                '%s',
-            )
-        );
-        
-        if ( $inserted ) {
+
+        // Insert the new registration, unless its address is registered for the race already.
+        $added = rm_add_registration( $race_id, $form_fields );
+
+        if ( 'added' === $added ) {
             echo '<div class="updated"><p>' . __('New registration added successfully.', 'wp-racemanager') . '</p></div>';
+        } elseif ( 'registered' === $added ) {
+            echo '<div class="error"><p>' . esc_html__( 'This email address is already registered for this race.', 'wp-racemanager' ) . '</p></div>';
         } else {
             echo '<div class="error"><p>' . __('Error adding new registration.', 'wp-racemanager') . '</p></div>';
         }
